@@ -86,7 +86,7 @@ export default function BottomNav() {
           <line x1="23" y1="11" x2="17" y2="11" />
         </svg>
       ),
-      href: '/leads/new',
+      href: '/leads/create',
       color: '#0F766E',
     },
   ]

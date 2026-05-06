@@ -80,7 +80,7 @@ export default async function LeadsPage({
           <p className="text-sm font-medium mb-1" style={{ color: '#F9FAFB' }}>No leads yet</p>
           <p className="text-xs mb-4" style={{ color: '#6B7280' }}>Add your first lead to get started</p>
           <Link
-            href="/leads/new"
+            href="/leads/create"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold"
             style={{ background: '#0F766E', color: '#fff' }}
           >
