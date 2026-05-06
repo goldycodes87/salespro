@@ -17,7 +17,7 @@ export default function CreateLeadPage() {
         </Link>
         <div>
           <h1 className="text-xl font-bold" style={{ color: '#F9FAFB' }}>New Lead</h1>
-          <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>Save as draft or save and run AI research</p>
+          <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>Run AI research after saving from the lead file</p>
         </div>
       </div>
 

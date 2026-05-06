@@ -262,7 +262,6 @@ export default function LeadForm() {
 
   const [referredBy, setReferredBy] = useState<{ id: string; name: string } | null>(null)
   const [loading, setLoading] = useState(false)
-  const [loadingResearch, setLoadingResearch] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const set = (key: keyof typeof form) => (v: string | boolean) =>
@@ -294,8 +293,7 @@ export default function LeadForm() {
     return data.id as string
   }
 
-  const handleDraft = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSave = async () => {
     if (!validate()) return
     setLoading(true)
     try {
@@ -307,52 +305,10 @@ export default function LeadForm() {
     }
   }
 
-  const handleSaveAndResearch = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!validate()) return
-    setLoadingResearch(true)
-    try {
-      const id = await saveLead()
-      await fetch(`/api/leads/${id}/research`, { method: 'POST' })
-      router.push(`/leads/${id}`)
-    } catch (err: any) {
-      setError(err.message)
-      setLoadingResearch(false)
-    }
-  }
-
-  const busy = loading || loadingResearch
+  const busy = loading
 
   return (
     <>
-      {/* Research loading overlay */}
-      <AnimatePresence>
-        {loadingResearch && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6"
-            style={{ background: 'rgba(10,15,30,0.95)', backdropFilter: 'blur(12px)' }}
-          >
-            <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #1D4ED8, #06B6D4)', boxShadow: '0 8px 32px rgba(29,78,216,0.4)' }}
-            >
-              <div className="w-8 h-8 border-3 border-white/30 border-t-white rounded-full animate-spin" style={{ borderWidth: '3px' }} />
-            </div>
-            <div className="text-center">
-              <p className="text-base font-semibold mb-1" style={{ color: '#F9FAFB' }}>
-                Researching property and homeowner…
-              </p>
-              <p className="text-sm" style={{ color: '#9CA3AF' }}>
-                Searching county records and public data
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <form className="pb-48">
         {/* Primary Contact */}
         <Section title="Primary Contact">
@@ -513,7 +469,7 @@ export default function LeadForm() {
           </div>
         )}
 
-        {/* Sticky dual submit bar — sits above the 72px bottom nav */}
+        {/* Sticky save bar — sits above the 72px bottom nav */}
         <div
           className="fixed left-0 right-0 z-50 px-4 py-3"
           style={{
@@ -523,43 +479,19 @@ export default function LeadForm() {
             borderTop: '1px solid rgba(255,255,255,0.08)',
           }}
         >
-          <div className="flex gap-3">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleDraft}
-              className="flex-1 h-12 rounded-2xl text-sm font-semibold"
-              style={{
-                background: 'transparent',
-                color: busy ? '#4B5563' : '#9CA3AF',
-                border: `1px solid ${busy ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.15)'}`,
-              }}
-            >
-              {loading ? 'Saving…' : 'Save as Draft'}
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleSaveAndResearch}
-              className="flex-[2] h-12 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2"
-              style={{
-                background: busy ? 'rgba(29,78,216,0.4)' : 'linear-gradient(135deg, #1D4ED8, #0F766E)',
-                color: '#fff',
-                boxShadow: busy ? 'none' : '0 4px 24px rgba(29,78,216,0.35)',
-              }}
-            >
-              {loadingResearch ? (
-                'Researching…'
-              ) : (
-                <>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                  </svg>
-                  Save &amp; Research
-                </>
-              )}
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={handleSave}
+            className="w-full h-12 rounded-2xl text-base font-semibold"
+            style={{
+              background: busy ? 'rgba(29,78,216,0.4)' : 'linear-gradient(135deg, #1D4ED8, #0F766E)',
+              color: '#fff',
+              boxShadow: busy ? 'none' : '0 4px 24px rgba(29,78,216,0.35)',
+            }}
+          >
+            {loading ? 'Saving…' : 'Save Lead'}
+          </button>
         </div>
       </form>
     </>
