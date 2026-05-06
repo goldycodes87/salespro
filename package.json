@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.94.0",
     "@splinetool/react-spline": "^4.1.0",
     "@splinetool/runtime": "^1.12.91",
     "@supabase/ssr": "^0.10.2",

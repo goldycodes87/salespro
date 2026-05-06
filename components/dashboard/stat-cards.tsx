@@ -2,14 +2,15 @@
 
 import { motion } from 'framer-motion'
 
-const stats = [
-  { label: "Today's Proposals", value: '0', accent: '#3B82F6', glow: 'rgba(29,78,216,0.25)' },
-  { label: 'This Week',         value: '0', accent: '#14B8A6', glow: 'rgba(15,118,110,0.25)' },
-  { label: 'Pipeline Value',    value: '$0', accent: '#06B6D4', glow: 'rgba(6,182,212,0.25)', mono: true },
-  { label: 'Signed',            value: '0', accent: '#10B981', glow: 'rgba(16,185,129,0.25)' },
-]
+interface Stat {
+  label: string
+  value: string
+  accent: string
+  glow: string
+  mono?: boolean
+}
 
-export default function StatCards() {
+export default function StatCards({ stats }: { stats: Stat[] }) {
   return (
     <div className="grid grid-cols-2 gap-3 mb-8">
       {stats.map((stat, i) => (
@@ -26,7 +27,6 @@ export default function StatCards() {
           style={{
             background: '#111827',
             border: '1px solid rgba(255,255,255,0.08)',
-            transition: 'border-color 0.2s',
           }}
         >
           <p className="text-xs font-medium mb-2" style={{ color: '#9CA3AF' }}>
