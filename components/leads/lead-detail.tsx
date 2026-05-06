@@ -77,6 +77,7 @@ export default function LeadDetail({
   const { startResearch } = useResearch()
   const [lead, setLead] = useState<Lead>(initialLead)
   const [tab, setTab] = useState<Tab>('Overview')
+  const [streetViewError, setStreetViewError] = useState(false)
   const [researching, setResearching] = useState(false)
   const [researchError, setResearchError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null)
@@ -177,15 +178,23 @@ export default function LeadDetail({
       <Fade delay={0}>
         <div className="w-full rounded-2xl mb-5 overflow-hidden flex items-center justify-center"
           style={{ height: '200px', background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
-          {lead.street_view_url ? (
-            <img src={lead.street_view_url} alt="Street view" className="w-full h-full object-cover"
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          {lead.street_view_url && !streetViewError ? (
+            <img
+              src={lead.street_view_url}
+              alt="Street view"
+              className="w-full h-full object-cover"
+              onLoad={() => console.log('[StreetView] Loaded:', lead.street_view_url)}
+              onError={() => {
+                console.error('[StreetView] Failed to load:', lead.street_view_url)
+                setStreetViewError(true)
+              }}
+            />
           ) : (
             <div className="flex flex-col items-center gap-2">
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
               </svg>
-              <span className="text-xs" style={{ color: '#4B5563' }}>No photo available</span>
+              <span className="text-xs" style={{ color: '#4B5563' }}>{streetViewError ? 'Street View unavailable' : 'No photo available'}</span>
             </div>
           )}
         </div>
@@ -282,7 +291,7 @@ export default function LeadDetail({
                     <AISummary text={lead.ai_summary} />
                     {/* Confidence note */}
                     <p className="text-xs mt-4 pt-3" style={{ color: '#4B5563', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                      Research based on {lead.first_name} {lead.last_name} at {lead.address} — verify details before appointment
+                      Research is AI-generated. Verify details before your appointment.
                     </p>
                     {/* Thumbs */}
                     <div className="flex items-center gap-2 mt-3">

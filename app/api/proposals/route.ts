@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
+  console.log('[POST /api/proposals] rep_id:', user.id, 'type:', body.type, 'lead_id:', body.lead_id)
   const admin = getSupabaseAdmin()
 
   const pricing = body.pricing_data ?? {}

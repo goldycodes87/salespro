@@ -54,12 +54,16 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const admin = getSupabaseAdmin()
 
-  // Build Street View URL (check key exists and is not a placeholder)
+  // Build Street View URL
   const googleKey = process.env.GOOGLE_MAPS_API_KEY
   let streetViewUrl: string | null = null
-  if (googleKey && googleKey !== 'placeholder' && googleKey.length > 10) {
-    const loc = encodeURIComponent(`${body.address}, ${body.city}, ${body.state}`)
-    streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${loc}&key=${googleKey}`
+  if (googleKey && googleKey.length > 10) {
+    const parts = [body.address, body.city, body.state, body.zip].filter(Boolean)
+    const location = parts.join('+').replace(/\s+/g, '+')
+    streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${location}&key=${googleKey}`
+    console.log('[StreetView] URL:', streetViewUrl.replace(googleKey, '[KEY]'))
+  } else {
+    console.log('[StreetView] GOOGLE_MAPS_API_KEY not set — skipping')
   }
 
   // Insert lead row

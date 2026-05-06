@@ -57,6 +57,13 @@ function Field({
   )
 }
 
+function formatPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 10)
+  if (digits.length <= 3) return digits
+  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+}
+
 function Input({
   value,
   onChange,
@@ -73,7 +80,7 @@ function Input({
     <input
       type={type}
       value={value}
-      onChange={e => onChange(e.target.value)}
+      onChange={e => onChange(type === 'tel' ? formatPhone(e.target.value) : e.target.value)}
       placeholder={placeholder}
       style={{ ...inputStyle, ...(focused ? focusStyle : {}) }}
       onFocus={() => setFocused(true)}
@@ -235,7 +242,7 @@ function ReferralSearch({
   )
 }
 
-export default function LeadForm() {
+export default function LeadForm({ redirectAfterSave }: { redirectAfterSave?: string }) {
   const router = useRouter()
 
   const today = new Date().toISOString().split('T')[0]
@@ -298,7 +305,7 @@ export default function LeadForm() {
     setLoading(true)
     try {
       const id = await saveLead()
-      router.push(`/leads/${id}`)
+      router.push(redirectAfterSave ? `${redirectAfterSave}?lead_id=${id}` : `/leads/${id}`)
     } catch (err: any) {
       setError(err.message)
       setLoading(false)

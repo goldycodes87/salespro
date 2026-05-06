@@ -22,5 +22,5 @@ export default async function PresentPage({
 
   if (error || !proposal) notFound()
 
-  return <PresentView proposal={proposal} />
+  return <PresentView proposal={proposal} backHref={`/proposals/${id}`} />
 }

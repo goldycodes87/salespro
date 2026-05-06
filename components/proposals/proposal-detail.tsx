@@ -28,7 +28,9 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
   const [proposal, setProposal] = useState<Proposal>(initial)
   const [sending, setSending] = useState(false)
   const [booking, setBooking] = useState(false)
+  const [emailing, setEmailing] = useState(false)
   const [sendDone, setSendDone] = useState(false)
+  const [emailToast, setEmailToast] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const statusColors = STATUS_COLORS[proposal.status] ?? STATUS_COLORS.draft
@@ -90,6 +92,23 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
     }
   }
 
+  const handleEmail = async () => {
+    if (!proposal.customer_email) { setError('No customer email on file'); return }
+    setEmailing(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/proposals/${proposal.id}/email`, { method: 'POST' })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error || 'Failed to send')
+      setEmailToast(d.to)
+      setTimeout(() => setEmailToast(null), 5000)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setEmailing(false)
+    }
+  }
+
   const fullName = [proposal.customer_first_name, proposal.customer_last_name].filter(Boolean).join(' ')
     || proposal.customer_name || '—'
 
@@ -112,15 +131,21 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
         </span>
       </div>
 
-      {/* Success toast */}
+      {/* Toasts */}
       {sendDone && (
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-          className="rounded-xl px-4 py-3 mb-4 text-sm font-medium flex items-center gap-2"
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl px-4 py-3 mb-3 text-sm font-medium flex items-center gap-2"
           style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.2)', color: '#34D399' }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
           Proposal sent to {proposal.customer_email}
+        </motion.div>
+      )}
+      {emailToast && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl px-4 py-3 mb-3 text-sm font-medium flex items-center gap-2"
+          style={{ background: 'rgba(29,78,216,0.12)', border: '1px solid rgba(29,78,216,0.2)', color: '#60A5FA' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+          Proposal emailed to {emailToast} ✓
         </motion.div>
       )}
 
@@ -200,15 +225,31 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
         </div>
       </div>
 
-      {/* Present button */}
-      <Link href={`/proposals/${proposal.id}/present`}
-        className="flex items-center justify-center gap-2 w-full h-11 rounded-2xl text-sm font-semibold mb-8"
-        style={{ background: 'rgba(255,255,255,0.06)', color: '#D1D5DB', border: '1px solid rgba(255,255,255,0.08)' }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
-        </svg>
-        Present to Customer
-      </Link>
+      {/* Present + Email buttons */}
+      <div className="flex gap-3 mb-8">
+        <Link href={`/proposals/${proposal.id}/present`}
+          className="flex-1 flex items-center justify-center gap-2 h-11 rounded-2xl text-sm font-semibold"
+          style={{ background: 'rgba(255,255,255,0.06)', color: '#D1D5DB', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+          </svg>
+          Present
+        </Link>
+        {proposal.customer_email && (
+          <button type="button" onClick={handleEmail} disabled={emailing}
+            className="flex-1 flex items-center justify-center gap-2 h-11 rounded-2xl text-sm font-semibold"
+            style={{ background: 'rgba(255,255,255,0.06)', color: emailing ? '#6B7280' : '#D1D5DB', border: '1px solid rgba(255,255,255,0.08)' }}>
+            {emailing ? (
+              <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+              </svg>
+            )}
+            {emailing ? 'Sending…' : 'Email'}
+          </button>
+        )}
+      </div>
 
       {error && (
         <div className="rounded-xl px-4 py-3 mb-4 text-sm"
