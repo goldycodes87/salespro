@@ -353,7 +353,7 @@ export default function LeadForm() {
         )}
       </AnimatePresence>
 
-      <form className="pb-32">
+      <form className="pb-48">
         {/* Primary Contact */}
         <Section title="Primary Contact">
           <div className="grid grid-cols-2 gap-3">
@@ -513,14 +513,14 @@ export default function LeadForm() {
           </div>
         )}
 
-        {/* Sticky dual submit bar */}
+        {/* Sticky dual submit bar — sits above the 72px bottom nav */}
         <div
-          className="fixed bottom-0 left-0 right-0 z-30 px-4 py-3"
+          className="fixed left-0 right-0 z-50 px-4 py-3"
           style={{
+            bottom: 'calc(72px + env(safe-area-inset-bottom))',
             background: 'rgba(10,15,30,0.95)',
             backdropFilter: 'blur(20px)',
             borderTop: '1px solid rgba(255,255,255,0.08)',
-            paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
           }}
         >
           <div className="flex gap-3">

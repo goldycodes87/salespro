@@ -139,7 +139,7 @@ export default function LeadDetail({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
-      className="max-w-2xl mx-auto px-4 pt-6 pb-32"
+      className="max-w-2xl mx-auto px-4 pt-6 pb-48"
     >
       {/* Back + Edit */}
       <div className="flex items-center justify-between mb-4">
@@ -504,14 +504,14 @@ export default function LeadDetail({
         )}
       </AnimatePresence>
 
-      {/* Convert to Proposal sticky */}
+      {/* Convert to Proposal sticky — sits above the 72px bottom nav */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-30 px-4 py-4"
+        className="fixed left-0 right-0 z-50 px-4 py-4"
         style={{
+          bottom: 'calc(72px + env(safe-area-inset-bottom))',
           background: 'rgba(10,15,30,0.95)',
           backdropFilter: 'blur(20px)',
           borderTop: '1px solid rgba(255,255,255,0.08)',
-          paddingBottom: 'calc(16px + env(safe-area-inset-bottom))',
         }}
       >
         <Link
