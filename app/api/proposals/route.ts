@@ -38,11 +38,14 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  console.log('POST /api/proposals hit')
 
   const body = await request.json()
-  console.log('[POST /api/proposals] rep_id:', user.id, 'type:', body.type, 'lead_id:', body.lead_id)
+  console.log('Body:', JSON.stringify(body))
+
+  const user = await getUser()
+  console.log('Rep ID:', user?.id)
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const admin = getSupabaseAdmin()
 
   const pricing = body.pricing_data ?? {}
