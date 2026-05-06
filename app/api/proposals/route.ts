@@ -77,6 +77,8 @@ export async function POST(request: NextRequest) {
     public_token: Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
   }
 
+  console.log('INSERT ATTEMPT:', JSON.stringify(insertData, null, 2))
+
   const { data: proposal, error } = await admin
     .from('proposals')
     .insert(insertData)
