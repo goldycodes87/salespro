@@ -54,16 +54,30 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const admin = getSupabaseAdmin()
 
-  // Build Street View URL
+  // Build photo URL — try Street View first, fall back to satellite
   const googleKey = process.env.GOOGLE_MAPS_API_KEY
   let streetViewUrl: string | null = null
+  let photoType: string = 'street_view'
   if (googleKey && googleKey.length > 10) {
     const parts = [body.address, body.city, body.state, body.zip].filter(Boolean)
-    const location = parts.join('+').replace(/\s+/g, '+')
-    streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${location}&key=${googleKey}`
-    console.log('[StreetView] URL:', streetViewUrl.replace(googleKey, '[KEY]'))
+    const locationStr = encodeURIComponent(parts.join(' '))
+    const metaUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${locationStr}&key=${googleKey}`
+    try {
+      const metaRes = await fetch(metaUrl)
+      const metaJson = await metaRes.json()
+      if (metaJson.status === 'OK') {
+        streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${locationStr}&key=${googleKey}`
+        photoType = 'street_view'
+      } else {
+        streetViewUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=19&size=800x400&maptype=satellite&key=${googleKey}`
+        photoType = 'satellite'
+      }
+    } catch {
+      streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${locationStr}&key=${googleKey}`
+      photoType = 'street_view'
+    }
   } else {
-    console.log('[StreetView] GOOGLE_MAPS_API_KEY not set — skipping')
+    console.log('[Photo] GOOGLE_MAPS_API_KEY not set — skipping')
   }
 
   // Insert lead row
@@ -88,6 +102,7 @@ export async function POST(request: NextRequest) {
       lead_source: body.lead_source || null,
       notes: body.notes || null,
       street_view_url: streetViewUrl,
+      photo_type: photoType,
       status: 'new',
     })
     .select()
@@ -100,12 +115,11 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Log Street View usage
   if (streetViewUrl) {
     await admin.from('api_usage_log').insert({
       rep_id: user.id,
       service: 'google_maps',
-      endpoint: 'streetview',
+      endpoint: photoType === 'satellite' ? 'staticmap' : 'streetview',
       tokens_used: 0,
       estimated_cost_usd: 0.007,
     })

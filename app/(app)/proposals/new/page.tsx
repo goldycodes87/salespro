@@ -11,6 +11,12 @@ export default async function NewProposalPage({
   const supabase = await createClient()
   let defaultCustomer: Record<string, any> = {}
   let existingProposal: Record<string, any> | null = null
+  let repSettings: Record<string, any> | null = null
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) {
+    const { data: rep } = await supabase.from('reps').select('settings').eq('id', user.id).single()
+    repSettings = rep?.settings ?? null
+  }
 
   if (id) {
     const { data } = await supabase.from('proposals').select('*').eq('id', id).single()
@@ -53,6 +59,7 @@ export default async function NewProposalPage({
         defaultCustomer={defaultCustomer}
         editId={id}
         existingProposal={existingProposal}
+        repSettings={repSettings}
       />
     </div>
   )

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import type { PricingInputs, LineItem, Promotion, BNSN, FinancingOption } from '@/lib/pricing'
-import { FINANCING_LABELS, DEFAULT_LINE_ITEM } from '@/lib/pricing'
+import type { PricingInputs, LineItem, FinancingOption, DiscountOptionSetting, FinancingOptionSetting } from '@/lib/pricing'
+import { DEFAULT_LINE_ITEM, DEFAULT_DISCOUNT_SETTINGS, DEFAULT_FINANCING_SETTINGS } from '@/lib/pricing'
 
 const inputStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.05)',
@@ -75,12 +75,70 @@ function SectionCard({ title, children }: { title: string; children: React.React
 export default function WindowsStep({
   value,
   onChange,
+  repSettings,
 }: {
   value: PricingInputs
   onChange: (v: PricingInputs) => void
+  repSettings?: Record<string, any> | null
 }) {
   const set = <K extends keyof PricingInputs>(key: K, val: PricingInputs[K]) =>
     onChange({ ...value, [key]: val })
+
+  // Settings-based options
+  const useSettingsDiscounts = !!(repSettings?.discount_options?.length)
+  const discountOpts: DiscountOptionSetting[] = useSettingsDiscounts
+    ? repSettings!.discount_options
+    : DEFAULT_DISCOUNT_SETTINGS
+  const activePromos = discountOpts.filter(o => o.active && o.type === 'promotion')
+  const activeBnsn = discountOpts.filter(o => o.active && o.type === 'bnsn')
+  const activeCash = discountOpts.filter(o => o.active && o.type === 'cash')
+  const cashOpt = activeCash[0]
+
+  const useSettingsFinancing = !!(repSettings?.financing_options?.length)
+  const financingOpts: FinancingOptionSetting[] = useSettingsFinancing
+    ? repSettings!.financing_options.filter((o: FinancingOptionSetting) => o.active)
+    : DEFAULT_FINANCING_SETTINGS.filter(o => o.active)
+
+  const selectedPromoId = value.selected_promo_id ??
+    (value.promotion === '20_off' ? '20pct_promo' : value.promotion === '25_off' ? '25pct_promo' : 'none')
+  const promoOptions = [{ value: 'none', label: 'None' }, ...activePromos.map(o => ({ value: o.id, label: o.name }))]
+  const handlePromoChange = (id: string) => {
+    if (id === 'none') {
+      onChange({ ...value, promotion: 'none', promotion_pct: undefined, selected_promo_id: 'none' })
+    } else {
+      const opt = activePromos.find(o => o.id === id)
+      if (opt) {
+        const enumKey = opt.pct === 20 ? '20_off' : opt.pct === 25 ? '25_off' : 'none'
+        onChange({ ...value, promotion: enumKey as any, promotion_pct: opt.pct, selected_promo_id: id })
+      }
+    }
+  }
+
+  const selectedBnsnId = value.selected_bnsn_id ??
+    (value.bnsn === '30_combined' ? 'bnsn_30' : value.bnsn === '10_off' ? 'bnsn_10' : value.bnsn === '5_off' ? 'bnsn_5' : 'none')
+  const bnsnOptions = [{ value: 'none', label: 'None' }, ...activeBnsn.map(o => ({ value: o.id, label: o.name }))]
+  const handleBnsnChange = (id: string) => {
+    if (id === 'none') {
+      onChange({ ...value, bnsn: 'none', bnsn_pct: undefined, bnsn_is_combined: undefined, selected_bnsn_id: 'none' })
+    } else {
+      const opt = activeBnsn.find(o => o.id === id)
+      if (opt) {
+        const enumKey = opt.is_combined ? '30_combined' : opt.pct === 10 ? '10_off' : opt.pct === 5 ? '5_off' : 'none'
+        onChange({ ...value, bnsn: enumKey as any, bnsn_pct: opt.pct, bnsn_is_combined: opt.is_combined, selected_bnsn_id: id })
+      }
+    }
+  }
+
+  const selectedFinancingId = value.selected_financing_id ?? value.financing
+  const handleFinancingSelect = (opt: FinancingOptionSetting) => {
+    onChange({
+      ...value,
+      financing: opt.id as FinancingOption,
+      financing_factor: opt.method === 'factor' ? opt.factor : undefined,
+      financing_months: opt.method === 'months' ? opt.months : undefined,
+      selected_financing_id: opt.id,
+    })
+  }
 
   const updateItem = (id: string, field: keyof LineItem, val: string | number | boolean) => {
     onChange({
@@ -175,28 +233,46 @@ export default function WindowsStep({
 
       {/* Discounts */}
       <SectionCard title="Discounts">
-        <RadioGroup<Promotion>
-          label="Promotion"
-          options={[
-            { value: 'none', label: 'None' },
-            { value: '20_off', label: '20% Off' },
-            { value: '25_off', label: '25% Off' },
-          ]}
-          value={value.promotion}
-          onChange={v => set('promotion', v)}
+        <div>
+          <p className="text-xs font-medium mb-2" style={{ color: '#9CA3AF' }}>Promotion</p>
+          <div className="grid grid-cols-2 gap-2">
+            {promoOptions.map(o => (
+              <button key={o.value} type="button" onClick={() => handlePromoChange(o.value)}
+                className="h-10 rounded-xl text-sm font-medium transition-all"
+                style={{
+                  background: selectedPromoId === o.value ? 'rgba(29,78,216,0.2)' : 'rgba(255,255,255,0.04)',
+                  border: selectedPromoId === o.value ? '1.5px solid rgba(29,78,216,0.5)' : '1px solid rgba(255,255,255,0.08)',
+                  color: selectedPromoId === o.value ? '#60A5FA' : '#9CA3AF',
+                }}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-medium mb-2" style={{ color: '#9CA3AF' }}>Buy Now Save Now</p>
+          <div className="grid grid-cols-2 gap-2">
+            {bnsnOptions.map(o => (
+              <button key={o.value} type="button" onClick={() => handleBnsnChange(o.value)}
+                className="h-10 rounded-xl text-sm font-medium transition-all"
+                style={{
+                  background: selectedBnsnId === o.value ? 'rgba(29,78,216,0.2)' : 'rgba(255,255,255,0.04)',
+                  border: selectedBnsnId === o.value ? '1.5px solid rgba(29,78,216,0.5)' : '1px solid rgba(255,255,255,0.08)',
+                  color: selectedBnsnId === o.value ? '#60A5FA' : '#9CA3AF',
+                }}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <Toggle
+          on={value.cash_incentive}
+          onToggle={() => {
+            const pct = cashOpt?.pct ?? 6
+            onChange({ ...value, cash_incentive: !value.cash_incentive, cash_pct: pct })
+          }}
+          label={cashOpt ? `${cashOpt.name} (−${cashOpt.pct}%)` : 'Cash incentive (−6%)'}
         />
-        <RadioGroup<BNSN>
-          label="Buy Now Save Now"
-          options={[
-            { value: 'none', label: 'None' },
-            { value: '5_off', label: '+5%' },
-            { value: '10_off', label: '+10%' },
-            { value: '30_combined', label: '30% Combined' },
-          ]}
-          value={value.bnsn}
-          onChange={v => set('bnsn', v)}
-        />
-        <Toggle on={value.cash_incentive} onToggle={() => set('cash_incentive', !value.cash_incentive)} label="Cash incentive (−6%)" />
       </SectionCard>
 
       {/* Add-ons */}
@@ -241,16 +317,31 @@ export default function WindowsStep({
       {/* Financing */}
       <SectionCard title="Financing">
         <div className="space-y-2">
-          {(Object.keys(FINANCING_LABELS) as FinancingOption[]).map(opt => (
-            <button key={opt} type="button" onClick={() => set('financing', opt)}
+          <button type="button"
+            onClick={() => onChange({ ...value, financing: 'none', financing_factor: undefined, financing_months: undefined, selected_financing_id: 'none' })}
+            className="w-full h-10 rounded-xl px-4 flex items-center justify-between text-sm transition-all"
+            style={{
+              background: (selectedFinancingId === 'none' || !selectedFinancingId) ? 'rgba(29,78,216,0.12)' : 'rgba(255,255,255,0.03)',
+              border: (selectedFinancingId === 'none' || !selectedFinancingId) ? '1.5px solid rgba(29,78,216,0.4)' : '1px solid rgba(255,255,255,0.06)',
+              color: (selectedFinancingId === 'none' || !selectedFinancingId) ? '#60A5FA' : '#9CA3AF',
+            }}>
+            No Financing
+            {(selectedFinancingId === 'none' || !selectedFinancingId) && (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </button>
+          {financingOpts.map(opt => (
+            <button key={opt.id} type="button" onClick={() => handleFinancingSelect(opt)}
               className="w-full h-10 rounded-xl px-4 flex items-center justify-between text-sm transition-all"
               style={{
-                background: value.financing === opt ? 'rgba(29,78,216,0.12)' : 'rgba(255,255,255,0.03)',
-                border: value.financing === opt ? '1.5px solid rgba(29,78,216,0.4)' : '1px solid rgba(255,255,255,0.06)',
-                color: value.financing === opt ? '#60A5FA' : '#9CA3AF',
+                background: selectedFinancingId === opt.id ? 'rgba(29,78,216,0.12)' : 'rgba(255,255,255,0.03)',
+                border: selectedFinancingId === opt.id ? '1.5px solid rgba(29,78,216,0.4)' : '1px solid rgba(255,255,255,0.06)',
+                color: selectedFinancingId === opt.id ? '#60A5FA' : '#9CA3AF',
               }}>
-              {FINANCING_LABELS[opt]}
-              {value.financing === opt && (
+              {opt.label}
+              {selectedFinancingId === opt.id && (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>

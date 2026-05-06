@@ -27,11 +27,13 @@ export default function ProposalWizard({
   defaultCustomer,
   editId,
   existingProposal,
+  repSettings,
 }: {
   leadId?: string
   defaultCustomer?: Partial<CustomerInfo>
   editId?: string
   existingProposal?: Record<string, any> | null
+  repSettings?: Record<string, any> | null
 }) {
   const router = useRouter()
   const ep = existingProposal
@@ -145,7 +147,7 @@ export default function ProposalWizard({
         customer_first_name: customer.first_name,
         customer_last_name: customer.last_name,
         customer_email: customer.email || null,
-        customer_phone: customer.phone || null,
+        customer_phone: customer.phone.replace(/\D/g, '') || null,
         customer_address: customer.address || null,
         customer_city: customer.city || null,
         customer_state: customer.state || null,
@@ -153,7 +155,12 @@ export default function ProposalWizard({
         spouse_first_name: customer.spouse_first_name || null,
         spouse_last_name: customer.spouse_last_name || null,
         pricing_data: proposalType === 'siding' ? sidingPricing : pricing,
-        internal_notes: scopeNotes || null,
+        internal_notes: proposalType === 'siding'
+          ? (sidingPricing.siding_scope?.special_notes || null)
+          : (scopeNotes || null),
+        offer_expiration_date: proposalType === 'siding'
+          ? (sidingPricing.siding_scope?.offer_expiration_date || null)
+          : null,
       }
       const res = editId
         ? await fetch(`/api/proposals/${editId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -215,10 +222,10 @@ export default function ProposalWizard({
             />
           )}
           {step === 2 && proposalType === 'siding' && (
-            <SidingStep value={sidingPricing} onChange={setSidingPricing} scopeNotes={scopeNotes} onScopeChange={setScopeNotes} />
+            <SidingStep value={sidingPricing} onChange={setSidingPricing} repSettings={repSettings} />
           )}
           {step === 2 && proposalType !== 'siding' && (
-            <WindowsStep value={pricing} onChange={setPricing} />
+            <WindowsStep value={pricing} onChange={setPricing} repSettings={repSettings} />
           )}
         </motion.div>
       </AnimatePresence>

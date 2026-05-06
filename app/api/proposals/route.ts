@@ -38,15 +38,18 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('POST /api/proposals hit')
+  console.log('STEP 1: Route hit')
 
-  const body = await request.json()
-  console.log('Body:', JSON.stringify(body))
+  try {
+    const body = await request.json()
+    console.log('STEP 2: Body parsed')
 
-  const user = await getUser()
-  console.log('Rep ID:', user?.id)
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const admin = getSupabaseAdmin()
+    const user = await getUser()
+    console.log('STEP 3: User result:', user?.id ?? 'null')
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const admin = getSupabaseAdmin()
+    console.log('STEP 4: Admin client created')
 
   const pricing = body.pricing_data ?? {}
   const calc = pricing.proposal_type ? calcPrice(pricing) : null
@@ -111,5 +114,9 @@ export async function POST(request: NextRequest) {
     } catch {}
   }
 
-  return NextResponse.json({ id: proposal.id }, { status: 201 })
+    return NextResponse.json({ id: proposal.id }, { status: 201 })
+  } catch (err: any) {
+    console.error('STEP CRASHED:', err?.message ?? String(err))
+    return NextResponse.json({ error: err?.message ?? 'Unexpected error' }, { status: 500 })
+  }
 }

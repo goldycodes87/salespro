@@ -285,6 +285,8 @@ export default function LeadForm({ redirectAfterSave }: { redirectAfterSave?: st
 
   const buildPayload = () => ({
     ...form,
+    phone: form.phone.replace(/\D/g, '') || null,
+    spouse_phone: form.spouse_phone.replace(/\D/g, '') || null,
     lead_source: form.lead_source === 'Other' ? form.lead_source_other || 'Other' : form.lead_source,
     referred_by_lead_id: referredBy?.id ?? null,
   })
