@@ -242,29 +242,37 @@ function ReferralSearch({
   )
 }
 
-export default function LeadForm({ redirectAfterSave }: { redirectAfterSave?: string }) {
+export default function LeadForm({
+  redirectAfterSave,
+  initialData,
+  editId,
+}: {
+  redirectAfterSave?: string
+  initialData?: Record<string, any>
+  editId?: string
+}) {
   const router = useRouter()
 
   const today = new Date().toISOString().split('T')[0]
 
   const [form, setForm] = useState({
-    first_name: '',
-    last_name: '',
-    phone: '',
-    email: '',
-    is_married: false,
-    spouse_first_name: '',
-    spouse_last_name: '',
-    spouse_phone: '',
-    spouse_email: '',
-    address: '',
-    city: '',
-    state: 'CO',
-    zip: '',
-    appointment_date: today,
-    lead_source: '',
+    first_name: initialData?.first_name ?? '',
+    last_name: initialData?.last_name ?? '',
+    phone: formatPhone(initialData?.phone ?? ''),
+    email: initialData?.email ?? '',
+    is_married: initialData?.is_married ?? false,
+    spouse_first_name: initialData?.spouse_first_name ?? '',
+    spouse_last_name: initialData?.spouse_last_name ?? '',
+    spouse_phone: formatPhone(initialData?.spouse_phone ?? ''),
+    spouse_email: initialData?.spouse_email ?? '',
+    address: initialData?.address ?? '',
+    city: initialData?.city ?? '',
+    state: initialData?.state ?? 'CO',
+    zip: initialData?.zip ?? '',
+    appointment_date: initialData?.appointment_date ?? today,
+    lead_source: initialData?.lead_source ?? '',
     lead_source_other: '',
-    notes: '',
+    notes: initialData?.notes ?? '',
   })
 
   const [referredBy, setReferredBy] = useState<{ id: string; name: string } | null>(null)
@@ -288,10 +296,20 @@ export default function LeadForm({ redirectAfterSave }: { redirectAfterSave?: st
     phone: form.phone.replace(/\D/g, '') || null,
     spouse_phone: form.spouse_phone.replace(/\D/g, '') || null,
     lead_source: form.lead_source === 'Other' ? form.lead_source_other || 'Other' : form.lead_source,
-    referred_by_lead_id: referredBy?.id ?? null,
+    referred_by_lead_id: referredBy?.id ?? (initialData?.referred_by_lead_id ?? null),
   })
 
   const saveLead = async () => {
+    if (editId) {
+      const res = await fetch(`/api/leads/${editId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildPayload()),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to update lead')
+      return editId
+    }
     const res = await fetch('/api/leads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -307,7 +325,11 @@ export default function LeadForm({ redirectAfterSave }: { redirectAfterSave?: st
     setLoading(true)
     try {
       const id = await saveLead()
-      router.push(redirectAfterSave ? `${redirectAfterSave}?lead_id=${id}` : `/leads/${id}`)
+      if (redirectAfterSave) {
+        router.push(editId ? redirectAfterSave : `${redirectAfterSave}?lead_id=${id}`)
+      } else {
+        router.push(`/leads/${id}`)
+      }
     } catch (err: any) {
       setError(err.message)
       setLoading(false)

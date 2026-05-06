@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import Link from 'next/link'
 import PriceSummary from './price-summary'
 import { calcPrice, type PricingInputs } from '@/lib/pricing'
+import { formatPhone } from '@/hooks/usePhoneFormat'
 
 type Proposal = Record<string, any>
 
@@ -133,7 +134,7 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
           </div>
           <div className="space-y-1 text-right">
             {proposal.customer_phone && (
-              <a href={`tel:${proposal.customer_phone}`} className="block text-sm" style={{ color: '#60A5FA' }}>{proposal.customer_phone}</a>
+              <a href={`tel:${proposal.customer_phone}`} className="block text-sm" style={{ color: '#60A5FA' }}>{formatPhone(proposal.customer_phone)}</a>
             )}
             {proposal.customer_email && (
               <a href={`mailto:${proposal.customer_email}`} className="block text-xs" style={{ color: '#6B7280' }}>{proposal.customer_email}</a>

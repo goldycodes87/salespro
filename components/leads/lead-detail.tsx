@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import FilesTab from './files-tab'
 import { useResearch } from '@/components/ui/research-context'
+import { formatPhone } from '@/hooks/usePhoneFormat'
 
 type Lead = Record<string, any>
 type Activity = { id: string; event_type: string; description: string; created_at: string }
@@ -78,6 +79,7 @@ export default function LeadDetail({
   const [lead, setLead] = useState<Lead>(initialLead)
   const [tab, setTab] = useState<Tab>('Overview')
   const [streetViewError, setStreetViewError] = useState(false)
+  const [refreshingPhoto, setRefreshingPhoto] = useState(false)
   const [researching, setResearching] = useState(false)
   const [researchError, setResearchError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null)
@@ -105,6 +107,20 @@ export default function LeadDetail({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: next }),
     })
+  }
+
+  const refreshPhoto = async () => {
+    setRefreshingPhoto(true)
+    setStreetViewError(false)
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/photo`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        setLead(prev => ({ ...prev, street_view_url: data.street_view_url, photo_type: data.photo_type }))
+      }
+    } finally {
+      setRefreshingPhoto(false)
+    }
   }
 
   const runResearch = async () => {
@@ -194,15 +210,32 @@ export default function LeadDetail({
             </div>
           )}
         </div>
-        {lead.street_view_url && !streetViewError && (
-          <div className="flex justify-center mt-2 mb-3">
-            <span className="text-xs px-2 py-0.5 rounded-full"
-              style={{ background: 'rgba(255,255,255,0.06)', color: '#6B7280', border: '1px solid rgba(255,255,255,0.08)' }}>
-              {lead.photo_type === 'satellite' ? 'Satellite View' : 'Street View'}
-            </span>
-          </div>
-        )}
-        {!(lead.street_view_url && !streetViewError) && <div className="mb-5" />}
+        <div className="flex items-center justify-between mt-2 mb-3 px-0.5">
+          <span className="text-xs px-2 py-0.5 rounded-full"
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              color: '#6B7280',
+              border: '1px solid rgba(255,255,255,0.08)',
+              visibility: lead.street_view_url && !streetViewError ? 'visible' : 'hidden',
+            }}>
+            {lead.photo_type === 'satellite' ? 'Satellite View' : 'Street View'}
+          </span>
+          <button
+            type="button"
+            onClick={refreshPhoto}
+            disabled={refreshingPhoto}
+            className="flex items-center gap-1.5 text-xs"
+            style={{ color: refreshingPhoto ? '#4B5563' : '#6B7280' }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round"
+              style={{ animation: refreshingPhoto ? 'spin 1s linear infinite' : 'none' }}>
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+            {refreshingPhoto ? 'Refreshing…' : 'Refresh Photo'}
+          </button>
+        </div>
       </Fade>
 
       {/* Name + badges */}
@@ -355,7 +388,7 @@ export default function LeadDetail({
                   {lead.phone && (
                     <a href={`tel:${lead.phone}`} className="flex items-center gap-2 text-sm" style={{ color: '#D1D5DB' }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.59 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.56a16 16 0 0 0 6.37 6.37l.72-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-                      {lead.phone}
+                      {formatPhone(lead.phone)}
                     </a>
                   )}
                   {lead.email && (
@@ -371,7 +404,7 @@ export default function LeadDetail({
                       {lead.spouse_phone && (
                         <a href={`tel:${lead.spouse_phone}`} className="flex items-center gap-2 text-sm mt-1" style={{ color: '#D1D5DB' }}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.59 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.56a16 16 0 0 0 6.37 6.37l.72-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-                          {lead.spouse_phone}
+                          {formatPhone(lead.spouse_phone)}
                         </a>
                       )}
                     </div>
