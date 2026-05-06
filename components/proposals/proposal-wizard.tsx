@@ -25,41 +25,56 @@ type DraftState = {
 export default function ProposalWizard({
   leadId: initialLeadId,
   defaultCustomer,
+  editId,
+  existingProposal,
 }: {
   leadId?: string
   defaultCustomer?: Partial<CustomerInfo>
+  editId?: string
+  existingProposal?: Record<string, any> | null
 }) {
   const router = useRouter()
+  const ep = existingProposal
 
-  // Restore from sessionStorage if coming back from lead creation
   const [restored, setRestored] = useState(false)
   const [step, setStep] = useState(0)
-  const [proposalType, setProposalType] = useState<ProposalType>('windows')
+  const [proposalType, setProposalType] = useState<ProposalType>(
+    (ep?.type as ProposalType) ?? 'windows'
+  )
   const [customer, setCustomer] = useState<CustomerInfo>({
-    first_name: defaultCustomer?.first_name ?? '',
-    last_name: defaultCustomer?.last_name ?? '',
-    email: defaultCustomer?.email ?? '',
-    phone: defaultCustomer?.phone ?? '',
-    spouse_first_name: defaultCustomer?.spouse_first_name ?? '',
-    spouse_last_name: defaultCustomer?.spouse_last_name ?? '',
-    address: defaultCustomer?.address ?? '',
-    city: defaultCustomer?.city ?? '',
-    state: defaultCustomer?.state ?? 'CO',
-    zip: defaultCustomer?.zip ?? '',
+    first_name: ep?.customer_first_name ?? defaultCustomer?.first_name ?? '',
+    last_name: ep?.customer_last_name ?? defaultCustomer?.last_name ?? '',
+    email: ep?.customer_email ?? defaultCustomer?.email ?? '',
+    phone: ep?.customer_phone ?? defaultCustomer?.phone ?? '',
+    spouse_first_name: ep?.spouse_first_name ?? defaultCustomer?.spouse_first_name ?? '',
+    spouse_last_name: ep?.spouse_last_name ?? defaultCustomer?.spouse_last_name ?? '',
+    address: ep?.customer_address ?? defaultCustomer?.address ?? '',
+    city: ep?.customer_city ?? defaultCustomer?.city ?? '',
+    state: ep?.customer_state ?? defaultCustomer?.state ?? 'CO',
+    zip: ep?.customer_zip ?? defaultCustomer?.zip ?? '',
   })
   const [linkedLead, setLinkedLead] = useState<{ id: string; name: string } | null>(
-    initialLeadId ? { id: initialLeadId, name: [defaultCustomer?.first_name, defaultCustomer?.last_name].filter(Boolean).join(' ') } : null
+    ep?.lead_id
+      ? { id: ep.lead_id, name: [ep.customer_first_name, ep.customer_last_name].filter(Boolean).join(' ') }
+      : initialLeadId
+        ? { id: initialLeadId, name: [defaultCustomer?.first_name, defaultCustomer?.last_name].filter(Boolean).join(' ') }
+        : null
   )
-  const [pricing, setPricing] = useState<PricingInputs>({ ...DEFAULT_PRICING, proposal_type: 'windows' })
-  const [sidingPricing, setSidingPricing] = useState<PricingInputs>({ ...DEFAULT_PRICING, proposal_type: 'siding' })
-  const [scopeNotes, setScopeNotes] = useState('')
+  const [pricing, setPricing] = useState<PricingInputs>(
+    ep && ep.type !== 'siding' ? { ...ep.pricing_data, proposal_type: 'windows' } : { ...DEFAULT_PRICING, proposal_type: 'windows' }
+  )
+  const [sidingPricing, setSidingPricing] = useState<PricingInputs>(
+    ep && ep.type === 'siding' ? { ...ep.pricing_data, proposal_type: 'siding' } : { ...DEFAULT_PRICING, proposal_type: 'siding' }
+  )
+  const [scopeNotes, setScopeNotes] = useState(ep?.internal_notes ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Restore draft state if coming back from lead creation
+  // Restore draft from sessionStorage (skip when editing existing proposal)
   useEffect(() => {
     if (restored) return
     setRestored(true)
+    if (editId) return
     try {
       const raw = sessionStorage.getItem(DRAFT_KEY)
       if (!raw) return
@@ -72,7 +87,7 @@ export default function ProposalWizard({
       setScopeNotes(draft.scopeNotes)
       setStep(draft.step)
     } catch {}
-  }, [restored])
+  }, [restored, editId])
 
   // When a lead is linked from the search, fetch full lead data to pre-fill customer
   const handleLinkLead = async (lead: { id: string; name: string } | null) => {
@@ -140,16 +155,12 @@ export default function ProposalWizard({
         pricing_data: proposalType === 'siding' ? sidingPricing : pricing,
         internal_notes: scopeNotes || null,
       }
-      console.log('[Proposal] Saving:', body)
-      const res = await fetch('/api/proposals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
+      const res = editId
+        ? await fetch(`/api/proposals/${editId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        : await fetch('/api/proposals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json()
-      console.log('[Proposal] Response:', res.status, data)
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      router.push(`/proposals/${data.id}`)
+      router.push(`/proposals/${editId ?? data.id}`)
     } catch (err: any) {
       setError(err.message)
       setSaving(false)
@@ -247,7 +258,7 @@ export default function ProposalWizard({
               color: '#fff',
               boxShadow: saving ? 'none' : '0 4px 24px rgba(29,78,216,0.3)',
             }}>
-            {saving ? 'Saving…' : step < 2 ? 'Next' : 'Save Proposal'}
+            {saving ? 'Saving…' : step < 2 ? 'Next' : editId ? 'Update Proposal' : 'Save Proposal'}
           </button>
         </div>
       </div>
