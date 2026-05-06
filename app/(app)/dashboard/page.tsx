@@ -1,53 +1,49 @@
 import { createClient } from '@/lib/supabase/server'
+import DashboardHero from '@/components/dashboard/dashboard-hero'
+import StatCards from '@/components/dashboard/stat-cards'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  await supabase.auth.getUser()
 
   const now = new Date()
-  const hour = now.getHours()
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
-  const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+
+  // Mountain Time hour — avoids UTC offset being treated as local
+  const mtHour = parseInt(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Denver',
+      hour: '2-digit',
+      hour12: false,
+    }).format(now),
+    10
+  ) % 24 // guard against rare '24' on midnight
+
+  const greetingPrefix =
+    mtHour < 12 ? 'Good morning'
+    : mtHour < 17 ? 'Good afternoon'
+    : 'Good evening'
+
+  const motivationalLine =
+    mtHour < 12 ? "Let's make today count. 💪"
+    : mtHour < 17 ? 'Keep closing. 🔥'
+    : 'Great work today. 🎯'
+
+  const dateStr = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Denver',
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  }).format(now)
 
   return (
-    <div className="px-4 pt-14 pb-6 max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold" style={{ color: '#F9FAFB' }}>
-          {greeting}, Eric
-        </h1>
-        <p className="text-sm mt-1" style={{ color: '#9CA3AF' }}>{dateStr}</p>
-      </div>
+    <div className="px-4 pt-6 pb-6 max-w-2xl mx-auto">
+      <DashboardHero
+        greetingPrefix={greetingPrefix}
+        dateStr={dateStr}
+        motivationalLine={motivationalLine}
+      />
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 gap-3 mb-8">
-        {[
-          { label: "Today's Proposals", value: '0', accent: '#1D4ED8' },
-          { label: 'This Week', value: '0', accent: '#0F766E' },
-          { label: 'Pipeline Value', value: '$0', accent: '#06B6D4', mono: true },
-          { label: 'Signed', value: '0', accent: '#10B981' },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-2xl p-4"
-            style={{
-              background: '#111827',
-              border: '1px solid rgba(255,255,255,0.08)',
-            }}
-          >
-            <p className="text-xs font-medium mb-2" style={{ color: '#9CA3AF' }}>{stat.label}</p>
-            <p
-              className="text-2xl font-bold"
-              style={{
-                color: stat.accent,
-                fontFamily: stat.mono ? "'JetBrains Mono', monospace" : 'inherit',
-              }}
-            >
-              {stat.value}
-            </p>
-          </div>
-        ))}
-      </div>
+      <StatCards />
 
       {/* Recent Proposals */}
       <section className="mb-6">
