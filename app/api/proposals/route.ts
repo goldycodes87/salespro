@@ -54,35 +54,53 @@ export async function POST(request: NextRequest) {
   const customer_name = [body.customer_first_name, body.customer_last_name].filter(Boolean).join(' ')
     || body.customer_name || 'Unknown'
 
-  const { data: proposal, error } = await admin
-    .from('proposals')
-    .insert({
-      rep_id: user.id,
-      lead_id: body.lead_id || null,
-      customer_name,
-      customer_first_name: body.customer_first_name || null,
-      customer_last_name: body.customer_last_name || null,
-      customer_email: body.customer_email || null,
-      customer_phone: body.customer_phone || null,
-      customer_address: body.customer_address || null,
-      customer_city: body.customer_city || null,
-      customer_state: body.customer_state || null,
-      customer_zip: body.customer_zip || null,
-      spouse_first_name: body.spouse_first_name || null,
-      spouse_last_name: body.spouse_last_name || null,
-      type: body.type || 'windows',
-      status: body.status || 'draft',
-      your_price: calc?.your_price ?? body.your_price ?? 0,
-      internal_notes: body.internal_notes || null,
-      offer_expiration_date: body.offer_expiration_date || null,
-      pricing_data: pricing,
-      public_token: Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
-    })
-    .select()
-    .single()
+  const insertData = {
+    rep_id: user.id,
+    lead_id: body.lead_id || null,
+    customer_name,
+    customer_first_name: body.customer_first_name || null,
+    customer_last_name: body.customer_last_name || null,
+    customer_email: body.customer_email || null,
+    customer_phone: body.customer_phone || null,
+    customer_address: body.customer_address || null,
+    customer_city: body.customer_city || null,
+    customer_state: body.customer_state || null,
+    customer_zip: body.customer_zip || null,
+    spouse_first_name: body.spouse_first_name || null,
+    spouse_last_name: body.spouse_last_name || null,
+    type: body.type || 'windows',
+    status: body.status || 'draft',
+    your_price: calc?.your_price ?? body.your_price ?? 0,
+    internal_notes: body.internal_notes || null,
+    offer_expiration_date: body.offer_expiration_date || null,
+    pricing_data: pricing,
+    public_token: Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
+  }
 
-  if (error || !proposal) {
-    return NextResponse.json({ error: error?.message ?? 'Failed to create proposal' }, { status: 500 })
+  const restRes = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/proposals`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': process.env.SUPABASE_SECRET_KEY!,
+        'Authorization': `Bearer ${process.env.SUPABASE_SECRET_KEY!}`,
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify(insertData),
+    },
+  )
+
+  const restBody = await restRes.json()
+  console.log('PostgREST insert status:', restRes.status, 'body:', JSON.stringify(restBody))
+
+  if (!restRes.ok) {
+    return NextResponse.json({ error: restBody?.message ?? restBody?.code ?? 'Failed to create proposal' }, { status: 500 })
+  }
+
+  const proposal = Array.isArray(restBody) ? restBody[0] : restBody
+  if (!proposal?.id) {
+    return NextResponse.json({ error: 'No proposal returned' }, { status: 500 })
   }
 
   // If linked to a lead, update lead status and log activity
