@@ -4,7 +4,6 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
-import { researchLead } from '@/lib/anthropic'
 
 async function getUser() {
   const cookieStore = await cookies()
@@ -106,38 +105,6 @@ export async function POST(request: NextRequest) {
       tokens_used: 0,
       estimated_cost_usd: 0.007,
     })
-  }
-
-  // Anthropic research (runs after lead is created; updates ai_summary)
-  try {
-    const summary = await researchLead({
-      firstName: body.first_name,
-      lastName: body.last_name,
-      address: body.address,
-      city: body.city,
-      state: body.state,
-      zip: body.zip,
-      appointmentDate: body.appointment_date ?? 'Not scheduled',
-      leadSource: body.lead_source ?? 'Unknown',
-      spouseFirstName: body.is_married ? body.spouse_first_name : null,
-      spouseLastName: body.is_married ? body.spouse_last_name : null,
-    })
-
-    await admin
-      .from('leads')
-      .update({ ai_summary: summary, updated_at: new Date().toISOString() })
-      .eq('id', lead.id)
-
-    await admin.from('api_usage_log').insert({
-      rep_id: user.id,
-      service: 'anthropic',
-      endpoint: 'lead_research',
-      tokens_used: 0,
-      estimated_cost_usd: 0.015,
-    })
-  } catch (err) {
-    console.error('AI research error:', err)
-    // Lead created successfully — research failure is non-fatal
   }
 
   return NextResponse.json({ id: lead.id }, { status: 201 })

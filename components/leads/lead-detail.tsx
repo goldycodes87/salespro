@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -15,13 +15,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   closed:    { bg: 'rgba(16,185,129,0.15)', text: '#34D399' },
 }
 
-function StatusBadge({
-  status,
-  onClick,
-}: {
-  status: string
-  onClick: () => void
-}) {
+function StatusBadge({ status, onClick }: { status: string; onClick: () => void }) {
   const c = STATUS_COLORS[status] ?? STATUS_COLORS.new
   return (
     <button
@@ -34,13 +28,7 @@ function StatusBadge({
   )
 }
 
-function Section({
-  delay,
-  children,
-}: {
-  delay: number
-  children: React.ReactNode
-}) {
+function Fade({ delay, children }: { delay: number; children: React.ReactNode }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -52,39 +40,18 @@ function Section({
   )
 }
 
-// Render AI summary with bold section headers
 function AISummary({ text }: { text: string | null }) {
-  if (!text) {
-    return (
-      <div className="space-y-2">
-        {[100, 80, 90, 70].map((w, i) => (
-          <div
-            key={i}
-            className="h-4 rounded animate-pulse"
-            style={{ width: `${w}%`, background: 'rgba(255,255,255,0.08)' }}
-          />
-        ))}
-      </div>
-    )
-  }
-
-  const lines = text.split('\n').filter(Boolean)
+  const lines = (text ?? '').split('\n').filter(Boolean)
   return (
     <div className="space-y-2">
       {lines.map((line, i) => {
-        // Bold section headers (ALL CAPS words followed by colon, or lines starting with **)
-        const isSectionHeader =
-          /^[A-Z][A-Z\s]+:/.test(line) || line.startsWith('**')
+        const isHeader = /^[A-Z][A-Z\s]+:/.test(line) || line.startsWith('**')
         const clean = line.replace(/\*\*/g, '')
         return (
           <p
             key={i}
-            className={isSectionHeader ? 'font-bold pt-2' : ''}
-            style={{
-              color: isSectionHeader ? '#F9FAFB' : '#D1D5DB',
-              fontSize: '14px',
-              lineHeight: '1.6',
-            }}
+            className={isHeader ? 'font-bold pt-2' : ''}
+            style={{ color: isHeader ? '#F9FAFB' : '#D1D5DB', fontSize: '14px', lineHeight: '1.6' }}
           >
             {clean}
           </p>
@@ -94,11 +61,25 @@ function AISummary({ text }: { text: string | null }) {
   )
 }
 
-export default function LeadDetail({ lead: initialLead }: { lead: Lead }) {
+const TABS = ['Overview', 'Proposals', 'Activity'] as const
+type Tab = typeof TABS[number]
+
+export default function LeadDetail({
+  lead: initialLead,
+  referrer,
+  referrals,
+}: {
+  lead: Lead
+  referrer?: Lead | null
+  referrals?: Lead[]
+}) {
   const router = useRouter()
   const [lead, setLead] = useState<Lead>(initialLead)
   const [notes, setNotes] = useState(initialLead.notes ?? '')
   const [savingNotes, setSavingNotes] = useState(false)
+  const [tab, setTab] = useState<Tab>('Overview')
+  const [researching, setResearching] = useState(false)
+  const [researchError, setResearchError] = useState<string | null>(null)
 
   const fullName = lead.is_married && lead.spouse_first_name
     ? `${lead.first_name} & ${lead.spouse_first_name} ${lead.last_name}`
@@ -126,6 +107,21 @@ export default function LeadDetail({ lead: initialLead }: { lead: Lead }) {
     setSavingNotes(false)
   }, [notes, lead.id, lead.notes])
 
+  const runResearch = async () => {
+    setResearching(true)
+    setResearchError(null)
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/research`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Research failed')
+      setLead(prev => ({ ...prev, ai_summary: data.summary }))
+    } catch (err: any) {
+      setResearchError(err.message)
+    } finally {
+      setResearching(false)
+    }
+  }
+
   const apptDate = lead.appointment_date
     ? new Date(lead.appointment_date + 'T12:00:00').toLocaleDateString('en-US', {
         weekday: 'short', month: 'short', day: 'numeric',
@@ -145,13 +141,9 @@ export default function LeadDetail({ lead: initialLead }: { lead: Lead }) {
       transition={{ duration: 0.4 }}
       className="max-w-2xl mx-auto px-4 pt-6 pb-32"
     >
-      {/* Back + Edit header */}
+      {/* Back + Edit */}
       <div className="flex items-center justify-between mb-4">
-        <Link
-          href="/leads"
-          className="flex items-center gap-1.5 text-sm"
-          style={{ color: '#9CA3AF' }}
-        >
+        <Link href="/leads" className="flex items-center gap-1.5 text-sm" style={{ color: '#9CA3AF' }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
@@ -170,8 +162,8 @@ export default function LeadDetail({ lead: initialLead }: { lead: Lead }) {
         </Link>
       </div>
 
-      {/* Street View photo */}
-      <Section delay={0}>
+      {/* Street View */}
+      <Fade delay={0}>
         <div
           className="w-full rounded-2xl mb-5 overflow-hidden flex items-center justify-center"
           style={{ height: '200px', background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}
@@ -193,10 +185,10 @@ export default function LeadDetail({ lead: initialLead }: { lead: Lead }) {
             </div>
           )}
         </div>
-      </Section>
+      </Fade>
 
       {/* Name + address + badges */}
-      <Section delay={0.05}>
+      <Fade delay={0.05}>
         <div className="mb-5">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -210,10 +202,7 @@ export default function LeadDetail({ lead: initialLead }: { lead: Lead }) {
 
           <div className="flex flex-wrap gap-2 mt-3">
             {apptDate && (
-              <span
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
-                style={{ background: 'rgba(255,255,255,0.06)', color: '#D1D5DB' }}
-              >
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium" style={{ background: 'rgba(255,255,255,0.06)', color: '#D1D5DB' }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="3" y="4" width="18" height="18" rx="2" />
                   <line x1="16" y1="2" x2="16" y2="6" />
@@ -224,112 +213,298 @@ export default function LeadDetail({ lead: initialLead }: { lead: Lead }) {
               </span>
             )}
             {lead.lead_source && (
-              <span
-                className="px-3 py-1 rounded-full text-xs font-medium"
-                style={{ background: 'rgba(6,182,212,0.1)', color: '#06B6D4' }}
-              >
+              <span className="px-3 py-1 rounded-full text-xs font-medium" style={{ background: 'rgba(6,182,212,0.1)', color: '#06B6D4' }}>
                 {lead.lead_source}
               </span>
             )}
           </div>
         </div>
-      </Section>
+      </Fade>
 
-      {/* AI Summary */}
-      <Section delay={0.1}>
-        <div className="p-5 mb-4" style={cardStyle}>
-          <div className="flex items-center gap-2 mb-4">
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #1D4ED8, #06B6D4)' }}
+      {/* Tabs */}
+      <Fade delay={0.08}>
+        <div className="flex gap-1 mb-5 p-1 rounded-2xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          {TABS.map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className="flex-1 py-2 rounded-xl text-sm font-medium transition-all"
+              style={{
+                background: tab === t ? '#1D4ED8' : 'transparent',
+                color: tab === t ? '#fff' : '#6B7280',
+              }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-            </div>
-            <span className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>AI Research Summary</span>
-          </div>
-          <AISummary text={lead.ai_summary} />
+              {t}
+            </button>
+          ))}
         </div>
-      </Section>
+      </Fade>
 
-      {/* Notes */}
-      <Section delay={0.15}>
-        <div className="p-5 mb-4" style={cardStyle}>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>Notes</span>
-            {savingNotes && (
-              <span className="text-xs" style={{ color: '#6B7280' }}>Saving…</span>
+      {/* Tab content */}
+      <AnimatePresence mode="wait">
+        {tab === 'Overview' && (
+          <motion.div
+            key="overview"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+          >
+            {/* Referrer card */}
+            {referrer && (
+              <Fade delay={0.1}>
+                <Link
+                  href={`/leads/${referrer.id}`}
+                  className="flex items-center gap-3 p-4 mb-4 rounded-2xl"
+                  style={cardStyle}
+                >
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                    style={{ background: 'rgba(16,185,129,0.15)', color: '#34D399' }}
+                  >
+                    {referrer.first_name[0]}{referrer.last_name[0]}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium mb-0.5" style={{ color: '#6B7280' }}>Referred by</p>
+                    <p className="text-sm font-semibold truncate" style={{ color: '#F9FAFB' }}>
+                      {referrer.first_name} {referrer.last_name}
+                    </p>
+                    <p className="text-xs truncate" style={{ color: '#6B7280' }}>{referrer.city}, {referrer.state}</p>
+                  </div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2.5">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </Link>
+              </Fade>
             )}
-          </div>
-          <textarea
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
-            onBlur={saveNotes}
-            placeholder="Add notes about this lead…"
-            rows={4}
-            className="w-full rounded-xl px-3 py-3 text-sm resize-none outline-none"
-            style={{
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              color: '#D1D5DB',
-              lineHeight: '1.6',
-            }}
-          />
-        </div>
-      </Section>
 
-      {/* Contact details */}
-      <Section delay={0.2}>
-        <div className="p-5 mb-4" style={cardStyle}>
-          <h3 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6B7280' }}>
-            Contact Details
-          </h3>
-          <div className="space-y-2">
-            {lead.phone && (
-              <a href={`tel:${lead.phone}`} className="flex items-center gap-2 text-sm" style={{ color: '#D1D5DB' }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.59 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.56a16 16 0 0 0 6.37 6.37l.72-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-                {lead.phone}
-              </a>
-            )}
-            {lead.email && (
-              <a href={`mailto:${lead.email}`} className="flex items-center gap-2 text-sm" style={{ color: '#D1D5DB' }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                {lead.email}
-              </a>
-            )}
-            {lead.is_married && lead.spouse_first_name && (
-              <div className="pt-2 mt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                <p className="text-xs mb-1.5" style={{ color: '#6B7280' }}>Spouse</p>
-                <p className="text-sm" style={{ color: '#D1D5DB' }}>{lead.spouse_first_name} {lead.spouse_last_name}</p>
-                {lead.spouse_phone && (
-                  <a href={`tel:${lead.spouse_phone}`} className="flex items-center gap-2 text-sm mt-1" style={{ color: '#D1D5DB' }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.59 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.56a16 16 0 0 0 6.37 6.37l.72-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-                    {lead.spouse_phone}
-                  </a>
+            {/* AI Research */}
+            <Fade delay={0.1}>
+              <div className="p-5 mb-4" style={cardStyle}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-7 h-7 rounded-lg flex items-center justify-center"
+                      style={{ background: 'linear-gradient(135deg, #1D4ED8, #06B6D4)' }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                      </svg>
+                    </div>
+                    <span className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>AI Research</span>
+                  </div>
+                  {lead.ai_summary ? (
+                    <button
+                      onClick={runResearch}
+                      disabled={researching}
+                      className="text-xs font-medium px-3 py-1 rounded-full"
+                      style={{ background: 'rgba(255,255,255,0.06)', color: researching ? '#4B5563' : '#9CA3AF' }}
+                    >
+                      {researching ? 'Running…' : 'Re-run'}
+                    </button>
+                  ) : null}
+                </div>
+
+                {researching ? (
+                  <div className="space-y-2">
+                    {[100, 80, 90, 70].map((w, i) => (
+                      <div key={i} className="h-4 rounded animate-pulse" style={{ width: `${w}%`, background: 'rgba(255,255,255,0.08)' }} />
+                    ))}
+                  </div>
+                ) : lead.ai_summary ? (
+                  <AISummary text={lead.ai_summary} />
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-sm mb-3" style={{ color: '#6B7280' }}>No research has been run yet</p>
+                    <button
+                      onClick={runResearch}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
+                      style={{ background: 'linear-gradient(135deg, #1D4ED8, #0F766E)', color: '#fff' }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                      </svg>
+                      Run AI Research
+                    </button>
+                  </div>
+                )}
+                {researchError && (
+                  <p className="text-xs mt-3" style={{ color: '#EF4444' }}>{researchError}</p>
                 )}
               </div>
+            </Fade>
+
+            {/* Notes */}
+            <Fade delay={0.15}>
+              <div className="p-5 mb-4" style={cardStyle}>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>Notes</span>
+                  {savingNotes && <span className="text-xs" style={{ color: '#6B7280' }}>Saving…</span>}
+                </div>
+                <textarea
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  onBlur={saveNotes}
+                  placeholder="Add notes about this lead…"
+                  rows={4}
+                  className="w-full rounded-xl px-3 py-3 text-sm resize-none outline-none"
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    color: '#D1D5DB',
+                    lineHeight: '1.6',
+                  }}
+                />
+              </div>
+            </Fade>
+
+            {/* Contact details */}
+            <Fade delay={0.2}>
+              <div className="p-5 mb-4" style={cardStyle}>
+                <h3 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6B7280' }}>
+                  Contact Details
+                </h3>
+                <div className="space-y-2">
+                  {lead.phone && (
+                    <a href={`tel:${lead.phone}`} className="flex items-center gap-2 text-sm" style={{ color: '#D1D5DB' }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.59 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.56a16 16 0 0 0 6.37 6.37l.72-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
+                      {lead.phone}
+                    </a>
+                  )}
+                  {lead.email && (
+                    <a href={`mailto:${lead.email}`} className="flex items-center gap-2 text-sm" style={{ color: '#D1D5DB' }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                      {lead.email}
+                    </a>
+                  )}
+                  {lead.is_married && lead.spouse_first_name && (
+                    <div className="pt-2 mt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                      <p className="text-xs mb-1.5" style={{ color: '#6B7280' }}>Spouse</p>
+                      <p className="text-sm" style={{ color: '#D1D5DB' }}>{lead.spouse_first_name} {lead.spouse_last_name}</p>
+                      {lead.spouse_phone && (
+                        <a href={`tel:${lead.spouse_phone}`} className="flex items-center gap-2 text-sm mt-1" style={{ color: '#D1D5DB' }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.59 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.56a16 16 0 0 0 6.37 6.37l.72-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
+                          {lead.spouse_phone}
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Fade>
+
+            {/* Referrals made by this lead */}
+            {referrals && referrals.length > 0 && (
+              <Fade delay={0.25}>
+                <div className="p-5 mb-4" style={cardStyle}>
+                  <h3 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6B7280' }}>
+                    Referrals from this lead
+                  </h3>
+                  <div className="space-y-2">
+                    {referrals.map(r => (
+                      <Link
+                        key={r.id}
+                        href={`/leads/${r.id}`}
+                        className="flex items-center gap-3 py-2"
+                        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                      >
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                          style={{ background: 'rgba(29,78,216,0.2)', color: '#60A5FA' }}
+                        >
+                          {r.first_name[0]}{r.last_name[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate" style={{ color: '#F9FAFB' }}>{r.first_name} {r.last_name}</p>
+                          <p className="text-xs truncate" style={{ color: '#6B7280' }}>{r.city}, {r.state}</p>
+                        </div>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2.5">
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </Fade>
             )}
-          </div>
-        </div>
-      </Section>
 
-      {/* Vendo sync placeholder */}
-      <Section delay={0.25}>
-        <div
-          className="p-4 mb-4 rounded-2xl flex items-center gap-3"
-          style={{ background: 'rgba(17,24,39,0.4)', border: '1px solid rgba(255,255,255,0.05)' }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-          <div>
-            <p className="text-xs font-medium" style={{ color: '#4B5563' }}>Vendo Sync — Coming Soon</p>
-          </div>
-        </div>
-      </Section>
+            {/* Vendo sync placeholder */}
+            <Fade delay={0.3}>
+              <div
+                className="p-4 mb-4 rounded-2xl flex items-center gap-3"
+                style={{ background: 'rgba(17,24,39,0.4)', border: '1px solid rgba(255,255,255,0.05)' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                <div>
+                  <p className="text-xs font-medium" style={{ color: '#4B5563' }}>Vendo Sync — Coming Soon</p>
+                </div>
+              </div>
+            </Fade>
+          </motion.div>
+        )}
 
-      {/* Convert to Proposal — sticky bottom */}
+        {tab === 'Proposals' && (
+          <motion.div
+            key="proposals"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+          >
+            <div
+              className="rounded-2xl p-10 text-center"
+              style={cardStyle}
+            >
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                style={{ background: 'rgba(255,255,255,0.06)' }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium mb-1" style={{ color: '#F9FAFB' }}>No proposals yet</p>
+              <p className="text-xs mb-4" style={{ color: '#6B7280' }}>Create a proposal for this lead</p>
+              <Link
+                href={`/proposals/new?lead_id=${lead.id}`}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold"
+                style={{ background: 'linear-gradient(135deg, #1D4ED8, #0F766E)', color: '#fff' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                New Proposal
+              </Link>
+            </div>
+          </motion.div>
+        )}
+
+        {tab === 'Activity' && (
+          <motion.div
+            key="activity"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+          >
+            <div className="rounded-2xl p-10 text-center" style={cardStyle}>
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                style={{ background: 'rgba(255,255,255,0.06)' }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium mb-1" style={{ color: '#F9FAFB' }}>Activity log coming soon</p>
+              <p className="text-xs" style={{ color: '#6B7280' }}>Track calls, emails, and follow-ups</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Convert to Proposal sticky */}
       <div
         className="fixed bottom-0 left-0 right-0 z-30 px-4 py-4"
         style={{

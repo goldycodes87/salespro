@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -132,6 +132,109 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+type ReferralResult = { id: string; first_name: string; last_name: string; city: string; state: string }
+
+function ReferralSearch({
+  value,
+  onSelect,
+}: {
+  value: { id: string; name: string } | null
+  onSelect: (lead: { id: string; name: string } | null) => void
+}) {
+  const [query, setQuery] = useState(value?.name ?? '')
+  const [results, setResults] = useState<ReferralResult[]>([])
+  const [open, setOpen] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (value) setQuery(value.name)
+  }, [value])
+
+  const search = (q: string) => {
+    setQuery(q)
+    onSelect(null)
+    if (debounce.current) clearTimeout(debounce.current)
+    if (q.length < 2) { setResults([]); setOpen(false); return }
+    debounce.current = setTimeout(async () => {
+      const res = await fetch(`/api/leads/search?q=${encodeURIComponent(q)}`)
+      if (res.ok) {
+        const data: ReferralResult[] = await res.json()
+        setResults(data)
+        setOpen(data.length > 0)
+      }
+    }, 300)
+  }
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <input
+        type="text"
+        value={query}
+        onChange={e => search(e.target.value)}
+        placeholder="Search by name…"
+        style={{ ...inputStyle, ...(focused ? focusStyle : {}) }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        autoComplete="off"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => { onSelect(null); setQuery('') }}
+          className="absolute right-3 top-1/2 -translate-y-1/2"
+          style={{ color: '#6B7280' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      )}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="absolute left-0 right-0 z-50 mt-1 rounded-xl overflow-hidden"
+            style={{ background: '#1F2937', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}
+          >
+            {results.map(r => (
+              <button
+                key={r.id}
+                type="button"
+                className="w-full px-4 py-3 text-left text-sm"
+                style={{ color: '#F9FAFB', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                onMouseDown={() => {
+                  const name = `${r.first_name} ${r.last_name}`
+                  onSelect({ id: r.id, name })
+                  setQuery(name)
+                  setOpen(false)
+                }}
+              >
+                <span className="font-medium">{r.first_name} {r.last_name}</span>
+                <span className="ml-2 text-xs" style={{ color: '#6B7280' }}>{r.city}, {r.state}</span>
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 export default function LeadForm() {
   const router = useRouter()
 
@@ -157,46 +260,74 @@ export default function LeadForm() {
     notes: '',
   })
 
+  const [referredBy, setReferredBy] = useState<{ id: string; name: string } | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadingResearch, setLoadingResearch] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const set = (key: keyof typeof form) => (v: string | boolean) =>
     setForm(prev => ({ ...prev, [key]: v }))
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const validate = () => {
     if (!form.first_name || !form.last_name || !form.address || !form.city || !form.zip) {
       setError('Please fill in all required fields.')
-      return
+      return false
     }
     setError(null)
+    return true
+  }
+
+  const buildPayload = () => ({
+    ...form,
+    lead_source: form.lead_source === 'Other' ? form.lead_source_other || 'Other' : form.lead_source,
+    referred_by_lead_id: referredBy?.id ?? null,
+  })
+
+  const saveLead = async () => {
+    const res = await fetch('/api/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildPayload()),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to save lead')
+    return data.id as string
+  }
+
+  const handleDraft = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!validate()) return
     setLoading(true)
-
-    const payload = {
-      ...form,
-      lead_source: form.lead_source === 'Other' ? form.lead_source_other || 'Other' : form.lead_source,
-    }
-
     try {
-      const res = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to save lead')
-      router.push(`/leads/${data.id}`)
+      const id = await saveLead()
+      router.push(`/leads/${id}`)
     } catch (err: any) {
       setError(err.message)
       setLoading(false)
     }
   }
 
+  const handleSaveAndResearch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!validate()) return
+    setLoadingResearch(true)
+    try {
+      const id = await saveLead()
+      await fetch(`/api/leads/${id}/research`, { method: 'POST' })
+      router.push(`/leads/${id}`)
+    } catch (err: any) {
+      setError(err.message)
+      setLoadingResearch(false)
+    }
+  }
+
+  const busy = loading || loadingResearch
+
   return (
     <>
       {/* Research loading overlay */}
       <AnimatePresence>
-        {loading && (
+        {loadingResearch && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -222,7 +353,7 @@ export default function LeadForm() {
         )}
       </AnimatePresence>
 
-      <form onSubmit={handleSubmit} className="pb-32">
+      <form className="pb-32">
         {/* Primary Contact */}
         <Section title="Primary Contact">
           <div className="grid grid-cols-2 gap-3">
@@ -340,6 +471,20 @@ export default function LeadForm() {
               </motion.div>
             )}
           </AnimatePresence>
+          <AnimatePresence>
+            {form.lead_source === 'Referral' && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <Field label="Referred by">
+                  <ReferralSearch value={referredBy} onSelect={setReferredBy} />
+                </Field>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </Section>
 
         {/* Notes */}
@@ -368,28 +513,53 @@ export default function LeadForm() {
           </div>
         )}
 
-        {/* Sticky submit bar */}
+        {/* Sticky dual submit bar */}
         <div
-          className="fixed bottom-0 left-0 right-0 z-30 px-4 py-4"
+          className="fixed bottom-0 left-0 right-0 z-30 px-4 py-3"
           style={{
             background: 'rgba(10,15,30,0.95)',
             backdropFilter: 'blur(20px)',
             borderTop: '1px solid rgba(255,255,255,0.08)',
-            paddingBottom: 'calc(16px + env(safe-area-inset-bottom))',
+            paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
           }}
         >
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full h-14 rounded-2xl text-base font-semibold"
-            style={{
-              background: loading ? 'rgba(29,78,216,0.4)' : 'linear-gradient(135deg, #1D4ED8, #0F766E)',
-              color: '#fff',
-              boxShadow: loading ? 'none' : '0 4px 24px rgba(29,78,216,0.35)',
-            }}
-          >
-            {loading ? 'Researching…' : 'Save Lead & Research'}
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleDraft}
+              className="flex-1 h-12 rounded-2xl text-sm font-semibold"
+              style={{
+                background: 'transparent',
+                color: busy ? '#4B5563' : '#9CA3AF',
+                border: `1px solid ${busy ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.15)'}`,
+              }}
+            >
+              {loading ? 'Saving…' : 'Save as Draft'}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleSaveAndResearch}
+              className="flex-[2] h-12 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2"
+              style={{
+                background: busy ? 'rgba(29,78,216,0.4)' : 'linear-gradient(135deg, #1D4ED8, #0F766E)',
+                color: '#fff',
+                boxShadow: busy ? 'none' : '0 4px 24px rgba(29,78,216,0.35)',
+              }}
+            >
+              {loadingResearch ? (
+                'Researching…'
+              ) : (
+                <>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  Save &amp; Research
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </form>
     </>
