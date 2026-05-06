@@ -33,10 +33,10 @@ export async function POST(
   const admin = getSupabaseAdmin()
   const googleKey = process.env.GOOGLE_MAPS_API_KEY
 
-  console.log(`[photo] Starting photo refresh for lead ${id}`)
+  console.log('KEY EXISTS:', !!googleKey)
 
   if (!googleKey) {
-    console.error('[photo] GOOGLE_MAPS_API_KEY is not set')
+    console.error('GOOGLE_MAPS_API_KEY is not set')
     return NextResponse.json({ error: 'Google Maps API key not configured' }, { status: 500 })
   }
 
@@ -49,55 +49,48 @@ export async function POST(
     .single()
 
   if (leadError || !lead) {
-    console.error(`[photo] Lead not found: ${leadError?.message}`)
+    console.error('Lead not found:', leadError?.message)
     return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
   }
 
-  const addressStr = [lead.address, lead.city, lead.state, lead.zip].filter(Boolean).join(', ')
-  console.log(`[photo] Address: "${addressStr}"`)
+  const addressStr = [lead.address, lead.city, lead.state, lead.zip].filter(Boolean).join(' ')
+  console.log('ADDRESS:', addressStr)
 
-  if (!addressStr) {
-    console.error('[photo] Lead has no address')
+  if (!addressStr.trim()) {
+    console.error('Lead has no address')
     return NextResponse.json({ error: 'Lead has no address' }, { status: 400 })
   }
 
   const locationStr = encodeURIComponent(addressStr)
 
-  // Step 1: Check Street View metadata
+  // Check Street View metadata first
   const metaUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${locationStr}&key=${googleKey}`
-  console.log(`[photo] Fetching Street View metadata...`)
 
   let photoUrl: string
   let photoType: 'street_view' | 'satellite'
 
   try {
     const metaRes = await fetch(metaUrl)
-    console.log(`[photo] Street View metadata status: ${metaRes.status}`)
-
     const metaJson = await metaRes.json()
-    console.log(`[photo] Street View metadata response: status=${metaJson.status}, pano_id=${metaJson.pano_id ?? 'none'}`)
+    console.log('META STATUS:', metaJson.status)
 
     if (metaJson.status === 'OK') {
       photoUrl = `https://maps.googleapis.com/maps/api/streetview?size=640x400&location=${locationStr}&key=${googleKey}&fov=90&pitch=0`
       photoType = 'street_view'
-      console.log(`[photo] Using Street View photo`)
     } else {
-      // Fallback to satellite
-      const zoom = 19
-      photoUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=${zoom}&size=640x400&maptype=satellite&key=${googleKey}`
+      photoUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=19&size=640x400&maptype=satellite&key=${googleKey}`
       photoType = 'satellite'
-      console.log(`[photo] Street View unavailable (status=${metaJson.status}), falling back to satellite`)
     }
   } catch (err: any) {
-    console.error(`[photo] Failed to fetch Street View metadata: ${err.message}`)
-    // Fallback to satellite on error
-    const zoom = 19
-    photoUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=${zoom}&size=640x400&maptype=satellite&key=${googleKey}`
+    console.error('Failed to fetch Street View metadata:', err.message)
+    photoUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=19&size=640x400&maptype=satellite&key=${googleKey}`
     photoType = 'satellite'
-    console.log(`[photo] Falling back to satellite due to metadata fetch error`)
+    console.log('META STATUS: fetch_error — falling back to satellite')
   }
 
-  // Step 2: Update lead with new photo URL and type
+  console.log('SAVED URL:', photoUrl)
+
+  // Update lead with new photo URL and type
   const { data: updated, error: updateError } = await admin
     .from('leads')
     .update({
@@ -111,10 +104,9 @@ export async function POST(
     .single()
 
   if (updateError) {
-    console.error(`[photo] Failed to update lead: ${updateError.message}`)
+    console.error('Failed to update lead:', updateError.message)
     return NextResponse.json({ error: updateError.message }, { status: 500 })
   }
 
-  console.log(`[photo] Successfully updated lead ${id} with ${photoType} photo`)
   return NextResponse.json({ street_view_url: updated.street_view_url, photo_type: updated.photo_type })
 }
