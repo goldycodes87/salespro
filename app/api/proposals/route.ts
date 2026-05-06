@@ -77,28 +77,21 @@ export async function POST(request: NextRequest) {
     public_token: Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
   }
 
-  const restRes = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/proposals`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': process.env.SUPABASE_SECRET_KEY!,
-        'Authorization': `Bearer ${process.env.SUPABASE_SECRET_KEY!}`,
-        'Prefer': 'return=representation',
-      },
-      body: JSON.stringify(insertData),
-    },
-  )
+  const { data: proposal, error } = await admin
+    .from('proposals')
+    .insert(insertData)
+    .select()
+    .single()
 
-  const restBody = await restRes.json()
-  console.log('PostgREST insert status:', restRes.status, 'body:', JSON.stringify(restBody))
-
-  if (!restRes.ok) {
-    return NextResponse.json({ error: restBody?.message ?? restBody?.code ?? 'Failed to create proposal' }, { status: 500 })
+  if (error) {
+    console.error('SUPABASE ERROR CODE:', error.code)
+    console.error('SUPABASE ERROR MSG:', error.message)
+    console.error('SUPABASE ERROR DETAILS:', error.details)
+    console.error('SUPABASE ERROR HINT:', error.hint)
+    console.error('INSERT DATA:', JSON.stringify(insertData))
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  const proposal = Array.isArray(restBody) ? restBody[0] : restBody
   if (!proposal?.id) {
     return NextResponse.json({ error: 'No proposal returned' }, { status: 500 })
   }

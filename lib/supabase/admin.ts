@@ -6,14 +6,9 @@ export function getSupabaseAdmin() {
     process.env.SUPABASE_SECRET_KEY!,
     {
       auth: {
-        autoRefreshToken: false,
         persistSession: false,
-      },
-      global: {
-        headers: {
-          'apikey': process.env.SUPABASE_SECRET_KEY!,
-          'Authorization': `Bearer ${process.env.SUPABASE_SECRET_KEY!}`,
-        },
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
       },
     }
   )
