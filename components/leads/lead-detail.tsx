@@ -111,12 +111,16 @@ export default function LeadDetail({
 
   const refreshPhoto = async () => {
     setRefreshingPhoto(true)
-    setStreetViewError(false)
     try {
       const res = await fetch(`/api/leads/${lead.id}/photo`, { method: 'POST' })
       if (res.ok) {
-        const data = await res.json()
-        setLead(prev => ({ ...prev, street_view_url: data.street_view_url, photo_type: data.photo_type }))
+        // Refetch full lead to get the saved URL from DB, not just the POST response
+        const freshRes = await fetch(`/api/leads/${lead.id}`)
+        if (freshRes.ok) {
+          const freshLead = await freshRes.json()
+          setStreetViewError(false)
+          setLead(freshLead)
+        }
       }
     } finally {
       setRefreshingPhoto(false)
@@ -196,6 +200,7 @@ export default function LeadDetail({
           style={{ height: '200px', background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
           {lead.street_view_url && !streetViewError ? (
             <img
+              key={lead.street_view_url}
               src={lead.street_view_url}
               alt="Property photo"
               className="w-full h-full object-cover"
