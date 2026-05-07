@@ -106,6 +106,9 @@ function calculatePricing(
     if (selectedBnsn) bnsnDiscount = base * (selectedBnsn.pct / 100)
   }
 
+  const costcoShopCard = r.your_price * 0.10
+  const costcoExecutive = Math.min(r.your_price * 0.02, 1250)
+
   return {
     packagePrice: r.package_price,
     adminFee: r.admin_fee,
@@ -118,9 +121,9 @@ function calculatePricing(
     youSave: r.you_save,
     yourPrice: r.your_price,
     monthlyPayment: r.monthly_payment,
-    costcoShopCard: r.costco_member_savings,
-    costcoExec: r.costco_exec_savings,
-    netAfterCostco: r.your_price - r.costco_member_savings - r.costco_exec_savings,
+    costcoShopCard,
+    costcoExec: costcoExecutive,
+    netAfterCostco: r.your_price - costcoShopCard - costcoExecutive,
     cashAvailable,
     totalWindows: r.total_windows,
   }
@@ -450,6 +453,12 @@ export default function PresentView({ proposal, backHref, repSettings }: {
         gradientStops={[0, 25, 50, 75, 100]}
         Breathing={true} animationSpeed={0.008} breathingRange={3}
       />
+      <div style={{
+        position: 'absolute',
+        bottom: 0, left: 0, right: 0, height: '120px',
+        background: 'linear-gradient(to bottom, transparent, #000000)',
+        pointerEvents: 'none', zIndex: 10,
+      }} />
 
       {/* Sticky top bar */}
       <div className="sticky top-0 z-20 px-5 flex items-center justify-between"
@@ -477,8 +486,11 @@ export default function PresentView({ proposal, backHref, repSettings }: {
           <CardGlow color="rgba(255,255,255,0.3)" />
           <div style={{ ...glassCard, padding: '24px', position: 'relative', zIndex: 1 }}>
             <h1 style={{
-              fontSize: 'clamp(26px, 6vw, 44px)', fontWeight: 700, color: '#fff',
-              letterSpacing: '0.05em', lineHeight: 1.1, marginBottom: '6px',
+              fontSize: displayName.length > 20 ? 'clamp(22px, 4vw, 36px)' : 'clamp(28px, 5vw, 52px)',
+              fontWeight: 700, color: '#fff',
+              letterSpacing: '0.05em', lineHeight: 1.1,
+              wordBreak: 'break-word', width: '100%', textAlign: 'center',
+              padding: '0 16px', marginBottom: '6px',
             }}>
               {displayName}
             </h1>
@@ -494,7 +506,7 @@ export default function PresentView({ proposal, backHref, repSettings }: {
               {fmt(pp.packagePrice)}
             </p>
             {startingSubtitle && (
-              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)' }}>{startingSubtitle}</p>
+              <p style={{ fontSize: '18px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', marginTop: '8px' }}>{startingSubtitle}</p>
             )}
           </div>
         </motion.div>
@@ -746,23 +758,22 @@ export default function PresentView({ proposal, backHref, repSettings }: {
                     exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25 }}
                     className="overflow-hidden">
                     <div className="mt-3">
-                      {pp.costcoShopCard > 0 && (
-                        <div className="flex justify-between py-1.5">
-                          <span style={{ color: 'rgba(251,191,36,0.7)', fontSize: '14px' }}>Costco Shop Card (10%)</span>
-                          <span style={{ color: '#FCD34D', fontSize: '14px', fontWeight: 700 }}>-{fmt(pp.costcoShopCard)}</span>
-                        </div>
-                      )}
-                      {pp.costcoExec > 0 && (
-                        <div className="flex justify-between py-1.5" style={{ borderTop: '1px solid rgba(251,191,36,0.1)' }}>
-                          <span style={{ color: 'rgba(251,191,36,0.7)', fontSize: '14px' }}>Executive Reward</span>
+                      <div className="flex justify-between py-1.5">
+                        <span style={{ color: 'rgba(251,191,36,0.7)', fontSize: '14px' }}>Costco Shop Card (10%)</span>
+                        <span style={{ color: '#FCD34D', fontSize: '14px', fontWeight: 700 }}>-{fmt(pp.costcoShopCard)}</span>
+                      </div>
+                      <div className="py-1.5" style={{ borderTop: '1px solid rgba(251,191,36,0.1)' }}>
+                        <div className="flex justify-between">
+                          <span style={{ color: 'rgba(251,191,36,0.7)', fontSize: '14px' }}>Executive Membership Reward (2%)</span>
                           <span style={{ color: '#FCD34D', fontSize: '14px', fontWeight: 700 }}>-{fmt(pp.costcoExec)}</span>
                         </div>
-                      )}
-                      {(pp.costcoShopCard > 0 || pp.costcoExec > 0) && (
-                        <p style={{ fontSize: '11px', color: 'rgba(251,191,36,0.5)', fontStyle: 'italic', marginTop: '10px' }}>
-                          Additional {fmt(pp.costcoShopCard + pp.costcoExec)} back in your pocket
+                        <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontStyle: 'italic', marginTop: '2px' }}>
+                          For Executive members only
                         </p>
-                      )}
+                      </div>
+                      <p style={{ fontSize: '14px', fontWeight: 700, color: '#F59E0B', marginTop: '10px' }}>
+                        Additional {fmt(pp.costcoShopCard + pp.costcoExec)} back in your pocket
+                      </p>
                     </div>
                   </motion.div>
                 )}

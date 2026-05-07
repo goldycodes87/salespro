@@ -85,6 +85,7 @@ export default function LeadDetail({
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null)
   const [showFeedbackField, setShowFeedbackField] = useState(false)
   const [feedbackText, setFeedbackText] = useState('')
+  const [summaryExpanded, setSummaryExpanded] = useState(false)
 
   const fullName = lead.is_married && lead.spouse_first_name
     ? `${lead.first_name} & ${lead.spouse_first_name} ${lead.last_name}`
@@ -331,7 +332,32 @@ export default function LeadDetail({
                   </div>
                 ) : lead.ai_summary ? (
                   <div>
-                    <AISummary text={lead.ai_summary} />
+                    {/* Collapsible summary text */}
+                    <div style={{ position: 'relative' }}>
+                      <motion.div
+                        initial="collapsed"
+                        animate={summaryExpanded ? 'expanded' : 'collapsed'}
+                        variants={{ collapsed: { height: 80 }, expanded: { height: 'auto' } }}
+                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                        style={{ overflow: 'hidden' }}
+                      >
+                        <AISummary text={lead.ai_summary} />
+                      </motion.div>
+                      {!summaryExpanded && (
+                        <div style={{
+                          position: 'absolute', bottom: 0, left: 0, right: 0, height: '40px',
+                          background: 'linear-gradient(to bottom, transparent, #111827)',
+                          pointerEvents: 'none',
+                        }} />
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setSummaryExpanded(e => !e)}
+                      className="text-xs mt-2"
+                      style={{ fontSize: '13px', color: '#06B6D4', marginTop: '8px', minHeight: '44px', display: 'flex', alignItems: 'center' }}
+                    >
+                      {summaryExpanded ? 'Collapse ▴' : 'Show full research ▾'}
+                    </button>
                     <p className="text-xs mt-4 pt-3" style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', fontStyle: 'italic', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                       AI-generated research. Verify before your appointment.
                     </p>

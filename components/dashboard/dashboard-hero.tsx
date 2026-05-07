@@ -30,7 +30,7 @@ export default function DashboardHero({
 
   return (
     <div className="relative mb-6">
-      <LampContainer className="min-h-[280px]">
+      <LampContainer className="min-h-[320px]">
         {/* Big watermark icon */}
         <div
           className="absolute inset-0 flex items-center justify-center pointer-events-none"
@@ -85,12 +85,12 @@ export default function DashboardHero({
         >
           <h1
             className="font-extrabold leading-tight mb-2"
-            style={{ fontSize: 'clamp(28px, 7vw, 42px)', color: '#F9FAFB' }}
+            style={{ fontSize: 'clamp(40px, 6vw, 64px)', color: '#F9FAFB' }}
           >
             {greetingPrefix},{' '}
             <span
               style={{
-                background: 'linear-gradient(90deg, #60A5FA, #06B6D4)',
+                background: 'linear-gradient(90deg, #1D4ED8, #06B6D4)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
@@ -100,11 +100,11 @@ export default function DashboardHero({
             </span>
           </h1>
 
-          <p className="text-sm font-medium mb-2" style={{ color: 'rgba(209,213,219,0.7)' }}>
+          <p style={{ fontSize: '16px', fontWeight: 500, color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>
             {dateStr}
           </p>
 
-          <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>
+          <p style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(255,255,255,0.5)' }}>
             {motivationalLine}
           </p>
         </motion.div>
