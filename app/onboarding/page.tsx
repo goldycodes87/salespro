@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import Image from 'next/image'
+import SalesProLogo from '@/components/ui/salespro-logo'
 import { PERSONAS } from '@/lib/coach-personas'
 import { formatPhone } from '@/hooks/usePhoneFormat'
 
@@ -166,26 +166,9 @@ export default function OnboardingPage() {
               <StepIndicator current={0} total={3} />
               <div className="text-center mb-10">
                 <div className="flex justify-center mb-5">
-                  <Image
-                    src="/salespro-icon.png"
-                    width={72}
-                    height={72}
-                    alt="SalesPro"
-                    style={{ mixBlendMode: 'screen' }}
-                  />
+                  <SalesProLogo variant="full" height={44} />
                 </div>
-                <h1
-                  className="text-3xl font-extrabold mb-3"
-                  style={{
-                    background: 'linear-gradient(90deg, #ffffff 0%, #06B6D4 100%)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                  }}
-                >
-                  Welcome to SalesPro
-                </h1>
-                <p className="text-base" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                <p className="text-base mt-3" style={{ color: 'rgba(255,255,255,0.5)' }}>
                   Let&apos;s get you set up in 3 quick steps
                 </p>
               </div>

@@ -1,8 +1,8 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import Image from 'next/image'
 import { LampContainer } from '@/components/ui/lamp'
+import SalesProLogo from '@/components/ui/salespro-logo'
 
 interface DashboardHeroProps {
   greetingPrefix: string
@@ -24,17 +24,10 @@ export default function DashboardHero({
       <LampContainer className="min-h-[320px]">
         {/* Big watermark icon */}
         <div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-          style={{ zIndex: 0 }}
+          className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
+          style={{ zIndex: 0, opacity: 0.04 }}
         >
-          <Image
-            src="/salespro-icon.png"
-            width={300}
-            height={300}
-            alt=""
-            className="select-none"
-            style={{ opacity: 0.04, userSelect: 'none' }}
-          />
+          <SalesProLogo variant="icon" height={300} />
         </div>
 
         {/* Greeting */}

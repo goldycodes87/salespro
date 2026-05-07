@@ -1,5 +1,6 @@
 import { requireAdmin } from '@/lib/admin-auth'
 import Link from 'next/link'
+import SalesProLogo from '@/components/ui/salespro-logo'
 
 const NAV_ITEMS = [
   { href: '/admin', label: 'Overview', icon: '📊' },
@@ -17,7 +18,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       {/* Sidebar - desktop */}
       <div className="hidden md:flex flex-col" style={{ width: '240px', background: '#0D1117', borderRight: '1px solid rgba(255,255,255,0.06)', position: 'fixed', top: 0, bottom: 0, left: 0 }}>
         <div className="px-5 pt-6 pb-4">
-          <div style={{ fontSize: '18px', fontWeight: 700, color: '#F9FAFB', letterSpacing: '-0.5px' }}>SalesPro</div>
+          <SalesProLogo variant="full" height={32} />
           <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#7C3AED', background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.25)', borderRadius: '4px', padding: '1px 6px' }}>Admin</span>
         </div>
         <nav className="flex-1 px-3 space-y-1">

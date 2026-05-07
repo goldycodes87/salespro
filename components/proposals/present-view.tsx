@@ -11,8 +11,8 @@ import {
   DEFAULT_FINANCING_SETTINGS,
 } from '@/lib/pricing'
 import Link from 'next/link'
-import Image from 'next/image'
 import AnimatedGradientBackground from '@/components/ui/animated-gradient-background'
+import SalesProLogo from '@/components/ui/salespro-logo'
 
 type Proposal = Record<string, any>
 
@@ -475,8 +475,7 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
           WebkitBackdropFilter: 'blur(20px)',
         }}>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.7 }} transition={{ duration: 0.8 }}>
-          <Image src="/salespro-logo.png" alt="SalesPro" height={28} width={112} className="object-contain"
-            style={{ height: '28px', width: 'auto' }} />
+          <SalesProLogo variant="full" height={28} />
         </motion.div>
         <div className="flex items-center gap-2">
           {downloadPdfUrl && (

@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import Image from 'next/image'
 import AnimatedGradientBackground from '@/components/ui/animated-gradient-background'
+import SalesProLogo from '@/components/ui/salespro-logo'
 import { Spotlight } from '@/components/ui/spotlight'
 import { createClient } from '@/lib/supabase/client'
 
@@ -74,26 +74,7 @@ export default function LoginPage() {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-3">
-              <Image
-                src="/salespro-icon.png"
-                width={56}
-                height={56}
-                alt="SalesPro"
-                style={{ mixBlendMode: 'screen' }}
-              />
-            </div>
-            <div
-              style={{
-                fontSize: 28,
-                fontWeight: 800,
-                background: 'linear-gradient(90deg, #ffffff 0%, #06B6D4 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                marginBottom: 6,
-              }}
-            >
-              SalesPro
+              <SalesProLogo variant="icon" height={56} />
             </div>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
               Your sales command center.
