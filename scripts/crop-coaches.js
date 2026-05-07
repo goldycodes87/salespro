@@ -1,7 +1,7 @@
 const sharp = require('sharp')
 const path = require('path')
 
-const src = path.join(__dirname, '../public/coaches/Coaches.png')
+const src = path.join(__dirname, '../public/Coaches.png')
 const outDir = path.join(__dirname, '../public/coaches')
 
 async function run() {
