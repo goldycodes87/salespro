@@ -33,7 +33,8 @@ interface ToggleState {
   cashOn: boolean
   financingOn: boolean
   selectedFinancingId: string | null
-  costcoOn: boolean
+  costcoShopOn: boolean
+  costcoExecOn: boolean
 }
 
 interface PricePoints {
@@ -85,7 +86,7 @@ function calculatePricing(
     bnsn_is_combined: isCombined || undefined,
     cash_incentive: ts.cashOn && cashAvailable,
     cash_pct: cashOpt?.pct ?? 6,
-    costco_revealed: ts.costcoOn,
+    costco_revealed: ts.costcoShopOn || ts.costcoExecOn,
     costco_member: pd.costco_member,
     costco_executive: pd.costco_executive,
     financing: 'none',
@@ -108,6 +109,7 @@ function calculatePricing(
 
   const costcoShopCard = r.your_price * 0.10
   const costcoExecutive = Math.min(r.your_price * 0.02, 1250)
+  const netCostcoSavings = (ts.costcoShopOn ? costcoShopCard : 0) + (ts.costcoExecOn ? costcoExecutive : 0)
 
   return {
     packagePrice: r.package_price,
@@ -123,7 +125,7 @@ function calculatePricing(
     monthlyPayment: r.monthly_payment,
     costcoShopCard,
     costcoExec: costcoExecutive,
-    netAfterCostco: r.your_price - costcoShopCard - costcoExecutive,
+    netAfterCostco: r.your_price - netCostcoSavings,
     cashAvailable,
     totalWindows: r.total_windows,
   }
@@ -176,7 +178,8 @@ function initToggleState(
     cashOn: pd.cash_incentive ?? false,
     financingOn: pd.financing !== 'none',
     selectedFinancingId,
-    costcoOn: pd.costco_revealed ?? false,
+    costcoShopOn: pd.costco_revealed ?? false,
+    costcoExecOn: !!(pd.costco_executive && pd.costco_revealed),
   }
 }
 
@@ -323,7 +326,7 @@ export default function PresentView({ proposal, backHref, repSettings }: {
   const [ts, setTs] = useState<ToggleState>(() =>
     pricingData
       ? initToggleState(pricingData, discountOpts, financingOpts)
-      : { promoOn: false, selectedPromoId: null, bnsnOn: false, selectedBnsnId: null, cashOn: false, financingOn: false, selectedFinancingId: null, costcoOn: false },
+      : { promoOn: false, selectedPromoId: null, bnsnOn: false, selectedBnsnId: null, cashOn: false, financingOn: false, selectedFinancingId: null, costcoShopOn: false, costcoExecOn: false },
   )
 
   const pp = useMemo(
@@ -399,7 +402,8 @@ export default function PresentView({ proposal, backHref, repSettings }: {
     return newTs
   })
 
-  const toggleCostco = () => setTs(prev => ({ ...prev, costcoOn: !prev.costcoOn }))
+  const toggleCostcoShop = () => setTs(prev => ({ ...prev, costcoShopOn: !prev.costcoShopOn }))
+  const toggleCostcoExec = () => setTs(prev => ({ ...prev, costcoExecOn: !prev.costcoExecOn }))
 
   const handleEmail = async () => {
     setEmailing(true)
@@ -484,13 +488,14 @@ export default function PresentView({ proposal, backHref, repSettings }: {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(0)}
           style={{ position: 'relative' }}>
           <CardGlow color="rgba(255,255,255,0.3)" />
-          <div style={{ ...glassCard, padding: '24px', position: 'relative', zIndex: 1 }}>
+          <div style={{ ...glassCard, padding: '24px 20px', position: 'relative', zIndex: 1, width: '100%', textAlign: 'center' }}>
             <h1 style={{
-              fontSize: displayName.length > 20 ? 'clamp(22px, 4vw, 36px)' : 'clamp(28px, 5vw, 52px)',
-              fontWeight: 700, color: '#fff',
-              letterSpacing: '0.05em', lineHeight: 1.1,
-              wordBreak: 'break-word', width: '100%', textAlign: 'center',
-              padding: '0 16px', marginBottom: '6px',
+              fontSize: 'clamp(24px, 5vw, 48px)',
+              fontWeight: 800, color: '#fff',
+              letterSpacing: '0.05em', lineHeight: 1.15,
+              wordBreak: 'normal', overflowWrap: 'break-word',
+              whiteSpace: 'normal', width: '100%', display: 'block',
+              marginBottom: '6px',
             }}>
               {displayName}
             </h1>
@@ -725,8 +730,8 @@ export default function PresentView({ proposal, backHref, repSettings }: {
             transition={{ type: 'spring', stiffness: 200, damping: 20 }}
             style={{
               fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 'clamp(48px, 10vw, 80px)',
-              fontWeight: 800, lineHeight: 1,
+              fontSize: 'clamp(40px, 8vw, 72px)',
+              fontWeight: 800, lineHeight: 1, overflow: 'visible', whiteSpace: 'nowrap',
               background: 'linear-gradient(135deg, #60A5FA 0%, #06B6D4 40%, #34D399 100%)',
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
             }}>
@@ -750,34 +755,56 @@ export default function PresentView({ proposal, backHref, repSettings }: {
             style={{ position: 'relative' }}>
             <CardGlow color="rgba(251,191,36,0.4)" />
             <div style={{ ...glassCard, background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.2)', padding: '20px', position: 'relative', zIndex: 1 }}>
-              <BigToggle on={ts.costcoOn} onToggle={toggleCostco} label="Costco Member Savings" />
-              <AnimatePresence>
-                {ts.costcoOn && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25 }}
-                    className="overflow-hidden">
-                    <div className="mt-3">
-                      <div className="flex justify-between py-1.5">
-                        <span style={{ color: 'rgba(251,191,36,0.7)', fontSize: '14px' }}>Costco Shop Card (10%)</span>
-                        <span style={{ color: '#FCD34D', fontSize: '14px', fontWeight: 700 }}>-{fmt(pp.costcoShopCard)}</span>
-                      </div>
-                      <div className="py-1.5" style={{ borderTop: '1px solid rgba(251,191,36,0.1)' }}>
-                        <div className="flex justify-between">
-                          <span style={{ color: 'rgba(251,191,36,0.7)', fontSize: '14px' }}>Executive Membership Reward (2%)</span>
-                          <span style={{ color: '#FCD34D', fontSize: '14px', fontWeight: 700 }}>-{fmt(pp.costcoExec)}</span>
-                        </div>
-                        <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontStyle: 'italic', marginTop: '2px' }}>
-                          For Executive members only
-                        </p>
-                      </div>
-                      <p style={{ fontSize: '14px', fontWeight: 700, color: '#F59E0B', marginTop: '10px' }}>
-                        Additional {fmt(pp.costcoShopCard + pp.costcoExec)} back in your pocket
-                      </p>
-                    </div>
-                  </motion.div>
+
+              {/* Toggle A: Shop Card */}
+              <div className="flex items-center gap-3" style={{ minHeight: '44px' }}>
+                <span style={{ flex: 1, fontSize: '16px', fontWeight: 600, color: ts.costcoShopOn ? '#F9FAFB' : 'rgba(255,255,255,0.55)' }}>
+                  Costco Shop Card (10%)
+                </span>
+                {ts.costcoShopOn && (
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', color: '#F59E0B', fontWeight: 700 }}>
+                    -{fmt(pp.costcoShopCard)}
+                  </span>
                 )}
-              </AnimatePresence>
+                <div onClick={toggleCostcoShop} style={{
+                  position: 'relative', flexShrink: 0, width: '52px', height: '28px', borderRadius: '14px',
+                  background: ts.costcoShopOn ? '#1D4ED8' : 'rgba(255,255,255,0.15)', transition: 'background 0.2s', cursor: 'pointer',
+                }}>
+                  <div style={{
+                    position: 'absolute', top: '3px', width: '22px', height: '22px', borderRadius: '50%',
+                    background: '#fff', left: ts.costcoShopOn ? '27px' : '3px', transition: 'left 0.2s',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                  }} />
+                </div>
+              </div>
+
+              {/* Toggle B: Executive */}
+              <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(251,191,36,0.1)' }}>
+                <div className="flex items-center gap-3" style={{ minHeight: '44px' }}>
+                  <span style={{ flex: 1, fontSize: '16px', fontWeight: 600, color: ts.costcoExecOn ? '#F9FAFB' : 'rgba(255,255,255,0.55)' }}>
+                    Executive Membership Reward (2%)
+                  </span>
+                  {ts.costcoExecOn && (
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', color: '#F59E0B', fontWeight: 700 }}>
+                      -{fmt(pp.costcoExec)}
+                    </span>
+                  )}
+                  <div onClick={toggleCostcoExec} style={{
+                    position: 'relative', flexShrink: 0, width: '52px', height: '28px', borderRadius: '14px',
+                    background: ts.costcoExecOn ? '#1D4ED8' : 'rgba(255,255,255,0.15)', transition: 'background 0.2s', cursor: 'pointer',
+                  }}>
+                    <div style={{
+                      position: 'absolute', top: '3px', width: '22px', height: '22px', borderRadius: '50%',
+                      background: '#fff', left: ts.costcoExecOn ? '27px' : '3px', transition: 'left 0.2s',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                    }} />
+                  </div>
+                </div>
+                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginTop: '2px' }}>
+                  For Executive members · Max $1,250
+                </p>
+              </div>
+
             </div>
           </motion.div>
         )}
@@ -789,7 +816,7 @@ export default function PresentView({ proposal, backHref, repSettings }: {
           <div style={{
             ...glassCard,
             boxShadow: '0 0 60px rgba(29,78,216,0.25), 0 0 120px rgba(6,182,212,0.1), inset 0 1px 0 rgba(255,255,255,0.1)',
-            padding: '28px', position: 'relative', zIndex: 1, overflow: 'hidden',
+            padding: '28px 28px 28px 28px', position: 'relative', zIndex: 1, overflow: 'visible',
           }}>
             <div style={{
               position: 'absolute', inset: 0, borderRadius: '20px', pointerEvents: 'none',
@@ -799,17 +826,17 @@ export default function PresentView({ proposal, backHref, repSettings }: {
               Your Final Price
             </p>
             <motion.p
-              key={`final-${Math.round(ts.costcoOn ? pp.netAfterCostco : pp.yourPrice)}`}
+              key={`final-${Math.round((ts.costcoShopOn || ts.costcoExecOn) ? pp.netAfterCostco : pp.yourPrice)}`}
               initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 100, damping: 15 }}
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 'clamp(48px, 10vw, 80px)', fontWeight: 800, lineHeight: 1, marginBottom: '16px',
+                fontSize: 'clamp(40px, 8vw, 72px)', fontWeight: 800, lineHeight: 1, marginBottom: '16px',
                 background: 'linear-gradient(135deg, #60A5FA 0%, #06B6D4 40%, #34D399 100%)',
                 WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-                position: 'relative', zIndex: 1,
+                position: 'relative', zIndex: 1, overflow: 'visible', whiteSpace: 'nowrap',
               }}>
-              {fmt(ts.costcoOn ? pp.netAfterCostco : pp.yourPrice)}
+              {fmt((ts.costcoShopOn || ts.costcoExecOn) ? pp.netAfterCostco : pp.yourPrice)}
             </motion.p>
             <div style={{ position: 'relative', zIndex: 1 }}>
               {pp.youSave > 0 && (
@@ -822,7 +849,7 @@ export default function PresentView({ proposal, backHref, repSettings }: {
                   Or as low as {fmt(pp.monthlyPayment)}/mo
                 </p>
               )}
-              {ts.costcoOn && (pp.costcoShopCard > 0 || pp.costcoExec > 0) && (
+              {(ts.costcoShopOn || ts.costcoExecOn) && (
                 <p style={{ fontSize: '14px', fontWeight: 600, color: '#FCD34D' }}>
                   Net cost after Costco: {fmt(pp.netAfterCostco)}
                 </p>
