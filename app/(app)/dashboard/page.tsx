@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import DashboardHero from '@/components/dashboard/dashboard-hero'
 import StatCards from '@/components/dashboard/stat-cards'
+import CalendarSyncOnLoad from '@/components/dashboard/calendar-sync'
 import { getMTStartOfDay, getMTStartOfWeek, getMTHour } from '@/lib/time'
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -44,6 +45,7 @@ export default async function DashboardPage() {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
+    year: 'numeric',
   }).format(now)
 
   const admin = getSupabaseAdmin()
@@ -117,6 +119,17 @@ export default async function DashboardPage() {
         : Promise.resolve({ data: [] }),
     ])
 
+  // FIX 5 — calendar debug
+  if (user) {
+    const calConn = await admin
+      .from('calendar_connections')
+      .select('id, provider, last_synced_at')
+      .eq('rep_id', user.id)
+    console.log('CALENDAR CONNECTION:', JSON.stringify(calConn.data))
+    console.log('EVENTS TODAY:', JSON.stringify(todayEvents.data))
+    console.log('SYNC TRIGGERED:', true)
+  }
+
   const pipelineValue = (pipeline.data ?? []).reduce(
     (sum: number, p: any) => sum + (p.your_price ?? 0),
     0,
@@ -158,6 +171,7 @@ export default async function DashboardPage() {
       background: 'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(15,118,110,0.08) 0%, transparent 70%)',
       minHeight: '100vh',
     }}>
+    <CalendarSyncOnLoad />
     <div className="px-4 pt-6 pb-6 max-w-2xl mx-auto">
       <DashboardHero
         greetingPrefix={greetingPrefix}

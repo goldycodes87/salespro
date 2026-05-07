@@ -15,7 +15,8 @@ export default async function Coach() {
   ])
 
   const repName = repResult.data?.full_name ?? repResult.data?.name ?? 'there'
-  const activePersonaId = configResult.data?.active_persona_id ?? 'jordan'
+  // Pass null if no config row — client shows setup prompt
+  const activePersonaId = configResult.data?.active_persona_id ?? null
 
   return <CoachPage repName={repName} initialPersonaId={activePersonaId} />
 }

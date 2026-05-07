@@ -7,7 +7,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <ResearchProvider>
       <div className="min-h-screen" style={{ backgroundColor: '#0A0F1E' }}>
         <ResearchBanner />
-        <main style={{ paddingBottom: 'calc(72px + env(safe-area-inset-bottom))' }}>
+        <main style={{ paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}>
           {children}
         </main>
         <BottomNav />

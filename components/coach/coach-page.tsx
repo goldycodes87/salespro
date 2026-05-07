@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { PERSONAS, getPersona, type Persona } from '@/lib/coach-personas'
+import Link from 'next/link'
+import { getPersona } from '@/lib/coach-personas'
 
 interface Message {
   id?: string
@@ -13,18 +14,79 @@ interface Message {
 
 interface CoachPageProps {
   repName: string
-  initialPersonaId: string
+  initialPersonaId: string | null
 }
 
-function TypingIndicator() {
+function CoachPhoto({
+  personaId,
+  size,
+  color,
+}: {
+  personaId: string
+  size: number
+  color: string
+}) {
+  const [error, setError] = useState(false)
+  const persona = getPersona(personaId)
+
+  if (error) {
+    return (
+      <div
+        className="rounded-full flex items-center justify-center flex-shrink-0 text-xl"
+        style={{ width: size, height: size, background: color, flexShrink: 0 }}
+      >
+        {persona.avatar}
+      </div>
+    )
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/coaches/${personaId}.png`}
+      alt={persona.name}
+      className="rounded-full object-cover object-top flex-shrink-0"
+      style={{
+        width: size,
+        height: size,
+        boxShadow: `0 0 0 2px ${color.includes('gradient') ? 'rgba(6,182,212,0.4)' : 'rgba(6,182,212,0.4)'}`,
+      }}
+      onError={() => setError(true)}
+    />
+  )
+}
+
+function SmallCoachPhoto({ personaId, color }: { personaId: string; color: string }) {
+  const [error, setError] = useState(false)
+  const persona = getPersona(personaId)
+
+  if (error) {
+    return (
+      <div
+        className="rounded-full flex items-center justify-center flex-shrink-0 text-sm"
+        style={{ width: 28, height: 28, background: color }}
+      >
+        {persona.avatar}
+      </div>
+    )
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/coaches/${personaId}.png`}
+      alt={persona.name}
+      className="rounded-full object-cover object-top flex-shrink-0"
+      style={{ width: 28, height: 28 }}
+      onError={() => setError(true)}
+    />
+  )
+}
+
+function TypingIndicator({ personaId, color }: { personaId: string; color: string }) {
   return (
     <div className="flex items-end gap-2 mb-3">
-      <div
-        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-base"
-        style={{ background: 'rgba(255,255,255,0.08)' }}
-      >
-        •••
-      </div>
+      <SmallCoachPhoto personaId={personaId} color={color} />
       <div
         className="px-4 py-3 rounded-2xl rounded-bl-sm"
         style={{ background: '#1F2937', maxWidth: '80%' }}
@@ -46,20 +108,21 @@ function TypingIndicator() {
 }
 
 export default function CoachPage({ repName, initialPersonaId }: CoachPageProps) {
-  const [activePersonaId, setActivePersonaId] = useState(initialPersonaId)
+  const personaId = initialPersonaId ?? 'jordan'
+  const persona = getPersona(personaId)
+
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [loading, setLoading] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const persona = getPersona(activePersonaId)
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
-  const loadMessages = useCallback(async (personaId: string) => {
+  const loadMessages = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch(`/api/coach/messages?personaId=${personaId}`)
@@ -70,24 +133,15 @@ export default function CoachPage({ repName, initialPersonaId }: CoachPageProps)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [personaId])
 
   useEffect(() => {
-    loadMessages(activePersonaId)
-  }, [activePersonaId, loadMessages])
+    loadMessages()
+  }, [loadMessages])
 
   useEffect(() => {
     if (!loading) scrollToBottom()
   }, [messages, loading, scrollToBottom])
-
-  const switchPersona = async (personaId: string) => {
-    setActivePersonaId(personaId)
-    await fetch('/api/coach/config', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ active_persona_id: personaId }),
-    })
-  }
 
   const sendMessage = async () => {
     const text = input.trim()
@@ -102,7 +156,7 @@ export default function CoachPage({ repName, initialPersonaId }: CoachPageProps)
       const res = await fetch('/api/coach/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ personaId: activePersonaId, content: text }),
+        body: JSON.stringify({ personaId, content: text }),
       })
       const data = await res.json()
       setMessages((prev) => [...prev, { role: 'assistant', content: data.content }])
@@ -126,55 +180,76 @@ export default function CoachPage({ repName, initialPersonaId }: CoachPageProps)
   const firstName = repName.split(' ')[0]
   const showWelcome = !loading && messages.length === 0
 
+  // No config — show setup prompt
+  if (initialPersonaId === null) {
+    return (
+      <div
+        className="flex flex-col items-center justify-center text-center px-6"
+        style={{ height: 'calc(100vh - 76px)', background: '#0A0F1E' }}
+      >
+        <div
+          className="w-20 h-20 rounded-2xl flex items-center justify-center mb-5 text-4xl"
+          style={{ background: 'rgba(29,78,216,0.1)', border: '1px solid rgba(29,78,216,0.2)' }}
+        >
+          🧠
+        </div>
+        <h2 className="text-xl font-bold mb-2" style={{ color: '#F9FAFB' }}>
+          Choose Your Coach
+        </h2>
+        <p className="text-sm mb-6 max-w-xs leading-relaxed" style={{ color: '#6B7280' }}>
+          Pick a sales coach in Settings to get personalized guidance.
+        </p>
+        <Link
+          href="/settings?tab=coach"
+          className="px-6 py-3 rounded-2xl text-sm font-semibold"
+          style={{ background: 'linear-gradient(135deg, #1D4ED8, #06B6D4)', color: '#fff' }}
+        >
+          Choose Coach
+        </Link>
+      </div>
+    )
+  }
+
   return (
     <div
       className="flex flex-col"
-      style={{ height: 'calc(100vh - 72px)', background: '#0A0F1E' }}
+      style={{ height: 'calc(100vh - 76px)', background: '#0A0F1E' }}
     >
-      {/* Persona selector */}
+      {/* Coach header */}
       <div
-        className="flex-shrink-0 px-4 pt-4 pb-3"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+        className="flex-shrink-0 flex items-center gap-3 px-4 py-3"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(10,15,30,0.8)' }}
       >
-        <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-          {PERSONAS.map((p) => {
-            const isActive = p.id === activePersonaId
-            return (
-              <button
-                key={p.id}
-                onClick={() => switchPersona(p.id)}
-                className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-all"
-                style={{
-                  background: isActive ? 'rgba(29,78,216,0.2)' : 'rgba(255,255,255,0.05)',
-                  border: isActive
-                    ? '1.5px solid rgba(59,130,246,0.5)'
-                    : '1px solid rgba(255,255,255,0.08)',
-                  color: isActive ? '#60A5FA' : '#9CA3AF',
-                }}
-              >
-                <span style={{ fontSize: '16px', lineHeight: 1 }}>{p.avatar}</span>
-                <span>{p.name}</span>
-                <span
-                  className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-                  style={{
-                    background: isActive ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
-                    color: isActive ? '#93C5FD' : '#6B7280',
-                  }}
-                >
-                  {p.tagline}
-                </span>
-              </button>
-            )
-          })}
+        <CoachPhoto personaId={personaId} size={44} color={persona.color} />
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-bold leading-tight" style={{ color: '#F9FAFB' }}>
+            {persona.name}
+          </h2>
+          <p className="text-xs font-medium" style={{ color: '#6B7280' }}>
+            {persona.tagline}
+          </p>
         </div>
+        <Link
+          href="/settings?tab=coach"
+          className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+          style={{
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            color: '#6B7280',
+          }}
+        >
+          Switch
+        </Link>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin"
-              style={{ borderColor: 'rgba(59,130,246,0.3)', borderTopColor: '#3B82F6' }} />
+            <div
+              className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin"
+              style={{ borderColor: 'rgba(59,130,246,0.3)', borderTopColor: '#3B82F6' }}
+            />
           </div>
         ) : (
           <>
@@ -184,18 +259,13 @@ export default function CoachPage({ repName, initialPersonaId }: CoachPageProps)
                   key="welcome"
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex flex-col items-center text-center py-8 px-4"
+                  className="flex flex-col items-center text-center py-6 px-4"
                 >
-                  <div
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 text-3xl"
-                    style={{ background: 'rgba(255,255,255,0.07)' }}
-                  >
-                    {persona.avatar}
-                  </div>
-                  <h2 className="text-lg font-bold mb-1" style={{ color: '#F9FAFB' }}>
+                  <CoachPhoto personaId={personaId} size={72} color={persona.color} />
+                  <h2 className="text-lg font-bold mt-4 mb-1" style={{ color: '#F9FAFB' }}>
                     {persona.name}
                   </h2>
-                  <p className="text-xs mb-6" style={{ color: '#6B7280' }}>
+                  <p className="text-xs mb-5" style={{ color: '#6B7280' }}>
                     {persona.tagline}
                   </p>
                   <div
@@ -217,12 +287,7 @@ export default function CoachPage({ repName, initialPersonaId }: CoachPageProps)
                   className={`flex mb-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start items-end gap-2'}`}
                 >
                   {msg.role === 'assistant' && (
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-base"
-                      style={{ background: 'rgba(255,255,255,0.08)' }}
-                    >
-                      {persona.avatar}
-                    </div>
+                    <SmallCoachPhoto personaId={personaId} color={persona.color} />
                   )}
                   <div
                     className={`px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
@@ -241,7 +306,7 @@ export default function CoachPage({ repName, initialPersonaId }: CoachPageProps)
                 </motion.div>
               ))}
 
-              {isTyping && <TypingIndicator />}
+              {isTyping && <TypingIndicator personaId={personaId} color={persona.color} />}
             </AnimatePresence>
             <div ref={messagesEndRef} />
           </>

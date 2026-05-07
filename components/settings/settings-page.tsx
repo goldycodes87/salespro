@@ -9,6 +9,30 @@ import { DEFAULT_FINANCING_SETTINGS, DEFAULT_DISCOUNT_SETTINGS } from '@/lib/pri
 import { formatPhone } from '@/hooks/usePhoneFormat'
 import { PERSONAS } from '@/lib/coach-personas'
 
+function PersonaPhoto({ personaId, color }: { personaId: string; color: string }) {
+  const [error, setError] = useState(false)
+  const persona = PERSONAS.find(p => p.id === personaId)!
+  if (error) {
+    return (
+      <div
+        className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 text-2xl"
+        style={{ background: color }}
+      >
+        {persona.avatar}
+      </div>
+    )
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/coaches/${personaId}.png`}
+      alt={persona.name}
+      className="w-14 h-14 rounded-2xl object-cover object-top flex-shrink-0"
+      onError={() => setError(true)}
+    />
+  )
+}
+
 type Rep = Record<string, any>
 type Usage = {
   byService: Record<string, { count: number; cost: number }>
@@ -650,12 +674,7 @@ export default function SettingsPage({
                       border: isActive ? '1.5px solid rgba(29,78,216,0.4)' : '1px solid rgba(255,255,255,0.06)',
                     }}
                   >
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl"
-                      style={{ background: isActive ? 'rgba(29,78,216,0.15)' : 'rgba(255,255,255,0.06)' }}
-                    >
-                      {persona.avatar}
-                    </div>
+                    <PersonaPhoto personaId={persona.id} color={persona.color} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>{persona.name}</p>

@@ -30,6 +30,36 @@ export default function DashboardHero({
 
   return (
     <div className="relative mb-6">
+      {/* Rep avatar — floats above the hero, links to settings */}
+      <Link href="/settings" className="absolute top-4 right-4 z-30">
+        {headshotUrl ? (
+          <div
+            className="w-12 h-12 rounded-full overflow-hidden"
+            style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.2)' }}
+          >
+            <Image
+              src={headshotUrl}
+              alt={repName ?? 'Rep'}
+              width={48}
+              height={48}
+              className="w-full h-full object-cover"
+              unoptimized
+            />
+          </div>
+        ) : (
+          <div
+            className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold"
+            style={{
+              background: 'linear-gradient(135deg, #1D4ED8, #0F766E)',
+              color: '#fff',
+              boxShadow: '0 0 0 2px rgba(255,255,255,0.2)',
+            }}
+          >
+            {initials}
+          </div>
+        )}
+      </Link>
+
       <LampContainer className="min-h-[320px]">
         {/* Big watermark icon */}
         <div
@@ -45,36 +75,6 @@ export default function DashboardHero({
             style={{ opacity: 0.04, userSelect: 'none' }}
           />
         </div>
-
-        {/* Headshot — tap goes to settings */}
-        <Link href="/settings" className="absolute top-4 right-4 z-20">
-          {headshotUrl ? (
-            <div
-              className="w-12 h-12 rounded-full overflow-hidden"
-              style={{ boxShadow: '0 0 0 2px rgba(29,78,216,0.4)' }}
-            >
-              <Image
-                src={headshotUrl}
-                alt={repName ?? 'Rep'}
-                width={48}
-                height={48}
-                className="w-full h-full object-cover"
-                unoptimized
-              />
-            </div>
-          ) : (
-            <div
-              className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold"
-              style={{
-                background: 'linear-gradient(135deg, #1D4ED8, #0F766E)',
-                color: '#fff',
-                boxShadow: '0 0 0 2px rgba(29,78,216,0.4)',
-              }}
-            >
-              {initials}
-            </div>
-          )}
-        </Link>
 
         {/* Greeting */}
         <motion.div
