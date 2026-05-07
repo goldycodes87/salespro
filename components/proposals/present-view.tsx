@@ -730,8 +730,8 @@ export default function PresentView({ proposal, backHref, repSettings }: {
             transition={{ type: 'spring', stiffness: 200, damping: 20 }}
             style={{
               fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 'clamp(40px, 8vw, 72px)',
-              fontWeight: 800, lineHeight: 1, overflow: 'visible', whiteSpace: 'nowrap',
+              fontSize: 'clamp(36px, 7vw, 64px)',
+              fontWeight: 800, lineHeight: 1, overflow: 'visible', letterSpacing: '-0.02em',
               background: 'linear-gradient(135deg, #60A5FA 0%, #06B6D4 40%, #34D399 100%)',
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
             }}>
@@ -816,7 +816,7 @@ export default function PresentView({ proposal, backHref, repSettings }: {
           <div style={{
             ...glassCard,
             boxShadow: '0 0 60px rgba(29,78,216,0.25), 0 0 120px rgba(6,182,212,0.1), inset 0 1px 0 rgba(255,255,255,0.1)',
-            padding: '28px 28px 28px 28px', position: 'relative', zIndex: 1, overflow: 'visible',
+            padding: '28px 16px', position: 'relative', zIndex: 1, overflow: 'visible',
           }}>
             <div style={{
               position: 'absolute', inset: 0, borderRadius: '20px', pointerEvents: 'none',
@@ -831,10 +831,11 @@ export default function PresentView({ proposal, backHref, repSettings }: {
               transition={{ type: 'spring', stiffness: 100, damping: 15 }}
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 'clamp(40px, 8vw, 72px)', fontWeight: 800, lineHeight: 1, marginBottom: '16px',
+                fontSize: 'clamp(36px, 7vw, 64px)', fontWeight: 800, lineHeight: 1, marginBottom: '16px',
+                letterSpacing: '-0.02em',
                 background: 'linear-gradient(135deg, #60A5FA 0%, #06B6D4 40%, #34D399 100%)',
                 WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-                position: 'relative', zIndex: 1, overflow: 'visible', whiteSpace: 'nowrap',
+                position: 'relative', zIndex: 1, overflow: 'visible',
               }}>
               {fmt((ts.costcoShopOn || ts.costcoExecOn) ? pp.netAfterCostco : pp.yourPrice)}
             </motion.p>
