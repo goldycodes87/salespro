@@ -52,6 +52,7 @@ export default function DashboardHero({
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.8, ease: 'easeInOut' }}
           className="relative z-10 text-center px-6 pb-6"
+          style={{ paddingTop: 'max(60px, calc(env(safe-area-inset-top) + 40px))' }}
         >
           <h1
             className="font-extrabold leading-tight mb-2"

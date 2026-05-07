@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
@@ -14,8 +16,9 @@ export default async function Coach() {
     admin.from('coach_config').select('active_persona_id').eq('rep_id', user.id).maybeSingle(),
   ])
 
+  console.log('COACH PAGE CONFIG:', JSON.stringify({ data: configResult.data, error: configResult.error, userId: user.id }))
+
   const repName = repResult.data?.full_name ?? repResult.data?.name ?? 'there'
-  // Pass null if no config row — client shows setup prompt
   const activePersonaId = configResult.data?.active_persona_id ?? null
 
   return <CoachPage repName={repName} initialPersonaId={activePersonaId} />

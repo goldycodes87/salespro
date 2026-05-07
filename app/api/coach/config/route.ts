@@ -21,13 +21,15 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = getSupabaseAdmin()
-  const { data } = await admin
+  const { data, error } = await admin
     .from('coach_config')
     .select('active_persona_id')
     .eq('rep_id', user.id)
     .maybeSingle()
 
-  return NextResponse.json({ active_persona_id: data?.active_persona_id ?? 'jordan' })
+  console.log('COACH CONFIG FETCHED:', JSON.stringify({ data, error, userId: user.id }))
+
+  return NextResponse.json({ active_persona_id: data?.active_persona_id ?? null })
 }
 
 export async function PATCH(request: NextRequest) {
@@ -35,12 +37,16 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const admin = getSupabaseAdmin()
+  console.log('SAVING CONFIG:', JSON.stringify({ body, userId: user.id }))
 
-  await admin.from('coach_config').upsert(
+  const admin = getSupabaseAdmin()
+  const { data, error } = await admin.from('coach_config').upsert(
     { rep_id: user.id, active_persona_id: body.active_persona_id },
     { onConflict: 'rep_id' },
-  )
+  ).select()
 
+  console.log('SAVE RESULT:', JSON.stringify({ data, error }))
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

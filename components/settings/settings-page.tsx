@@ -26,7 +26,7 @@ function PersonaPhoto({ personaId, color }: { personaId: string; color: string }
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`/coaches/${personaId}.png`}
+      src={`/coaches/${persona.photoFile}.png`}
       alt={persona.name}
       className="w-14 h-14 rounded-2xl object-cover object-top flex-shrink-0"
       onError={() => setError(true)}
