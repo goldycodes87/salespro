@@ -30,36 +30,6 @@ export default function DashboardHero({
 
   return (
     <div className="relative mb-6">
-      {/* Rep avatar — floats above the hero, links to settings */}
-      <Link href="/settings" className="absolute top-4 right-4 z-30">
-        {headshotUrl ? (
-          <div
-            className="w-12 h-12 rounded-full overflow-hidden"
-            style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.2)' }}
-          >
-            <Image
-              src={headshotUrl}
-              alt={repName ?? 'Rep'}
-              width={48}
-              height={48}
-              className="w-full h-full object-cover"
-              unoptimized
-            />
-          </div>
-        ) : (
-          <div
-            className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold"
-            style={{
-              background: 'linear-gradient(135deg, #1D4ED8, #0F766E)',
-              color: '#fff',
-              boxShadow: '0 0 0 2px rgba(255,255,255,0.2)',
-            }}
-          >
-            {initials}
-          </div>
-        )}
-      </Link>
-
       <LampContainer className="min-h-[320px]">
         {/* Big watermark icon */}
         <div
@@ -104,9 +74,42 @@ export default function DashboardHero({
             {dateStr}
           </p>
 
-          <p style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(255,255,255,0.5)' }}>
+          <p style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: '16px' }}>
             {motivationalLine}
           </p>
+
+          {/* Rep avatar row */}
+          <Link href="/settings" className="inline-flex items-center gap-2.5 mx-auto">
+            {headshotUrl ? (
+              <div
+                className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0"
+                style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.2)' }}
+              >
+                <Image
+                  src={headshotUrl}
+                  alt={repName ?? 'Rep'}
+                  width={40}
+                  height={40}
+                  className="w-full h-full object-cover"
+                  unoptimized
+                />
+              </div>
+            ) : (
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                style={{
+                  background: 'linear-gradient(135deg, #1D4ED8, #0F766E)',
+                  color: '#fff',
+                  boxShadow: '0 0 0 2px rgba(255,255,255,0.2)',
+                }}
+              >
+                {initials}
+              </div>
+            )}
+            <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>
+              {repName ?? 'Rep'}
+            </span>
+          </Link>
         </motion.div>
       </LampContainer>
     </div>

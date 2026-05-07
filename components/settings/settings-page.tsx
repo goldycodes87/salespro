@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { motion } from 'framer-motion'
+import { ChevronDown } from 'lucide-react'
 import type { FinancingOptionSetting, DiscountOptionSetting } from '@/lib/pricing'
 import { DEFAULT_FINANCING_SETTINGS, DEFAULT_DISCOUNT_SETTINGS } from '@/lib/pricing'
 import { formatPhone } from '@/hooks/usePhoneFormat'
@@ -111,14 +112,49 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function CollapsibleSection({
+  title, children, defaultOpen = false, storageKey,
+}: {
+  title: string; children: React.ReactNode; defaultOpen?: boolean; storageKey: string
+}) {
+  const [isOpen, setIsOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(`section_${storageKey}`)
+      if (stored !== null) return stored === 'true'
+    }
+    return defaultOpen
+  })
+
+  const toggle = () => {
+    setIsOpen(prev => {
+      const next = !prev
+      if (typeof window !== 'undefined') localStorage.setItem(`section_${storageKey}`, String(next))
+      return next
+    })
+  }
+
   return (
     <div className="rounded-2xl overflow-hidden mb-4"
       style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
-      <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <button
+        type="button"
+        onClick={toggle}
+        className="w-full flex items-center justify-between px-5 pt-4 pb-3"
+        style={{ borderBottom: isOpen ? '1px solid rgba(255,255,255,0.06)' : 'none' }}
+      >
         <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>{title}</h2>
-      </div>
-      <div className="p-5 space-y-4">{children}</div>
+        <motion.div animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2, ease: 'easeInOut' }}>
+          <ChevronDown size={14} color="#6B7280" />
+        </motion.div>
+      </button>
+      <motion.div
+        initial={false}
+        animate={{ height: isOpen ? 'auto' : 0 }}
+        transition={{ duration: 0.25, ease: 'easeInOut' }}
+        style={{ overflow: 'hidden' }}
+      >
+        <div className="p-5 space-y-4">{children}</div>
+      </motion.div>
     </div>
   )
 }
@@ -424,7 +460,7 @@ export default function SettingsPage({
       {activeTab === 'general' && (
         <>
           {/* Profile Photo */}
-          <Section title="Profile Photo">
+          <CollapsibleSection title="Profile Photo" storageKey="profile-photo">
             <div className="flex flex-col items-center gap-4 py-2">
               <label className="relative cursor-pointer group">
                 <div className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center"
@@ -455,10 +491,10 @@ export default function SettingsPage({
               </p>
               {photoError && <p className="text-xs" style={{ color: '#EF4444' }}>{photoError}</p>}
             </div>
-          </Section>
+          </CollapsibleSection>
 
           {/* Rep Profile */}
-          <Section title="Rep Profile">
+          <CollapsibleSection title="Rep Profile" storageKey="rep-profile" defaultOpen={true}>
             <Field label="Full Name">
               <FocusInput value={profile.full_name} onChange={v => setProfile(p => ({ ...p, full_name: v }))} placeholder="Eric Goldberg" />
             </Field>
@@ -472,10 +508,10 @@ export default function SettingsPage({
               <FocusInput value={profile.phone} onChange={v => setProfile(p => ({ ...p, phone: v }))} type="tel" placeholder="719-555-0100" />
             </Field>
             <SaveButton saving={savingProfile} saved={profileSaved} onClick={saveProfile} label="Save Profile" />
-          </Section>
+          </CollapsibleSection>
 
           {/* Proposal Defaults */}
-          <Section title="Proposal Defaults">
+          <CollapsibleSection title="Proposal Defaults" storageKey="proposal-defaults">
             <Field label="Company Name">
               <FocusInput value={defaults.company_name} onChange={v => setDefaults(d => ({ ...d, company_name: v }))} placeholder="Lifetime Home Remodeling" />
             </Field>
@@ -491,10 +527,10 @@ export default function SettingsPage({
               </Field>
             </div>
             <SaveButton saving={savingDefaults} saved={defaultsSaved} onClick={saveDefaults} label="Save Defaults" />
-          </Section>
+          </CollapsibleSection>
 
           {/* Financing Options */}
-          <Section title="Financing Options">
+          <CollapsibleSection title="Financing Options" storageKey="financing-options">
             <p className="text-xs -mt-1" style={{ color: '#6B7280' }}>Configure available financing options in the proposal builder.</p>
             <div className="space-y-3">
               {financingOpts.map((opt, idx) => (
@@ -551,10 +587,10 @@ export default function SettingsPage({
               Add Financing Option
             </button>
             <SaveButton saving={savingFinancing} saved={financingSaved} onClick={saveFinancing} label="Save Financing" />
-          </Section>
+          </CollapsibleSection>
 
           {/* Promotional Discounts */}
-          <Section title="Promotional Discounts">
+          <CollapsibleSection title="Promotional Discounts" storageKey="promotional-discounts">
             <p className="text-xs -mt-1" style={{ color: '#6B7280' }}>Configure discount options available in the proposal builder.</p>
             <div className="space-y-3">
               {discountOpts.map((opt, idx) => (
@@ -608,10 +644,10 @@ export default function SettingsPage({
               Add Discount Option
             </button>
             <SaveButton saving={savingDiscounts} saved={discountsSaved} onClick={saveDiscounts} label="Save Discounts" />
-          </Section>
+          </CollapsibleSection>
 
           {/* API Usage */}
-          <Section title="API Usage This Month">
+          <CollapsibleSection title="API Usage This Month" storageKey="api-usage">
             <div className="space-y-3">
               {Object.entries(usage.byService).map(([svc, data]) => (
                 <div key={svc} className="flex items-center justify-between">
@@ -633,31 +669,29 @@ export default function SettingsPage({
                 </div>
               )}
             </div>
-          </Section>
+          </CollapsibleSection>
 
           {/* Account */}
-          <div className="rounded-2xl overflow-hidden mb-4"
-            style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-              <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>Account</h2>
+          <CollapsibleSection title="Account" storageKey="account">
+            <div className="-m-5">
+              <div className="px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <p className="text-sm font-medium" style={{ color: '#F9FAFB' }}>{rep.full_name || profile.full_name}</p>
+                <p className="text-xs mt-0.5" style={{ color: '#9CA3AF' }}>{rep.email}</p>
+              </div>
+              <button onClick={handleSignOut}
+                className="w-full px-5 py-4 text-left text-sm font-medium transition-all active:opacity-70"
+                style={{ color: '#EF4444' }}>
+                Sign out
+              </button>
             </div>
-            <div className="px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-              <p className="text-sm font-medium" style={{ color: '#F9FAFB' }}>{rep.full_name || profile.full_name}</p>
-              <p className="text-xs mt-0.5" style={{ color: '#9CA3AF' }}>{rep.email}</p>
-            </div>
-            <button onClick={handleSignOut}
-              className="w-full px-5 py-4 text-left text-sm font-medium transition-all active:opacity-70"
-              style={{ color: '#EF4444' }}>
-              Sign out
-            </button>
-          </div>
+          </CollapsibleSection>
         </>
       )}
 
       {/* COACH TAB */}
       {activeTab === 'coach' && (
         <>
-          <Section title="Default Coach">
+          <CollapsibleSection title="Default Coach" storageKey="default-coach" defaultOpen={true}>
             <p className="text-xs -mt-1 mb-1" style={{ color: '#6B7280' }}>
               Your active coach when you open the Coach tab.
             </p>
@@ -702,9 +736,9 @@ export default function SettingsPage({
             {personaSaved && (
               <p className="text-xs text-center mt-2" style={{ color: '#34D399' }}>Saved!</p>
             )}
-          </Section>
+          </CollapsibleSection>
 
-          <Section title="Conversation History">
+          <CollapsibleSection title="Conversation History" storageKey="conversation-history">
             <p className="text-xs -mt-1" style={{ color: '#6B7280' }}>
               Clear chat history for a specific coach. This also clears their memory of you.
             </p>
@@ -730,7 +764,7 @@ export default function SettingsPage({
                 </div>
               ))}
             </div>
-          </Section>
+          </CollapsibleSection>
         </>
       )}
 
@@ -738,7 +772,7 @@ export default function SettingsPage({
       {activeTab === 'calendar' && (
         <>
           {/* Google Calendar */}
-          <Section title="Google Calendar">
+          <CollapsibleSection title="Google Calendar" storageKey="google-calendar" defaultOpen={true}>
             {connections.some(c => c.provider === 'google') ? (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -785,10 +819,10 @@ export default function SettingsPage({
                 </a>
               </div>
             )}
-          </Section>
+          </CollapsibleSection>
 
           {/* iCal URL */}
-          <Section title="iCal / CalDAV URL">
+          <CollapsibleSection title="iCal / CalDAV URL" storageKey="ical-url">
             <p className="text-xs -mt-1" style={{ color: '#6B7280' }}>
               Add an iCal feed URL (Apple Calendar, Outlook, or any .ics feed).
             </p>
@@ -841,10 +875,10 @@ export default function SettingsPage({
             >
               {addingIcal ? 'Adding…' : 'Add iCal URL'}
             </button>
-          </Section>
+          </CollapsibleSection>
 
           {/* Outlook placeholder */}
-          <Section title="Microsoft Outlook">
+          <CollapsibleSection title="Microsoft Outlook" storageKey="outlook">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center"
                 style={{ background: 'rgba(255,255,255,0.04)' }}>
@@ -864,7 +898,7 @@ export default function SettingsPage({
                 Soon
               </span>
             </div>
-          </Section>
+          </CollapsibleSection>
 
           {/* Sync */}
           {connections.length > 0 && (
