@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import PresentView from '@/components/proposals/present-view'
 
 export default async function PresentPage({
@@ -13,14 +14,25 @@ export default async function PresentPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) notFound()
 
-  const { data: proposal, error } = await supabase
-    .from('proposals')
-    .select('*')
-    .eq('id', id)
-    .eq('rep_id', user.id)
-    .single()
+  const admin = getSupabaseAdmin()
 
-  if (error || !proposal) notFound()
+  const [proposalResult, repResult] = await Promise.all([
+    supabase
+      .from('proposals')
+      .select('*')
+      .eq('id', id)
+      .eq('rep_id', user.id)
+      .single(),
+    admin.from('reps').select('settings').eq('id', user.id).single(),
+  ])
 
-  return <PresentView proposal={proposal} backHref={`/proposals/${id}`} />
+  if (proposalResult.error || !proposalResult.data) notFound()
+
+  return (
+    <PresentView
+      proposal={proposalResult.data}
+      backHref={`/proposals/${id}`}
+      repSettings={repResult.data?.settings ?? {}}
+    />
+  )
 }

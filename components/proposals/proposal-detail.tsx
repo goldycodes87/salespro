@@ -41,6 +41,8 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
   const [emailToast, setEmailToast] = useState<string | null>(null)
   const [aiCallToast, setAiCallToast] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const statusColors = STATUS_COLORS[proposal.status] ?? STATUS_COLORS.draft
 
@@ -121,6 +123,19 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
       setError(err.message)
     } finally {
       setEmailing(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/proposals/${proposal.id}`, { method: 'DELETE' })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed to delete') }
+      router.push(proposal.lead_id ? `/leads/${proposal.lead_id}` : '/proposals')
+    } catch (err: any) {
+      setError(err.message)
+      setDeleting(false)
+      setShowDeleteModal(false)
     }
   }
 
@@ -217,11 +232,16 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
       {/* Pricing */}
       {result && pricing && (
         <div className="p-5 mb-4" style={cardStyle}>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>Pricing</p>
             <span className="px-2 py-0.5 rounded-lg text-xs font-semibold uppercase"
               style={{ background: 'rgba(29,78,216,0.15)', color: '#60A5FA' }}>{proposal.type}</span>
           </div>
+          {pricing.proposal_type !== 'siding' && (pricing.num_windows || pricing.num_doors) ? (
+            <p className="text-xs mb-4" style={{ color: '#6B7280' }}>
+              {[pricing.num_windows && `${pricing.num_windows} Windows`, pricing.num_doors && `${pricing.num_doors} Doors`].filter(Boolean).join(' · ')}
+            </p>
+          ) : null}
           <PriceSummary result={result} inputs={pricing} />
         </div>
       )}
@@ -308,8 +328,8 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
         </div>
       </div>
 
-      {/* Present + Edit buttons */}
-      <div className="flex gap-3 mb-8">
+      {/* Present + Edit + Delete buttons */}
+      <div className="flex gap-3 mb-4">
         <Link href={`/proposals/${proposal.id}/present`}
           className="flex-1 flex items-center justify-center gap-2 h-11 rounded-2xl text-sm font-semibold"
           style={{ background: 'rgba(255,255,255,0.06)', color: '#D1D5DB', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -327,6 +347,13 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
           </svg>
           Edit
         </Link>
+        <button type="button" onClick={() => setShowDeleteModal(true)}
+          className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+          style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+          </svg>
+        </button>
       </div>
 
       {error && (
@@ -368,6 +395,46 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-end justify-center px-4"
+            style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+            onClick={e => { if (e.target === e.currentTarget) setShowDeleteModal(false) }}>
+            <motion.div
+              initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="w-full max-w-sm rounded-3xl p-6 mb-8"
+              style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.12)' }}>
+              <div className="text-center mb-5">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
+                  style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                  </svg>
+                </div>
+                <h2 className="text-lg font-bold mb-1" style={{ color: '#F9FAFB' }}>Delete Proposal?</h2>
+                <p className="text-sm" style={{ color: '#6B7280' }}>This cannot be undone. The proposal will be permanently removed.</p>
+              </div>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setShowDeleteModal(false)}
+                  className="flex-1 h-12 rounded-2xl text-sm font-semibold"
+                  style={{ border: '1px solid rgba(255,255,255,0.12)', color: '#9CA3AF', background: 'transparent' }}>
+                  Cancel
+                </button>
+                <button type="button" onClick={handleDelete} disabled={deleting}
+                  className="flex-1 h-12 rounded-2xl text-sm font-bold"
+                  style={{ background: deleting ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.85)', color: '#fff' }}>
+                  {deleting ? 'Deleting…' : 'Delete'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Booked Modal */}
       <AnimatePresence>

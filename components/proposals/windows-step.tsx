@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import type { PricingInputs, LineItem, FinancingOption, DiscountOptionSetting, FinancingOptionSetting } from '@/lib/pricing'
-import { DEFAULT_LINE_ITEM, DEFAULT_DISCOUNT_SETTINGS, DEFAULT_FINANCING_SETTINGS } from '@/lib/pricing'
+import type { PricingInputs, FinancingOption, DiscountOptionSetting, FinancingOptionSetting } from '@/lib/pricing'
+import { DEFAULT_DISCOUNT_SETTINGS, DEFAULT_FINANCING_SETTINGS } from '@/lib/pricing'
 
 const inputStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.05)',
@@ -140,95 +140,81 @@ export default function WindowsStep({
     })
   }
 
-  const updateItem = (id: string, field: keyof LineItem, val: string | number | boolean) => {
-    onChange({
-      ...value,
-      line_items: value.line_items.map(item =>
-        item.id === id ? { ...item, [field]: val } : item
-      ),
-    })
-  }
-
-  const addItem = () => onChange({ ...value, line_items: [...value.line_items, DEFAULT_LINE_ITEM()] })
-  const removeItem = (id: string) => onChange({ ...value, line_items: value.line_items.filter(i => i.id !== id) })
-
   return (
     <div>
       <h2 className="text-lg font-bold mb-1" style={{ color: '#F9FAFB' }}>Windows Pricing</h2>
-      <p className="text-sm mb-4" style={{ color: '#6B7280' }}>Add line items, discounts, and financing</p>
+      <p className="text-sm mb-4" style={{ color: '#6B7280' }}>Enter project value, discounts, and financing</p>
 
-      {/* Line Items */}
+      {/* Project Value / Windows / Doors */}
       <div className="p-4 mb-3" style={cardStyle}>
-        <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6B7280' }}>Line Items</p>
-        <div className="space-y-3">
-          {value.line_items.map((item, idx) => (
-            <div key={item.id} className="rounded-xl p-3 space-y-2"
-              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium" style={{ color: '#6B7280' }}>Item {idx + 1}</span>
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" checked={item.discountable} onChange={e => updateItem(item.id, 'discountable', e.target.checked)}
-                      className="rounded" style={{ accentColor: '#1D4ED8' }} />
-                    <span className="text-xs" style={{ color: '#6B7280' }}>Discountable</span>
-                  </label>
-                  {value.line_items.length > 1 && (
-                    <button type="button" onClick={() => removeItem(item.id)} style={{ color: '#EF4444' }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              </div>
+        <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: '#6B7280' }}>Windows &amp; Doors</p>
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-medium mb-2" style={{ color: '#9CA3AF' }}>Project Value</p>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold"
+                style={{ color: '#6B7280', fontFamily: "'JetBrains Mono', monospace" }}>$</span>
               <input
-                value={item.location}
-                onChange={e => updateItem(item.id, 'location', e.target.value)}
-                placeholder="Location (e.g. Living room)"
-                style={{ ...inputStyle, width: '100%', height: '40px', padding: '0 12px', fontSize: '14px', borderRadius: '10px' }}
+                type="number"
+                value={value.windows_project_value || ''}
+                onChange={e => set('windows_project_value', Number(e.target.value))}
+                placeholder="0"
+                style={{
+                  ...inputStyle,
+                  width: '100%',
+                  height: '64px',
+                  padding: '0 16px 0 34px',
+                  fontSize: '28px',
+                  fontWeight: 700,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  borderRadius: '14px',
+                }}
               />
-              <div className="grid grid-cols-2 gap-2">
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={item.qty || ''}
-                    onChange={e => updateItem(item.id, 'qty', Number(e.target.value))}
-                    placeholder="Qty"
-                    min="1"
-                    style={{ ...inputStyle, width: '100%', height: '40px', padding: '0 12px', fontSize: '14px', borderRadius: '10px' }}
-                  />
-                </div>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: '#6B7280' }}>$</span>
-                  <input
-                    type="number"
-                    value={item.unit_price || ''}
-                    onChange={e => updateItem(item.id, 'unit_price', Number(e.target.value))}
-                    placeholder="Unit price"
-                    style={{ ...inputStyle, width: '100%', height: '40px', padding: '0 12px 0 20px', fontSize: '14px', borderRadius: '10px' }}
-                  />
-                </div>
-              </div>
-              {item.qty > 0 && item.unit_price > 0 && (
-                <div className="flex justify-between text-xs pt-1">
-                  <span style={{ color: '#6B7280' }}>Line total</span>
-                  <span style={{ color: item.discountable ? '#D1D5DB' : '#9CA3AF' }}>
-                    ${(item.qty * item.unit_price).toLocaleString()}
-                    {!item.discountable && ' (non-disc)'}
-                  </span>
-                </div>
-              )}
             </div>
-          ))}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: '#9CA3AF' }}># Windows</p>
+              <input
+                type="number"
+                value={value.num_windows ?? ''}
+                onChange={e => set('num_windows', e.target.value === '' ? undefined : Number(e.target.value))}
+                placeholder="0"
+                min="0"
+                style={{
+                  ...inputStyle,
+                  width: '100%',
+                  height: '48px',
+                  padding: '0 12px',
+                  fontSize: '20px',
+                  fontWeight: 600,
+                  borderRadius: '12px',
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}
+              />
+            </div>
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: '#9CA3AF' }}># Doors</p>
+              <input
+                type="number"
+                value={value.num_doors ?? ''}
+                onChange={e => set('num_doors', e.target.value === '' ? undefined : Number(e.target.value))}
+                placeholder="0"
+                min="0"
+                style={{
+                  ...inputStyle,
+                  width: '100%',
+                  height: '48px',
+                  padding: '0 12px',
+                  fontSize: '20px',
+                  fontWeight: 600,
+                  borderRadius: '12px',
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}
+              />
+            </div>
+          </div>
         </div>
-        <button type="button" onClick={addItem}
-          className="w-full mt-3 h-10 rounded-xl flex items-center justify-center gap-2 text-sm font-medium"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px dashed rgba(255,255,255,0.12)', color: '#6B7280' }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          Add Line Item
-        </button>
       </div>
 
       {/* Discounts */}

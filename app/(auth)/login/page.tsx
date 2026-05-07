@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 import AnimatedGradientBackground from '@/components/ui/animated-gradient-background'
+import { Spotlight } from '@/components/ui/spotlight'
 import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
@@ -32,8 +33,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden" style={{ backgroundColor: '#0A0F1E' }}>
+    <div
+      className="relative min-h-screen flex items-center justify-center overflow-hidden"
+      style={{ backgroundColor: '#0A0F1E' }}
+    >
       <AnimatedGradientBackground />
+
+      <Spotlight className="-top-40 left-0 md:left-60 md:-top-20" fill="#1D4ED8" />
 
       <motion.div
         initial={{ opacity: 0, y: 24 }}
@@ -52,13 +58,29 @@ export default function LoginPage() {
             boxShadow: '0 32px 64px rgba(0,0,0,0.4)',
           }}
         >
-          {/* Wordmark */}
+          {/* Logo pill */}
           <div className="text-center mb-8">
-            <div className="flex justify-center mb-3">
-              <Image src="/salespro-logo.png" alt="SalesPro" height={48} width={180} className="object-contain" style={{ height: '48px', width: 'auto' }} />
+            <div className="inline-flex justify-center mb-3">
+              <div
+                className="flex items-center justify-center"
+                style={{
+                  background: 'rgba(255,255,255,0.08)',
+                  padding: '12px 24px',
+                  borderRadius: '12px',
+                }}
+              >
+                <Image
+                  src="/salespro-horizontal.png"
+                  alt="SalesPro"
+                  height={56}
+                  width={280}
+                  className="object-contain"
+                  style={{ height: '56px', width: 'auto' }}
+                />
+              </div>
             </div>
-            <p className="text-sm" style={{ color: '#9CA3AF' }}>
-              Your premium sales command center
+            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
+              Your sales command center.
             </p>
           </div>
 
@@ -150,10 +172,6 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
-
-        <p className="text-center text-xs mt-6" style={{ color: '#6B7280' }}>
-          Lifetime Home Remodeling · Internal Tool
-        </p>
       </motion.div>
     </div>
   )

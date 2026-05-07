@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
     .from('proposals')
     .select('id, customer_name, customer_first_name, customer_last_name, type, status, your_price, lead_id, created_at, updated_at')
     .eq('rep_id', user.id)
+    .neq('status', 'archived')
     .order('created_at', { ascending: false })
 
   if (status && status !== 'all') query = query.eq('status', status)

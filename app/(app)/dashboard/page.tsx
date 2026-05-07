@@ -4,11 +4,14 @@ import DashboardHero from '@/components/dashboard/dashboard-hero'
 import StatCards from '@/components/dashboard/stat-cards'
 import { getMTStartOfDay, getMTStartOfWeek, getMTHour } from '@/lib/time'
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  new:       { bg: 'rgba(29,78,216,0.15)',  text: '#60A5FA' },
-  contacted: { bg: 'rgba(245,158,11,0.15)', text: '#FCD34D' },
-  proposed:  { bg: 'rgba(6,182,212,0.15)',  text: '#22D3EE' },
-  closed:    { bg: 'rgba(16,185,129,0.15)', text: '#34D399' },
+const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  new:       { bg: 'rgba(29,78,216,0.15)',  text: '#60A5FA', border: '#3B82F6' },
+  contacted: { bg: 'rgba(245,158,11,0.15)', text: '#FCD34D', border: '#F59E0B' },
+  proposed:  { bg: 'rgba(6,182,212,0.15)',  text: '#22D3EE', border: '#06B6D4' },
+  closed:    { bg: 'rgba(16,185,129,0.15)', text: '#34D399', border: '#10B981' },
+  draft:     { bg: 'rgba(107,114,128,0.15)', text: '#9CA3AF', border: 'rgba(255,255,255,0.15)' },
+  sent:      { bg: 'rgba(29,78,216,0.15)',  text: '#60A5FA', border: 'rgba(29,78,216,0.6)' },
+  signed:    { bg: 'rgba(16,185,129,0.15)', text: '#34D399', border: 'rgba(16,185,129,0.6)' },
 }
 
 export default async function DashboardPage() {
@@ -101,8 +104,8 @@ export default async function DashboardPage() {
   )
 
   const stats = [
-    { label: "Today's Proposals", value: String(todayProposals.count ?? 0),  accent: '#3B82F6', glow: 'rgba(29,78,216,0.25)',  href: '/proposals?filter=today' },
-    { label: 'This Week',         value: String(weekProposals.count ?? 0),   accent: '#14B8A6', glow: 'rgba(15,118,110,0.25)', href: '/proposals?filter=week' },
+    { label: "Today's Proposals", value: String(todayProposals.count ?? 0), accent: '#3B82F6', glow: 'rgba(29,78,216,0.25)', href: '/proposals?filter=today',  icon: 'file' as const },
+    { label: 'This Week',         value: String(weekProposals.count ?? 0),  accent: '#14B8A6', glow: 'rgba(15,118,110,0.25)', href: '/proposals?filter=week', icon: 'calendar' as const },
     {
       label: 'Pipeline Value',
       value: pipelineValue >= 1000
@@ -112,8 +115,9 @@ export default async function DashboardPage() {
       glow: 'rgba(6,182,212,0.25)',
       mono: true,
       href: '/proposals?filter=pipeline',
+      icon: 'trending' as const,
     },
-    { label: 'Signed', value: String(signed.count ?? 0), accent: '#10B981', glow: 'rgba(16,185,129,0.25)', href: '/proposals?filter=signed' },
+    { label: 'Signed', value: String(signed.count ?? 0), accent: '#10B981', glow: 'rgba(16,185,129,0.25)', href: '/proposals?filter=signed', icon: 'check' as const },
   ]
 
   const statusBadge = (status: string) => {
@@ -128,7 +132,13 @@ export default async function DashboardPage() {
     )
   }
 
+  const leadBorderColor = (status: string) => (STATUS_COLORS[status] ?? STATUS_COLORS.new).border
+
   return (
+    <div style={{
+      background: 'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(15,118,110,0.08) 0%, transparent 70%)',
+      minHeight: '100vh',
+    }}>
     <div className="px-4 pt-6 pb-6 max-w-2xl mx-auto">
       <DashboardHero
         greetingPrefix={greetingPrefix}
@@ -143,7 +153,7 @@ export default async function DashboardPage() {
       {/* Recent Proposals */}
       <section className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>Recent Proposals</h2>
+          <h2 className="text-lg font-semibold" style={{ color: '#F9FAFB' }}>Recent Proposals</h2>
           <Link href="/proposals" className="text-xs font-medium" style={{ color: '#3B82F6' }}>See all</Link>
         </div>
 
@@ -153,25 +163,28 @@ export default async function DashboardPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {recentProposals.data.map((p: any) => (
-              <Link
-                key={p.id}
-                href={`/proposals/${p.id}`}
-                className="flex items-center gap-3 p-3 rounded-2xl"
-                style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate" style={{ color: '#F9FAFB' }}>{p.customer_name}</p>
-                  <p className="text-xs mt-0.5" style={{ color: '#6B7280', textTransform: 'capitalize' }}>{p.type}</p>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {statusBadge(p.status)}
-                  <span className="text-sm font-bold" style={{ color: '#F9FAFB', fontFamily: "'JetBrains Mono', monospace" }}>
-                    ${(p.your_price ?? 0).toLocaleString()}
-                  </span>
-                </div>
-              </Link>
-            ))}
+            {recentProposals.data.map((p: any) => {
+              const sc = STATUS_COLORS[p.status] ?? STATUS_COLORS.draft
+              return (
+                <Link
+                  key={p.id}
+                  href={`/proposals/${p.id}`}
+                  className="flex items-center gap-3 p-3 rounded-2xl overflow-hidden"
+                  style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderLeft: `3px solid ${sc.border}` }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: '#F9FAFB' }}>{p.customer_name}</p>
+                    <p className="text-xs mt-0.5" style={{ color: '#6B7280', textTransform: 'capitalize' }}>{p.type}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {statusBadge(p.status)}
+                    <span className="text-sm font-bold" style={{ color: '#F9FAFB', fontFamily: "'JetBrains Mono', monospace" }}>
+                      ${(p.your_price ?? 0).toLocaleString()}
+                    </span>
+                  </div>
+                </Link>
+              )
+            })}
           </div>
         )}
       </section>
@@ -179,7 +192,7 @@ export default async function DashboardPage() {
       {/* Recent Leads */}
       <section className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>Recent Leads</h2>
+          <h2 className="text-lg font-semibold" style={{ color: '#F9FAFB' }}>Recent Leads</h2>
           <Link href="/leads" className="text-xs font-medium" style={{ color: '#3B82F6' }}>See all</Link>
         </div>
 
@@ -201,8 +214,8 @@ export default async function DashboardPage() {
                 <Link
                   key={lead.id}
                   href={`/leads/${lead.id}`}
-                  className="flex items-center gap-3 p-3 rounded-2xl"
-                  style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}
+                  className="flex items-center gap-3 p-3 rounded-2xl overflow-hidden"
+                  style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderLeft: `3px solid ${leadBorderColor(lead.status)}` }}
                 >
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
@@ -278,6 +291,7 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+    </div>
     </div>
   )
 }

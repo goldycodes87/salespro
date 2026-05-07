@@ -134,6 +134,10 @@ export interface PricingInputs {
   selected_financing_id?: string
   // Siding scope of work
   siding_scope?: SidingScopeData
+  // Simplified windows/doors input (replaces line_items sum)
+  windows_project_value?: number
+  num_windows?: number
+  num_doors?: number
 }
 
 export interface PricingResult {
@@ -183,6 +187,9 @@ export function calcPrice(inputs: PricingInputs): PricingResult {
 
   if (proposal_type === 'siding') {
     package_price = project_value
+  } else if (inputs.windows_project_value != null && inputs.windows_project_value > 0) {
+    package_price = inputs.windows_project_value
+    total_windows = inputs.num_windows ?? 0
   } else {
     for (const item of line_items) {
       const rowTotal = item.qty * item.unit_price

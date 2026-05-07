@@ -18,5 +18,16 @@ export default async function PublicProposalPage({
 
   if (error || !proposal) notFound()
 
-  return <PresentView proposal={proposal} />
+  const repResult = await admin
+    .from('reps')
+    .select('settings')
+    .eq('id', proposal.rep_id)
+    .single()
+
+  return (
+    <PresentView
+      proposal={proposal}
+      repSettings={repResult.data?.settings ?? {}}
+    />
+  )
 }

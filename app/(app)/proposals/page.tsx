@@ -60,6 +60,45 @@ function getMTMondayMidnight(): Date {
   return getMTMidnight(-daysBack)
 }
 
+function ProposalRow({ p, i, onDeleteClick }: { p: Proposal; i: number; onDeleteClick: (p: Proposal) => void }) {
+  const sc = STATUS_COLORS[p.status] ?? STATUS_COLORS.draft
+  const tc = TYPE_COLORS[p.type] ?? TYPE_COLORS.windows
+  const name = [p.customer_first_name, p.customer_last_name].filter(Boolean).join(' ') || p.customer_name || 'Unknown'
+  const date = new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+      className="flex items-center gap-2 rounded-2xl pr-1"
+      style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
+      <Link href={`/proposals/${p.id}`} className="flex flex-1 items-center gap-3 p-4 min-w-0">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold truncate" style={{ color: '#F9FAFB' }}>{name}</p>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <span className="text-xs px-2 py-0.5 rounded-full font-semibold uppercase" style={{ background: tc.bg, color: tc.text }}>{p.type}</span>
+            <span className="text-xs px-2 py-0.5 rounded-full font-semibold uppercase" style={{ background: sc.bg, color: sc.text }}>{p.status}</span>
+            <span className="text-xs" style={{ color: '#6B7280' }}>{date}</span>
+          </div>
+        </div>
+        <span className="text-base font-bold flex-shrink-0" style={{ color: '#F9FAFB', fontFamily: "'JetBrains Mono', monospace" }}>
+          {fmt(p.your_price ?? 0)}
+        </span>
+      </Link>
+      <button
+        type="button"
+        onClick={() => onDeleteClick(p)}
+        className="flex-shrink-0 flex items-center justify-center"
+        style={{ padding: '8px', color: 'rgba(239,68,68,0.5)', lineHeight: 0 }}
+        onMouseEnter={e => (e.currentTarget.style.color = 'rgba(239,68,68,1)')}
+        onMouseLeave={e => (e.currentTarget.style.color = 'rgba(239,68,68,0.5)')}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+          <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+        </svg>
+      </button>
+    </motion.div>
+  )
+}
+
 function ProposalsContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -68,6 +107,8 @@ function ProposalsContent() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
   const [allProposals, setAllProposals] = useState<Proposal[]>([])
   const [loading, setLoading] = useState(true)
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; status: string } | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -76,6 +117,26 @@ function ProposalsContent() {
       .then(data => { setAllProposals(Array.isArray(data) ? data : []); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
+
+  const handleConfirm = async () => {
+    if (!pendingDelete) return
+    setDeleting(true)
+    try {
+      if (pendingDelete.status === 'signed') {
+        await fetch(`/api/proposals/${pendingDelete.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'archived' }),
+        })
+      } else {
+        await fetch(`/api/proposals/${pendingDelete.id}`, { method: 'DELETE' })
+      }
+      setAllProposals(prev => prev.filter(p => p.id !== pendingDelete.id))
+      setPendingDelete(null)
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const proposals = useMemo(() => {
     let result = allProposals
@@ -194,36 +255,66 @@ function ProposalsContent() {
         </div>
       ) : (
         <div className="space-y-2">
-          {proposals.map((p, i) => {
-            const name = [p.customer_first_name, p.customer_last_name].filter(Boolean).join(' ') || p.customer_name || 'Unknown'
-            const sc = STATUS_COLORS[p.status] ?? STATUS_COLORS.draft
-            const tc = TYPE_COLORS[p.type] ?? TYPE_COLORS.windows
-            const date = new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-            return (
-              <motion.div key={p.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
-                <Link href={`/proposals/${p.id}`}
-                  className="flex items-center gap-3 p-4 rounded-2xl"
-                  style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate" style={{ color: '#F9FAFB' }}>{name}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold uppercase" style={{ background: tc.bg, color: tc.text }}>{p.type}</span>
-                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold uppercase" style={{ background: sc.bg, color: sc.text }}>{p.status}</span>
-                      <span className="text-xs" style={{ color: '#6B7280' }}>{date}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-base font-bold" style={{ color: '#F9FAFB', fontFamily: "'JetBrains Mono', monospace" }}>
-                      {fmt(p.your_price ?? 0)}
-                    </span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2.5"><polyline points="9 18 15 12 9 6" /></svg>
-                  </div>
-                </Link>
-              </motion.div>
-            )
-          })}
+          {proposals.map((p, i) => (
+            <ProposalRow key={p.id} p={p} i={i} onDeleteClick={p => setPendingDelete({ id: p.id, status: p.status })} />
+          ))}
         </div>
       )}
+
+      <AnimatePresence>
+        {pendingDelete && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-end justify-center px-4"
+            style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+            onClick={e => { if (e.target === e.currentTarget) setPendingDelete(null) }}>
+            <motion.div
+              initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="w-full max-w-sm rounded-3xl p-6 mb-8"
+              style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.12)' }}>
+              <div className="text-center mb-5">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
+                  style={{
+                    background: pendingDelete.status === 'signed' ? 'rgba(15,118,110,0.15)' : 'rgba(239,68,68,0.12)',
+                    border: pendingDelete.status === 'signed' ? '1px solid rgba(15,118,110,0.3)' : '1px solid rgba(239,68,68,0.2)',
+                  }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                    stroke={pendingDelete.status === 'signed' ? '#2DD4BF' : '#EF4444'}
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                  </svg>
+                </div>
+                <h2 className="text-lg font-bold mb-1" style={{ color: '#F9FAFB' }}>
+                  {pendingDelete.status === 'signed' ? 'Archive Proposal?' : 'Delete Proposal?'}
+                </h2>
+                <p className="text-sm" style={{ color: '#6B7280' }}>
+                  {pendingDelete.status === 'signed'
+                    ? 'Signed proposals are archived for your records.'
+                    : 'This cannot be undone. The proposal will be permanently removed.'}
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setPendingDelete(null)}
+                  className="flex-1 h-12 rounded-2xl text-sm font-semibold"
+                  style={{ border: '1px solid rgba(255,255,255,0.12)', color: '#9CA3AF', background: 'transparent' }}>
+                  Cancel
+                </button>
+                <button type="button" onClick={handleConfirm} disabled={deleting}
+                  className="flex-1 h-12 rounded-2xl text-sm font-bold"
+                  style={{
+                    background: pendingDelete.status === 'signed'
+                      ? (deleting ? 'rgba(15,118,110,0.4)' : 'linear-gradient(135deg, #0F766E, #0D9488)')
+                      : (deleting ? 'rgba(239,68,68,0.4)' : 'rgba(239,68,68,0.9)'),
+                    color: '#fff',
+                  }}>
+                  {deleting ? '…' : (pendingDelete.status === 'signed' ? 'Archive' : 'Delete')}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
