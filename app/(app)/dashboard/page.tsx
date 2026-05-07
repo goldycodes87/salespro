@@ -177,7 +177,6 @@ export default async function DashboardPage() {
         greetingPrefix={greetingPrefix}
         dateStr={dateStr}
         motivationalLine={motivationalLine}
-        headshotUrl={rep?.headshot_url ?? null}
         repName={rep?.full_name ?? rep?.name ?? 'Eric'}
       />
 
