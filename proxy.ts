@@ -43,6 +43,22 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Onboarding check: skip for /onboarding, /api/*, /p/*, static files
+  const onboardingExempt =
+    pathname === '/onboarding' ||
+    pathname.startsWith('/api/') ||
+    pathname.startsWith('/p/') ||
+    pathname.startsWith('/coaches/')
+
+  if (user && !onboardingExempt) {
+    const onboarded = request.cookies.get('sp_onboarded')?.value
+    if (!onboarded) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/onboarding'
+      return NextResponse.redirect(url)
+    }
+  }
+
   return supabaseResponse
 }
 

@@ -27,7 +27,20 @@ export default function LoginPage() {
       setError(error.message)
       setLoading(false)
     } else {
-      router.push('/dashboard')
+      // Check if rep profile is complete; redirect to onboarding if not
+      const repRes = await fetch('/api/reps')
+      if (repRes.ok) {
+        const rep = await repRes.json()
+        if (rep?.full_name) {
+          document.cookie = 'sp_onboarded=true; path=/; max-age=31536000; samesite=lax'
+          router.push('/dashboard')
+        } else {
+          router.push('/onboarding')
+        }
+      } else {
+        // No rep row yet
+        router.push('/onboarding')
+      }
       router.refresh()
     }
   }
@@ -58,26 +71,29 @@ export default function LoginPage() {
             boxShadow: '0 32px 64px rgba(0,0,0,0.4)',
           }}
         >
-          {/* Logo pill */}
+          {/* Logo */}
           <div className="text-center mb-8">
-            <div className="inline-flex justify-center mb-3">
-              <div
-                className="flex items-center justify-center"
-                style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  padding: '12px 24px',
-                  borderRadius: '12px',
-                }}
-              >
-                <Image
-                  src="/salespro-horizontal.png"
-                  alt="SalesPro"
-                  height={56}
-                  width={280}
-                  className="object-contain"
-                  style={{ height: '56px', width: 'auto' }}
-                />
-              </div>
+            <div className="flex justify-center mb-3">
+              <Image
+                src="/salespro-icon.png"
+                width={56}
+                height={56}
+                alt="SalesPro"
+                style={{ mixBlendMode: 'screen' }}
+              />
+            </div>
+            <div
+              style={{
+                fontSize: 28,
+                fontWeight: 800,
+                background: 'linear-gradient(90deg, #ffffff 0%, #06B6D4 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                marginBottom: 6,
+              }}
+            >
+              SalesPro
             </div>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
               Your sales command center.

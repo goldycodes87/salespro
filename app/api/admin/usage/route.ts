@@ -38,7 +38,7 @@ export async function GET() {
 
   const repUsage = reps.map((rep: any) => ({
     rep_id: rep.id,
-    name: rep.full_name,
+    full_name: rep.full_name,
     email: rep.email,
     ...(repMap[rep.id] ?? { anthropic: 0, google: 0, openai: 0, total: 0 }),
   })).filter((r: any) => r.total > 0)

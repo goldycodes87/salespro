@@ -14,7 +14,8 @@ export async function requireAdmin() {
   if (!user) redirect('/login')
 
   const admin = getSupabaseAdmin()
-  const { data: rep } = await admin.from('reps').select('is_admin').eq('id', user.id).single()
+  const { data: rep, error: repError } = await admin.from('reps').select('id, is_admin').eq('id', user.id).single()
+  console.log('ADMIN CHECK:', { userId: user?.id, repId: rep?.id, isAdmin: rep?.is_admin, error: repError?.message })
   if (!rep?.is_admin) redirect('/dashboard')
   return user
 }

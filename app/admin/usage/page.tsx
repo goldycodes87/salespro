@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 
-interface RepUsage { rep_id: string; name: string; email: string; anthropic: number; google: number; openai: number; total: number }
+interface RepUsage { rep_id: string; full_name: string; email: string; anthropic: number; google: number; openai: number; total: number }
 
 export default function AdminUsagePage() {
   const [summary, setSummary] = useState({ total: 0, anthropic: 0, google: 0, openai: 0 })
@@ -82,7 +82,7 @@ export default function AdminUsagePage() {
                 {repUsage.map(rep => (
                   <tr key={rep.rep_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <td className="px-4 py-3">
-                      <p className="text-sm font-medium" style={{ color: '#F9FAFB' }}>{rep.name || '—'}</p>
+                      <p className="text-sm font-medium" style={{ color: '#F9FAFB' }}>{rep.full_name || '—'}</p>
                       <p className="text-xs" style={{ color: '#6B7280' }}>{rep.email}</p>
                     </td>
                     <td className="px-4 py-3 text-xs font-mono" style={{ color: '#9CA3AF' }}>${rep.anthropic.toFixed(3)}</td>
@@ -109,7 +109,7 @@ export default function AdminUsagePage() {
           <div className="w-full max-w-md h-full overflow-y-auto flex flex-col" style={{ background: '#111827', borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
             <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <div>
-                <p className="font-semibold" style={{ color: '#F9FAFB' }}>{drawerRep.name || 'Rep'}</p>
+                <p className="font-semibold" style={{ color: '#F9FAFB' }}>{drawerRep.full_name || 'Rep'}</p>
                 <p className="text-xs" style={{ color: '#6B7280' }}>{drawerRep.email}</p>
               </div>
               <button onClick={() => setDrawerRep(null)} style={{ color: '#6B7280' }}>✕</button>

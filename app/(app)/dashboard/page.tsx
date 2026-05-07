@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import DashboardHero from '@/components/dashboard/dashboard-hero'
 import StatCards from '@/components/dashboard/stat-cards'
 import CalendarSyncOnLoad from '@/components/dashboard/calendar-sync'
+import WelcomeToast from '@/components/dashboard/welcome-toast'
 import { getMTStartOfDay, getMTStartOfWeek, getMTHour } from '@/lib/time'
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -21,7 +22,7 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   const repData = user
-    ? await supabase.from('reps').select('headshot_url, full_name, name').eq('id', user.id).single()
+    ? await supabase.from('reps').select('headshot_url, full_name').eq('id', user.id).single()
     : null
   const rep = repData?.data ?? null
 
@@ -172,12 +173,13 @@ export default async function DashboardPage() {
       minHeight: '100vh',
     }}>
     <CalendarSyncOnLoad />
+    <WelcomeToast />
     <div className="px-4 pt-6 pb-6 max-w-2xl mx-auto">
       <DashboardHero
         greetingPrefix={greetingPrefix}
         dateStr={dateStr}
         motivationalLine={motivationalLine}
-        repName={rep?.full_name ?? rep?.name ?? 'Eric'}
+        repName={rep?.full_name ?? undefined}
       />
 
       <StatCards stats={stats} />
