@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import Image from 'next/image'
 import AnimatedGradientBackground from '@/components/ui/animated-gradient-background'
 import { createClient } from '@/lib/supabase/client'
 
@@ -53,16 +54,8 @@ export default function LoginPage() {
         >
           {/* Wordmark */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #1D4ED8, #06B6D4)' }}>
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path d="M3 14L9 4L15 14H3Z" fill="white" fillOpacity="0.9" />
-                  <circle cx="9" cy="9" r="2" fill="white" />
-                </svg>
-              </div>
-              <span className="text-2xl font-bold tracking-tight" style={{ color: '#F9FAFB', fontFamily: 'Inter, sans-serif' }}>
-                SalesPro
-              </span>
+            <div className="flex justify-center mb-3">
+              <Image src="/salespro-logo.png" alt="SalesPro" height={48} width={180} className="object-contain" style={{ height: '48px', width: 'auto' }} />
             </div>
             <p className="text-sm" style={{ color: '#9CA3AF' }}>
               Your premium sales command center

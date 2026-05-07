@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { calcPrice, type PricingInputs, type PricingResult, FINANCING_LABELS } from '@/lib/pricing'
 import Link from 'next/link'
+import Image from 'next/image'
 import AnimatedGradientBackground from '@/components/ui/animated-gradient-background'
 
 type Proposal = Record<string, any>
@@ -226,16 +227,8 @@ export default function PresentView({ proposal, backHref }: { proposal: Proposal
       {/* Top bar: logo + exit */}
       <div className="absolute top-0 left-0 right-0 z-10 px-5 flex items-center justify-between"
         style={{ paddingTop: 'max(20px, env(safe-area-inset-top, 0px) + 12px)', paddingBottom: '12px' }}>
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.4 }} transition={{ duration: 0.8 }}
-          className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, #1D4ED8, #06B6D4)' }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
-          </div>
-          <span style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>SalesPro</span>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.7 }} transition={{ duration: 0.8 }}>
+          <Image src="/salespro-logo.png" alt="SalesPro" height={28} width={112} className="object-contain" style={{ height: '28px', width: 'auto' }} />
         </motion.div>
         <ExitBtn />
       </div>

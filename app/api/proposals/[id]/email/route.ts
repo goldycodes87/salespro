@@ -59,9 +59,7 @@ export async function POST(
 <body style="margin:0;padding:0;background:#0A0F1E;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:600px;margin:0 auto;padding:40px 20px;">
     <div style="text-align:center;margin-bottom:32px;">
-      <div style="display:inline-block;background:linear-gradient(135deg,#1D4ED8,#06B6D4);border-radius:16px;padding:12px 24px;">
-        <span style="color:#fff;font-size:20px;font-weight:700;letter-spacing:-0.5px;">SalesPro</span>
-      </div>
+      <img src="https://salespro-lake.vercel.app/salespro-logo.png" alt="SalesPro" height="40" style="height:40px;width:auto;display:inline-block;" />
     </div>
     <div style="background:#111827;border-radius:24px;padding:32px;border:1px solid rgba(255,255,255,0.08);">
       <p style="color:#9CA3AF;font-size:15px;margin:0 0 8px;">Hi ${firstName},</p>

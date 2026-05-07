@@ -152,10 +152,33 @@ export default function SettingsPage({ rep, usage }: { rep: Rep; usage: Usage })
   const [defaultsSaved, setDefaultsSaved] = useState(false)
   const [financingSaved, setFinancingSaved] = useState(false)
   const [discountsSaved, setDiscountsSaved] = useState(false)
+  const [headshot, setHeadshot] = useState<string | null>(rep.headshot_url ?? null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [photoError, setPhotoError] = useState<string | null>(null)
 
   const saved = (setter: (v: boolean) => void) => {
     setter(true)
     setTimeout(() => setter(false), 2000)
+  }
+
+  const uploadHeadshot = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingPhoto(true)
+    setPhotoError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/reps/headshot', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Upload failed')
+      setHeadshot(data.headshot_url)
+    } catch (err: any) {
+      setPhotoError(err.message)
+    } finally {
+      setUploadingPhoto(false)
+      e.target.value = ''
+    }
   }
 
   const saveProfile = async () => {
@@ -241,6 +264,40 @@ export default function SettingsPage({ rep, usage }: { rep: Rep; usage: Usage })
       <div className="mb-6">
         <h1 className="text-2xl font-bold" style={{ color: '#F9FAFB' }}>Settings</h1>
       </div>
+
+      {/* Profile Photo */}
+      <Section title="Profile Photo">
+        <div className="flex flex-col items-center gap-4 py-2">
+          <label className="relative cursor-pointer group">
+            <div className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center"
+              style={{ background: 'rgba(29,78,216,0.15)', border: '2px solid rgba(29,78,216,0.3)' }}>
+              {headshot ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={headshot} alt="Headshot" className="w-full h-full object-cover" />
+              ) : (
+                <div className="flex flex-col items-center gap-1">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                  </svg>
+                </div>
+              )}
+              <div className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{ background: 'rgba(0,0,0,0.5)' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
+              </div>
+            </div>
+            <input type="file" accept="image/jpeg,image/png,image/heic,image/heif,image/webp,.heic,.heif"
+              className="hidden" onChange={uploadHeadshot} disabled={uploadingPhoto} />
+          </label>
+          <p className="text-xs" style={{ color: '#6B7280' }}>
+            {uploadingPhoto ? 'Uploading…' : 'Tap to upload (JPG, PNG, HEIC)'}
+          </p>
+          {photoError && <p className="text-xs" style={{ color: '#EF4444' }}>{photoError}</p>}
+        </div>
+      </Section>
 
       {/* Rep Profile */}
       <Section title="Rep Profile">

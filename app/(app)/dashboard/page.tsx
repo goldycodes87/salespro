@@ -15,6 +15,11 @@ export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  const repData = user
+    ? await supabase.from('reps').select('headshot_url, full_name, name').eq('id', user.id).single()
+    : null
+  const rep = repData?.data ?? null
+
   const now = new Date()
   const mtHour = getMTHour(now)
   const todayStart = getMTStartOfDay(now).toISOString()
@@ -38,7 +43,7 @@ export default async function DashboardPage() {
   }).format(now)
 
   // Dashboard stats — all scoped to current rep via RLS
-  const [todayProposals, weekProposals, pipeline, signed, recentProposals, recentLeads] =
+  const [todayProposals, weekProposals, pipeline, signed, recentProposals, recentLeads, followUps] =
     await Promise.all([
       // Today's proposals
       supabase
@@ -77,6 +82,17 @@ export default async function DashboardPage() {
         .select('id, first_name, last_name, spouse_first_name, is_married, city, state, status, appointment_date')
         .order('created_at', { ascending: false })
         .limit(5),
+
+      // Upcoming partial job follow-ups (within 30 days, including overdue)
+      supabase
+        .from('proposals')
+        .select('id, customer_first_name, customer_last_name, customer_phone, followup_date, partial_job_notes')
+        .eq('is_partial_job', true)
+        .eq('status', 'signed')
+        .not('followup_date', 'is', null)
+        .lte('followup_date', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+        .order('followup_date', { ascending: true })
+        .limit(10),
     ])
 
   const pipelineValue = (pipeline.data ?? []).reduce(
@@ -85,8 +101,8 @@ export default async function DashboardPage() {
   )
 
   const stats = [
-    { label: "Today's Proposals", value: String(todayProposals.count ?? 0),  accent: '#3B82F6', glow: 'rgba(29,78,216,0.25)' },
-    { label: 'This Week',         value: String(weekProposals.count ?? 0),   accent: '#14B8A6', glow: 'rgba(15,118,110,0.25)' },
+    { label: "Today's Proposals", value: String(todayProposals.count ?? 0),  accent: '#3B82F6', glow: 'rgba(29,78,216,0.25)',  href: '/proposals?filter=today' },
+    { label: 'This Week',         value: String(weekProposals.count ?? 0),   accent: '#14B8A6', glow: 'rgba(15,118,110,0.25)', href: '/proposals?filter=week' },
     {
       label: 'Pipeline Value',
       value: pipelineValue >= 1000
@@ -95,8 +111,9 @@ export default async function DashboardPage() {
       accent: '#06B6D4',
       glow: 'rgba(6,182,212,0.25)',
       mono: true,
+      href: '/proposals?filter=pipeline',
     },
-    { label: 'Signed', value: String(signed.count ?? 0), accent: '#10B981', glow: 'rgba(16,185,129,0.25)' },
+    { label: 'Signed', value: String(signed.count ?? 0), accent: '#10B981', glow: 'rgba(16,185,129,0.25)', href: '/proposals?filter=signed' },
   ]
 
   const statusBadge = (status: string) => {
@@ -117,6 +134,8 @@ export default async function DashboardPage() {
         greetingPrefix={greetingPrefix}
         dateStr={dateStr}
         motivationalLine={motivationalLine}
+        headshotUrl={rep?.headshot_url ?? null}
+        repName={rep?.full_name ?? rep?.name ?? 'Eric'}
       />
 
       <StatCards stats={stats} />
@@ -204,6 +223,43 @@ export default async function DashboardPage() {
           </div>
         )}
       </section>
+
+      {/* Upcoming Follow-ups */}
+      {followUps.data && followUps.data.length > 0 && (
+        <section className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>Upcoming Follow-ups</h2>
+          </div>
+          <div className="space-y-2">
+            {followUps.data.map((fu: any) => {
+              const name = [fu.customer_first_name, fu.customer_last_name].filter(Boolean).join(' ') || 'Customer'
+              const today = new Date(); today.setHours(0,0,0,0)
+              const followDate = new Date(fu.followup_date + 'T12:00:00')
+              const daysUntil = Math.round((followDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+              const isOverdue = daysUntil < 0
+              const isUrgent = daysUntil >= 0 && daysUntil <= 7
+              const color = isOverdue ? '#EF4444' : isUrgent ? '#FCD34D' : '#34D399'
+              const colorBg = isOverdue ? 'rgba(239,68,68,0.1)' : isUrgent ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)'
+              const label = isOverdue ? `${Math.abs(daysUntil)}d overdue` : daysUntil === 0 ? 'Today' : `In ${daysUntil}d`
+              return (
+                <Link key={fu.id} href={`/proposals/${fu.id}`}
+                  className="flex items-center gap-3 p-3 rounded-2xl"
+                  style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: '#F9FAFB' }}>{name}</p>
+                    <p className="text-xs mt-0.5 truncate" style={{ color: '#6B7280' }}>Partial job follow-up</p>
+                  </div>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+                    style={{ background: colorBg, color }}>
+                    {label}
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Vapi placeholder */}
       <div className="rounded-2xl p-5" style={{ background: 'rgba(17,24,39,0.6)', border: '1px solid rgba(255,255,255,0.06)' }}>

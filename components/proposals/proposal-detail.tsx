@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import PriceSummary from './price-summary'
 import { calcPrice, type PricingInputs } from '@/lib/pricing'
@@ -24,12 +24,22 @@ const cardStyle: React.CSSProperties = {
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString()
 
+function sixMonthsFromNow(): string {
+  const d = new Date()
+  d.setMonth(d.getMonth() + 6)
+  return d.toISOString().split('T')[0]
+}
+
 export default function ProposalDetail({ proposal: initial }: { proposal: Proposal }) {
   const router = useRouter()
   const [proposal, setProposal] = useState<Proposal>(initial)
+  const [showBookedModal, setShowBookedModal] = useState(false)
+  const [isPartial, setIsPartial] = useState(false)
+  const [partialNotes, setPartialNotes] = useState('')
   const [booking, setBooking] = useState(false)
   const [emailing, setEmailing] = useState(false)
   const [emailToast, setEmailToast] = useState<string | null>(null)
+  const [aiCallToast, setAiCallToast] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const statusColors = STATUS_COLORS[proposal.status] ?? STATUS_COLORS.draft
@@ -43,24 +53,53 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
     month: 'long', day: 'numeric', year: 'numeric',
   })
 
-  const handleBooked = async () => {
+  const handleBookedClick = async () => {
+    // Fire confetti immediately on tap
+    const confetti = (await import('canvas-confetti')).default
+    confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#1D4ED8', '#34D399', '#60A5FA', '#FCD34D'] })
+    setTimeout(() => {
+      confetti({ particleCount: 80, spread: 60, origin: { y: 0.5 }, colors: ['#1D4ED8', '#34D399', '#60A5FA'] })
+    }, 300)
+    setIsPartial(false)
+    setPartialNotes('')
+    setShowBookedModal(true)
+  }
+
+  const handleConfirmBooked = async () => {
     setBooking(true)
     setError(null)
     try {
+      const body: Record<string, any> = {
+        status: 'signed',
+        lead_id: proposal.lead_id,
+        is_partial_job: isPartial,
+        partial_job_notes: isPartial ? (partialNotes || null) : null,
+        followup_date: isPartial ? sixMonthsFromNow() : null,
+      }
       const res = await fetch(`/api/proposals/${proposal.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'signed', lead_id: proposal.lead_id }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error('Failed to update')
-      setProposal(prev => ({ ...prev, status: 'signed' }))
+      const updated = await res.json()
+      setProposal(updated)
+      setShowBookedModal(false)
 
-      // Confetti
-      const confetti = (await import('canvas-confetti')).default
-      confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#1D4ED8', '#34D399', '#60A5FA', '#FCD34D'] })
-      setTimeout(() => {
-        confetti({ particleCount: 80, spread: 60, origin: { y: 0.5 }, colors: ['#1D4ED8', '#34D399', '#60A5FA'] })
-      }, 300)
+      // Log partial job activity
+      if (isPartial && proposal.lead_id) {
+        const followupDate = new Date()
+        followupDate.setMonth(followupDate.getMonth() + 6)
+        const dateStr = followupDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        await fetch(`/api/leads/${proposal.lead_id}/activity`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_type: 'partial_job_booked',
+            description: `Partial job booked. Follow-up scheduled for ${dateStr}`,
+          }),
+        }).catch(() => {}) // non-fatal
+      }
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -85,8 +124,30 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
     }
   }
 
+  const handleApproveAiCall = async () => {
+    const res = await fetch(`/api/proposals/${proposal.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ai_call_approved: true }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setProposal(updated)
+      const name = [proposal.customer_first_name, proposal.customer_last_name].filter(Boolean).join(' ') || 'the customer'
+      const dateStr = proposal.followup_date
+        ? new Date(proposal.followup_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+        : 'the follow-up date'
+      setAiCallToast(`AI Assistant will call ${name} on ${dateStr}`)
+      setTimeout(() => setAiCallToast(null), 6000)
+    }
+  }
+
   const fullName = [proposal.customer_first_name, proposal.customer_last_name].filter(Boolean).join(' ')
     || proposal.customer_name || '—'
+
+  const followupDateStr = proposal.followup_date
+    ? new Date(proposal.followup_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    : null
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
@@ -108,14 +169,24 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
       </div>
 
       {/* Toasts */}
-      {emailToast && (
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl px-4 py-3 mb-3 text-sm font-medium flex items-center gap-2"
-          style={{ background: 'rgba(29,78,216,0.12)', border: '1px solid rgba(29,78,216,0.2)', color: '#60A5FA' }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-          Proposal emailed to {emailToast} ✓
-        </motion.div>
-      )}
+      <AnimatePresence>
+        {emailToast && (
+          <motion.div key="email-toast" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="rounded-xl px-4 py-3 mb-3 text-sm font-medium flex items-center gap-2"
+            style={{ background: 'rgba(29,78,216,0.12)', border: '1px solid rgba(29,78,216,0.2)', color: '#60A5FA' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+            Proposal emailed to {emailToast} ✓
+          </motion.div>
+        )}
+        {aiCallToast && (
+          <motion.div key="ai-toast" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="rounded-xl px-4 py-3 mb-3 text-sm font-medium flex items-center gap-2"
+            style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.2)', color: '#34D399' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+            {aiCallToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Customer card */}
       <div className="p-5 mb-4" style={cardStyle}>
@@ -152,6 +223,50 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
               style={{ background: 'rgba(29,78,216,0.15)', color: '#60A5FA' }}>{proposal.type}</span>
           </div>
           <PriceSummary result={result} inputs={pricing} />
+        </div>
+      )}
+
+      {/* Partial Job Card */}
+      {proposal.is_partial_job && (
+        <div className="p-5 mb-4" style={{ ...cardStyle, borderColor: 'rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.05)' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FCD34D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#FCD34D' }}>
+              Partial Job{followupDateStr ? ` — Follow-up: ${followupDateStr}` : ''}
+            </p>
+          </div>
+          {proposal.partial_job_notes && (
+            <p className="text-sm mb-4" style={{ color: '#D1D5DB' }}>
+              <span style={{ color: '#9CA3AF' }}>Remaining: </span>{proposal.partial_job_notes}
+            </p>
+          )}
+          <div className="flex gap-2">
+            {!proposal.ai_call_approved ? (
+              <button onClick={handleApproveAiCall}
+                className="flex-1 h-10 rounded-xl text-xs font-semibold"
+                style={{ background: 'rgba(29,78,216,0.2)', color: '#60A5FA', border: '1px solid rgba(29,78,216,0.3)' }}>
+                Approve AI Call
+              </button>
+            ) : (
+              <div className="flex-1 h-10 rounded-xl flex items-center justify-center gap-1.5"
+                style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34D399" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                <span className="text-xs font-semibold" style={{ color: '#34D399' }}>AI Call Approved</span>
+              </div>
+            )}
+            {proposal.customer_phone && (
+              <a href={`tel:${proposal.customer_phone}`}
+                className="flex-1 h-10 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
+                style={{ background: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.59 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.56a16 16 0 0 0 6.37 6.37l.72-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+                </svg>
+                I'll Call Personally
+              </a>
+            )}
+          </div>
         </div>
       )}
 
@@ -240,33 +355,82 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
               style={{ border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.6)', background: 'transparent' }}>
               Follow Up
             </Link>
-            <button
-              type="button"
-              onClick={handleEmail}
-              disabled={emailing || !proposal.customer_email}
+            <button type="button" onClick={handleEmail} disabled={emailing || !proposal.customer_email}
               className="flex-1 h-12 rounded-2xl text-sm font-semibold flex items-center justify-center"
-              style={{
-                border: '1px solid rgba(29,78,216,0.5)',
-                color: emailing ? 'rgba(96,165,250,0.4)' : '#60A5FA',
-                background: 'rgba(29,78,216,0.08)',
-              }}>
+              style={{ border: '1px solid rgba(29,78,216,0.5)', color: emailing ? 'rgba(96,165,250,0.4)' : '#60A5FA', background: 'rgba(29,78,216,0.08)' }}>
               {emailing ? 'Sending…' : 'Email'}
             </button>
-            <button
-              type="button"
-              onClick={handleBooked}
-              disabled={booking}
+            <button type="button" onClick={handleBookedClick} disabled={booking}
               className="flex-1 h-12 rounded-2xl text-base font-bold transition-all"
-              style={{
-                background: booking ? 'rgba(16,185,129,0.3)' : 'linear-gradient(135deg, #059669, #10B981)',
-                color: '#fff',
-                boxShadow: booking ? 'none' : '0 4px 20px rgba(16,185,129,0.3)',
-              }}>
+              style={{ background: booking ? 'rgba(16,185,129,0.3)' : 'linear-gradient(135deg, #059669, #10B981)', color: '#fff', boxShadow: booking ? 'none' : '0 4px 20px rgba(16,185,129,0.3)' }}>
               {booking ? 'Saving…' : '🎉 Booked!'}
             </button>
           </div>
         )}
       </div>
+
+      {/* Booked Modal */}
+      <AnimatePresence>
+        {showBookedModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-end justify-center px-4"
+            style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+            onClick={e => { if (e.target === e.currentTarget) setShowBookedModal(false) }}
+          >
+            <motion.div
+              initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="w-full max-w-sm rounded-3xl p-6 mb-8"
+              style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.12)' }}
+            >
+              <div className="text-center mb-5">
+                <div className="text-4xl mb-2">🎉</div>
+                <h2 className="text-xl font-bold mb-1" style={{ color: '#F9FAFB' }}>Booked!</h2>
+                <p className="text-sm" style={{ color: '#6B7280' }}>Finish the job in Vendo to complete paperwork.</p>
+              </div>
+
+              {/* Partial job toggle */}
+              <label className="flex items-center gap-3 cursor-pointer mb-4 p-3 rounded-xl"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div onClick={() => setIsPartial(p => !p)}
+                  className="relative flex-shrink-0" style={{ width: '40px', height: '24px' }}>
+                  <div className="absolute inset-0 rounded-full transition-all"
+                    style={{ background: isPartial ? '#1D4ED8' : 'rgba(255,255,255,0.12)' }} />
+                  <div className="absolute top-1 rounded-full transition-all"
+                    style={{ width: '16px', height: '16px', background: '#fff', left: isPartial ? '20px' : '4px' }} />
+                </div>
+                <span className="text-sm font-medium" style={{ color: '#D1D5DB' }}>This is a partial job</span>
+              </label>
+
+              <AnimatePresence>
+                {isPartial && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden mb-4">
+                    <textarea
+                      value={partialNotes}
+                      onChange={e => setPartialNotes(e.target.value)}
+                      placeholder="e.g. 3 windows in master bedroom and office"
+                      rows={3}
+                      className="w-full rounded-xl px-4 py-3 text-sm resize-none outline-none"
+                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', color: '#F9FAFB' }}
+                    />
+                    <p className="text-xs mt-1" style={{ color: '#6B7280' }}>
+                      Follow-up will be scheduled for 6 months from today.
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <button onClick={handleConfirmBooked} disabled={booking}
+                className="w-full h-12 rounded-2xl text-base font-bold"
+                style={{ background: booking ? 'rgba(16,185,129,0.3)' : 'linear-gradient(135deg, #059669, #10B981)', color: '#fff' }}>
+                {booking ? 'Saving…' : 'Confirm'}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
