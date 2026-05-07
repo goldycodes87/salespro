@@ -250,6 +250,11 @@ export default function SettingsPage({
   const [icalError, setIcalError] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [removingConn, setRemovingConn] = useState<string | null>(null)
+  const [showICloudModal, setShowICloudModal] = useState(false)
+  const [iCloudEmail, setICloudEmail] = useState('')
+  const [iCloudPassword, setICloudPassword] = useState('')
+  const [connectingICloud, setConnectingICloud] = useState(false)
+  const [iCloudError, setICloudError] = useState<string | null>(null)
 
   const savedFlash = (setter: (v: boolean) => void) => {
     setter(true)
@@ -408,6 +413,32 @@ export default function SettingsPage({
       setConnections(prev => prev.filter(c => c.id !== id))
     } finally {
       setRemovingConn(null)
+    }
+  }
+
+  const connectICloud = async () => {
+    if (!iCloudEmail.trim() || !iCloudPassword.trim()) return
+    setConnectingICloud(true)
+    setICloudError(null)
+    try {
+      const res = await fetch('/api/calendar/caldav/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: iCloudEmail.trim(), password: iCloudPassword.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Connection failed')
+      setConnections(prev => {
+        const filtered = prev.filter(c => c.provider !== 'caldav_icloud')
+        return [...filtered, { id: data.id ?? 'icloud', provider: 'caldav_icloud', last_synced_at: null }]
+      })
+      setShowICloudModal(false)
+      setICloudEmail('')
+      setICloudPassword('')
+    } catch (err: any) {
+      setICloudError(err.message)
+    } finally {
+      setConnectingICloud(false)
     }
   }
 
@@ -877,27 +908,95 @@ export default function SettingsPage({
             </button>
           </CollapsibleSection>
 
-          {/* Outlook placeholder */}
+          {/* Microsoft Outlook */}
           <CollapsibleSection title="Microsoft Outlook" storageKey="outlook">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: 'rgba(255,255,255,0.04)' }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                </svg>
+            {connections.some(c => c.provider === 'microsoft') ? (
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{ background: 'rgba(29,78,216,0.15)' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium" style={{ color: '#D1D5DB' }}>Outlook Connected</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>Microsoft calendar is syncing</p>
+                </div>
+                <button
+                  onClick={() => {
+                    const conn = connections.find(c => c.provider === 'microsoft')
+                    if (conn) removeConnection(conn.id)
+                  }}
+                  disabled={!!removingConn}
+                  className="text-xs px-3 py-1.5 rounded-lg"
+                  style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#F87171' }}
+                >
+                  Disconnect
+                </button>
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium" style={{ color: '#6B7280' }}>Microsoft Outlook</p>
-                <p className="text-xs mt-0.5" style={{ color: '#4B5563' }}>Coming soon</p>
+            ) : (
+              <div>
+                <p className="text-sm mb-3" style={{ color: '#6B7280' }}>
+                  Connect your Outlook calendar to see upcoming appointments in SalesPro.
+                </p>
+                <a href="/api/auth/microsoft/calendar"
+                  className="flex items-center justify-center gap-2 w-full h-11 rounded-xl text-sm font-semibold"
+                  style={{ background: 'rgba(29,78,216,0.15)', border: '1px solid rgba(29,78,216,0.3)', color: '#60A5FA' }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  Connect Outlook
+                </a>
               </div>
-              <span className="text-xs px-2 py-1 rounded-full"
-                style={{ background: 'rgba(255,255,255,0.04)', color: '#4B5563', border: '1px solid rgba(255,255,255,0.06)' }}>
-                Soon
-              </span>
-            </div>
+            )}
+          </CollapsibleSection>
+
+          {/* Apple iCloud */}
+          <CollapsibleSection title="Apple iCloud Calendar" storageKey="icloud-calendar">
+            {connections.some(c => c.provider === 'caldav_icloud') ? (
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{ background: 'rgba(29,78,216,0.15)' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium" style={{ color: '#D1D5DB' }}>iCloud Connected</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>Apple Calendar is syncing</p>
+                </div>
+                <button
+                  onClick={() => {
+                    const conn = connections.find(c => c.provider === 'caldav_icloud')
+                    if (conn) removeConnection(conn.id)
+                  }}
+                  disabled={!!removingConn}
+                  className="text-xs px-3 py-1.5 rounded-lg"
+                  style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#F87171' }}
+                >
+                  Disconnect
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm mb-3" style={{ color: '#6B7280' }}>
+                  Connect with an iCloud app-specific password. Generate one at appleid.apple.com under Sign-In &amp; Security.
+                </p>
+                <button
+                  onClick={() => { setShowICloudModal(true); setICloudError(null) }}
+                  className="flex items-center justify-center gap-2 w-full h-11 rounded-xl text-sm font-semibold"
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#D1D5DB' }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+                  </svg>
+                  Connect iCloud Calendar
+                </button>
+              </div>
+            )}
           </CollapsibleSection>
 
           {/* Sync */}
@@ -916,6 +1015,63 @@ export default function SettingsPage({
             </button>
           )}
         </>
+      )}
+
+      {/* iCloud Connect Modal */}
+      {showICloudModal && (
+        <div className="fixed inset-0 z-[200] flex items-end justify-center px-4"
+          style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowICloudModal(false) }}>
+          <div className="w-full max-w-md rounded-t-3xl p-6 pb-8"
+            style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold" style={{ color: '#F9FAFB' }}>Connect iCloud Calendar</h3>
+              <button onClick={() => setShowICloudModal(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(255,255,255,0.08)', color: '#9CA3AF' }}>
+                ✕
+              </button>
+            </div>
+            <p className="text-sm mb-4" style={{ color: '#6B7280' }}>
+              Use your Apple ID email and an app-specific password (not your Apple ID password).
+              Generate one at <span style={{ color: '#60A5FA' }}>appleid.apple.com</span> → Sign-In &amp; Security → App-Specific Passwords.
+            </p>
+            <div className="space-y-3 mb-4">
+              <input
+                type="email"
+                placeholder="Apple ID email"
+                value={iCloudEmail}
+                onChange={e => setICloudEmail(e.target.value)}
+                style={{ ...inputStyle, height: '48px', fontSize: '15px' }}
+              />
+              <input
+                type="password"
+                placeholder="App-specific password"
+                value={iCloudPassword}
+                onChange={e => setICloudPassword(e.target.value)}
+                style={{ ...inputStyle, height: '48px', fontSize: '15px' }}
+              />
+            </div>
+            {iCloudError && (
+              <div className="rounded-xl px-4 py-3 mb-4 text-sm"
+                style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444' }}>
+                {iCloudError}
+              </div>
+            )}
+            <button
+              onClick={connectICloud}
+              disabled={connectingICloud || !iCloudEmail.trim() || !iCloudPassword.trim()}
+              className="w-full h-12 rounded-2xl text-sm font-semibold"
+              style={{
+                background: connectingICloud ? 'rgba(29,78,216,0.3)' : 'linear-gradient(135deg, #1D4ED8, #06B6D4)',
+                color: '#fff',
+                opacity: (!iCloudEmail.trim() || !iCloudPassword.trim()) ? 0.5 : 1,
+              }}
+            >
+              {connectingICloud ? 'Connecting…' : 'Connect Calendar'}
+            </button>
+          </div>
+        </div>
       )}
     </motion.div>
   )

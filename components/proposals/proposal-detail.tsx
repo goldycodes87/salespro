@@ -328,7 +328,7 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
         </div>
       </div>
 
-      {/* Present + Edit + Delete buttons */}
+      {/* Present + Edit + PDF + Delete buttons */}
       <div className="flex gap-3 mb-4">
         <Link href={`/proposals/${proposal.id}/present`}
           className="flex-1 flex items-center justify-center gap-2 h-11 rounded-2xl text-sm font-semibold"
@@ -347,6 +347,13 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
           </svg>
           Edit
         </Link>
+        <a href={`/api/proposals/${proposal.id}/pdf`} target="_blank" rel="noopener noreferrer"
+          className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+          style={{ background: 'rgba(29,78,216,0.08)', border: '1px solid rgba(29,78,216,0.3)', color: '#60A5FA' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        </a>
         <button type="button" onClick={() => setShowDeleteModal(true)}
           className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
           style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444' }}>

@@ -28,6 +28,7 @@ export default async function PublicProposalPage({
     <PresentView
       proposal={proposal}
       repSettings={repResult.data?.settings ?? {}}
+      downloadPdfUrl={`/api/proposals/public/${token}/pdf`}
     />
   )
 }

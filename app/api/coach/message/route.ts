@@ -29,6 +29,15 @@ export async function POST(request: NextRequest) {
   const persona = getPersona(personaId)
   const admin = getSupabaseAdmin()
 
+  // Fetch custom system prompt from DB, fall back to hardcoded persona
+  const { data: dbPersona } = await admin
+    .from('coach_prompts')
+    .select('system_prompt')
+    .eq('persona_id', personaId)
+    .maybeSingle()
+
+  const baseSystemPrompt = dbPersona?.system_prompt ?? persona.systemPrompt
+
   // Save user message
   await admin.from('coach_messages').insert({
     rep_id: user.id,
@@ -55,8 +64,8 @@ export async function POST(request: NextRequest) {
     .maybeSingle()
 
   const systemPrompt = memoryRow?.memory_text
-    ? `${persona.systemPrompt}\n\nREP MEMORY (facts from prior conversations):\n${memoryRow.memory_text}`
-    : persona.systemPrompt
+    ? `${baseSystemPrompt}\n\nREP MEMORY (facts from prior conversations):\n${memoryRow.memory_text}`
+    : baseSystemPrompt
 
   const messages = (historyRows ?? [])
     .reverse()

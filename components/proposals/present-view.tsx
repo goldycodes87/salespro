@@ -305,10 +305,11 @@ function NewPriceRow({ value }: { value: number }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function PresentView({ proposal, backHref, repSettings }: {
+export default function PresentView({ proposal, backHref, repSettings, downloadPdfUrl }: {
   proposal: Proposal
   backHref?: string
   repSettings?: RepSettings
+  downloadPdfUrl?: string
 }) {
   const pricingData: PricingInputs | null = proposal.pricing_data?.proposal_type
     ? (proposal.pricing_data as PricingInputs)
@@ -477,7 +478,19 @@ export default function PresentView({ proposal, backHref, repSettings }: {
           <Image src="/salespro-logo.png" alt="SalesPro" height={28} width={112} className="object-contain"
             style={{ height: '28px', width: 'auto' }} />
         </motion.div>
-        <ExitBtn />
+        <div className="flex items-center gap-2">
+          {downloadPdfUrl && (
+            <a href={downloadPdfUrl} target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-center w-8 h-8 rounded-full"
+              style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)' }}
+              title="Download PDF">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </a>
+          )}
+          <ExitBtn />
+        </div>
       </div>
 
       {/* Card stack */}
