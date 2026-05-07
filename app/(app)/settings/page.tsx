@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import SettingsPage from '@/components/settings/settings-page'
 import { redirect } from 'next/navigation'
 
@@ -10,13 +11,20 @@ export default async function Settings() {
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-  const [repResult, usageResult] = await Promise.all([
+  const admin = getSupabaseAdmin()
+
+  const [repResult, usageResult, coachConfigResult, calendarConnectionsResult] = await Promise.all([
     supabase.from('reps').select('*').eq('id', user.id).single(),
     supabase
       .from('api_usage_log')
       .select('service, estimated_cost_usd')
       .eq('rep_id', user.id)
       .gte('created_at', monthStart),
+    admin.from('coach_config').select('active_persona_id').eq('rep_id', user.id).maybeSingle(),
+    admin
+      .from('calendar_connections')
+      .select('id, provider, ical_url, last_synced_at, connected_at')
+      .eq('rep_id', user.id),
   ])
 
   const rep = repResult.data ?? { id: user.id, email: user.email }
@@ -36,6 +44,8 @@ export default async function Settings() {
     <SettingsPage
       rep={rep}
       usage={{ byService, totalCost, count: rows.length }}
+      coachConfig={coachConfigResult.data}
+      calendarConnections={calendarConnectionsResult.data ?? []}
     />
   )
 }

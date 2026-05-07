@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import DashboardHero from '@/components/dashboard/dashboard-hero'
 import StatCards from '@/components/dashboard/stat-cards'
 import { getMTStartOfDay, getMTStartOfWeek, getMTHour } from '@/lib/time'
@@ -45,8 +46,14 @@ export default async function DashboardPage() {
     day: 'numeric',
   }).format(now)
 
+  const admin = getSupabaseAdmin()
+
+  // Today's schedule: calendar events for today
+  const todayEnd = new Date(now)
+  todayEnd.setHours(23, 59, 59, 999)
+
   // Dashboard stats — all scoped to current rep via RLS
-  const [todayProposals, weekProposals, pipeline, signed, recentProposals, recentLeads, followUps] =
+  const [todayProposals, weekProposals, pipeline, signed, recentProposals, recentLeads, followUps, todayEvents] =
     await Promise.all([
       // Today's proposals
       supabase
@@ -96,6 +103,18 @@ export default async function DashboardPage() {
         .lte('followup_date', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
         .order('followup_date', { ascending: true })
         .limit(10),
+
+      // Today's calendar events
+      user
+        ? admin
+            .from('calendar_events')
+            .select('id, title, start_at, end_at, all_day, location')
+            .eq('rep_id', user.id)
+            .gte('start_at', todayStart)
+            .lte('start_at', todayEnd.toISOString())
+            .order('start_at', { ascending: true })
+            .limit(8)
+        : Promise.resolve({ data: [] }),
     ])
 
   const pipelineValue = (pipeline.data ?? []).reduce(
@@ -149,6 +168,46 @@ export default async function DashboardPage() {
       />
 
       <StatCards stats={stats} />
+
+      {/* Today's Schedule */}
+      {todayEvents.data && todayEvents.data.length > 0 && (
+        <section className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold" style={{ color: '#F9FAFB' }}>Today&apos;s Schedule</h2>
+            <Link href="/calendar" className="text-xs font-medium" style={{ color: '#3B82F6' }}>View calendar</Link>
+          </div>
+          <div className="space-y-2">
+            {todayEvents.data.map((ev: any) => {
+              const timeStr = ev.all_day
+                ? 'All day'
+                : new Date(ev.start_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Denver' })
+              return (
+                <div
+                  key={ev.id}
+                  className="flex items-center gap-3 p-3 rounded-2xl"
+                  style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderLeft: '3px solid #3B82F6' }}
+                >
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'rgba(29,78,216,0.15)' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: '#F9FAFB' }}>{ev.title}</p>
+                    <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
+                      {timeStr}{ev.location ? ` · ${ev.location}` : ''}
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Recent Proposals */}
       <section className="mb-6">
