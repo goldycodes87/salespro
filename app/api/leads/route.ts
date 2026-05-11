@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status')
+  const search = searchParams.get('search')
 
   const admin = getSupabaseAdmin()
   let query = admin
@@ -38,6 +39,10 @@ export async function GET(request: NextRequest) {
 
   if (status && status !== 'all') {
     query = query.eq('status', status.toLowerCase())
+  }
+
+  if (search) {
+    query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%`)
   }
 
   const { data, error } = await query

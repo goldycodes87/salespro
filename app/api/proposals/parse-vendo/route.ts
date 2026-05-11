@@ -176,6 +176,18 @@ CRITICAL RULES:
     return NextResponse.json({ error: insertError?.message ?? 'Failed to create proposal' }, { status: 500 })
   }
 
+  // Populate top-level numeric columns (fire and forget — ignore unknown column errors)
+  void admin
+    .from('proposals')
+    .update({
+      package_price: parsed.package_price ?? null,
+      your_price: parsed.your_price ?? 0,
+      windows_project_value: parsed.package_price ?? null,
+      num_windows: parsed.num_windows ?? 0,
+      num_doors: parsed.num_doors ?? 0,
+    })
+    .eq('id', proposal.id)
+
   // Log API usage (fire and forget)
   void admin.from('api_usage_log').insert({
     rep_id: user.id,

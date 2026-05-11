@@ -4,10 +4,29 @@ import Link from 'next/link'
 export default async function CreateLeadPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string }>
+  searchParams: Promise<{
+    from?: string
+    proposal_id?: string
+    first_name?: string
+    last_name?: string
+    address?: string
+    city?: string
+    state?: string
+    zip?: string
+  }>
 }) {
-  const { from } = await searchParams
-  const fromProposal = from === 'proposal'
+  const params = await searchParams
+  const proposalId = params.proposal_id ?? null
+  const fromProposal = params.from === 'proposal' || !!proposalId
+
+  const initialData = proposalId ? {
+    first_name: params.first_name ?? '',
+    last_name: params.last_name ?? '',
+    address: params.address ?? '',
+    city: params.city ?? '',
+    state: params.state ?? 'CO',
+    zip: params.zip ?? '',
+  } : undefined
 
   return (
     <div className="max-w-2xl mx-auto px-4 pt-6 pb-6">
@@ -20,7 +39,9 @@ export default async function CreateLeadPage({
             <polyline points="14 2 14 8 20 8" />
           </svg>
           <p className="text-sm" style={{ color: '#93C5FD' }}>
-            Creating lead for proposal — will be linked automatically after save
+            {proposalId
+              ? 'Creating lead for Vendo proposal — will link automatically after save'
+              : 'Creating lead for proposal — will be linked automatically after save'}
           </p>
         </div>
       )}
@@ -28,7 +49,7 @@ export default async function CreateLeadPage({
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link
-          href="/leads"
+          href={proposalId ? `/proposals/${proposalId}` : '/leads'}
           className="flex items-center justify-center w-9 h-9 rounded-xl flex-shrink-0"
           style={{ background: 'rgba(255,255,255,0.06)', color: '#9CA3AF' }}
         >
@@ -44,7 +65,11 @@ export default async function CreateLeadPage({
         </div>
       </div>
 
-      <LeadForm redirectAfterSave={fromProposal ? '/proposals/new' : undefined} />
+      <LeadForm
+        proposalId={proposalId ?? undefined}
+        initialData={initialData}
+        redirectAfterSave={fromProposal && !proposalId ? '/proposals/new' : undefined}
+      />
     </div>
   )
 }

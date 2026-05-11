@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
@@ -9,6 +9,7 @@ import { calcPrice, type PricingInputs } from '@/lib/pricing'
 import { formatPhone } from '@/hooks/usePhoneFormat'
 
 type Proposal = Record<string, any>
+type LeadResult = { id: string; first_name: string; last_name: string; address?: string; city?: string; state?: string; email?: string; phone?: string }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   draft:  { bg: 'rgba(107,114,128,0.15)', text: '#9CA3AF', border: '#9CA3AF33' },
@@ -46,19 +47,139 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  // Lead linking state
+  const [linkLoading, setLinkLoading] = useState(false)
+  const [linkToast, setLinkToast] = useState<string | null>(null)
+  const [matchState, setMatchState] = useState<'idle' | 'loading' | 'found' | 'none' | 'dismissed'>('idle')
+  const [matchedLead, setMatchedLead] = useState<LeadResult | null>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<LeadResult[]>([])
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Pull pricing from both pricing_data and top-level columns (FIX 2)
+  const pd = proposal.pricing_data || {}
+  const yourPrice = pd.your_price || Number(proposal.your_price) || 0
+  const packagePrice = pd.package_price || Number(proposal.package_price) || 0
+  const discountAmount = pd.discount_amount || 0
+  const discountName = pd.discount_name || ''
+  const adminFee = pd.admin_fee || 0
+  const numWindows = pd.num_windows || proposal.num_windows || 0
+  const numDoors = pd.num_doors || proposal.num_doors || 0
+  const vendoImported = pd.vendo_imported || false
+  const vendoQuoteNumber = pd.vendo_quote_number || null
+
   const statusColors = STATUS_COLORS[proposal.status] ?? STATUS_COLORS.draft
 
-  const pricing: PricingInputs | null = proposal.pricing_data?.proposal_type
-    ? proposal.pricing_data as PricingInputs
+  const pricing: PricingInputs | null = pd.proposal_type
+    ? pd as PricingInputs
     : null
-  const result = pricing ? calcPrice(pricing) : null
+  const result = pricing && !vendoImported ? calcPrice(pricing) : null
 
   const createdAt = new Date(proposal.created_at).toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
   })
 
+  const fullName = [proposal.customer_first_name, proposal.customer_last_name].filter(Boolean).join(' ')
+    || proposal.customer_name || '—'
+
+  // Auto-search for lead match when card appears (FIX 4)
+  useEffect(() => {
+    if (!vendoImported || proposal.lead_id || !proposal.customer_last_name) return
+    setMatchState('loading')
+    const lastName = proposal.customer_last_name as string
+    fetch(`/api/leads/search?q=${encodeURIComponent(lastName)}`)
+      .then(r => r.json())
+      .then((leads: LeadResult[]) => {
+        if (!Array.isArray(leads) || leads.length === 0) {
+          setMatchState('none')
+          return
+        }
+        const exact = leads.find(l =>
+          l.first_name?.toLowerCase() === (proposal.customer_first_name as string)?.toLowerCase() &&
+          l.last_name?.toLowerCase() === lastName.toLowerCase()
+        ) || leads[0]
+        setMatchedLead(exact)
+        setMatchState('found')
+      })
+      .catch(() => setMatchState('none'))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleLeadSearch = (q: string) => {
+    setSearchQuery(q)
+    if (searchDebounce.current) clearTimeout(searchDebounce.current)
+    if (q.length < 2) { setSearchResults([]); return }
+    searchDebounce.current = setTimeout(async () => {
+      const res = await fetch(`/api/leads/search?q=${encodeURIComponent(q)}`)
+      if (res.ok) setSearchResults(await res.json())
+    }, 300)
+  }
+
+  const handleLinkToLead = async (leadId: string) => {
+    setLinkLoading(true)
+    try {
+      // 1. Patch proposal with lead_id
+      const pRes = await fetch(`/api/proposals/${proposal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: leadId }),
+      })
+      if (!pRes.ok) throw new Error('Failed to link lead')
+      const updatedProposal = await pRes.json()
+
+      // 2. Fetch lead
+      const lRes = await fetch(`/api/leads/${leadId}`)
+      const lead: LeadResult = await lRes.json()
+
+      // 3. Copy email/phone to proposal if missing
+      const contactPatch: Record<string, string> = {}
+      if (!updatedProposal.customer_email && lead.email) contactPatch.customer_email = lead.email
+      if (!updatedProposal.customer_phone && lead.phone) contactPatch.customer_phone = lead.phone
+      if (Object.keys(contactPatch).length > 0) {
+        await fetch(`/api/proposals/${proposal.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(contactPatch),
+        })
+      }
+
+      // 4. Set lead status → proposed
+      await fetch(`/api/leads/${leadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'proposed' }),
+      })
+
+      // 5. Log activity
+      void fetch(`/api/leads/${leadId}/activity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_type: 'proposal_linked',
+          description: vendoQuoteNumber
+            ? `Linked to Vendo proposal #${vendoQuoteNumber}`
+            : 'Linked to Vendo proposal',
+        }),
+      })
+
+      // 6. Refresh proposal
+      const refreshRes = await fetch(`/api/proposals/${proposal.id}`)
+      const refreshed = await refreshRes.json()
+      setProposal(refreshed)
+
+      // 7. Toast + hide card
+      const leadName = `${lead.first_name} ${lead.last_name}`
+      setLinkToast(`Linked to ${leadName}'s file ✓`)
+      setTimeout(() => setLinkToast(null), 5000)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLinkLoading(false)
+    }
+  }
+
   const handleBookedClick = async () => {
-    // Fire confetti immediately on tap
     const confetti = (await import('canvas-confetti')).default
     confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#1D4ED8', '#34D399', '#60A5FA', '#FCD34D'] })
     setTimeout(() => {
@@ -90,7 +211,6 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
       setProposal(updated)
       setShowBookedModal(false)
 
-      // Log partial job activity
       if (isPartial && proposal.lead_id) {
         const followupDate = new Date()
         followupDate.setMonth(followupDate.getMonth() + 6)
@@ -102,7 +222,7 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
             event_type: 'partial_job_booked',
             description: `Partial job booked. Follow-up scheduled for ${dateStr}`,
           }),
-        }).catch(() => {}) // non-fatal
+        }).catch(() => {})
       }
     } catch (err: any) {
       setError(err.message)
@@ -159,39 +279,137 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
     }
   }
 
-  const fullName = [proposal.customer_first_name, proposal.customer_last_name].filter(Boolean).join(' ')
-    || proposal.customer_name || '—'
-
   const followupDateStr = proposal.followup_date
     ? new Date(proposal.followup_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
     : null
+
+  const createLeadUrl = `/leads/create?proposal_id=${proposal.id}&first_name=${encodeURIComponent(proposal.customer_first_name ?? '')}&last_name=${encodeURIComponent(proposal.customer_last_name ?? '')}&address=${encodeURIComponent(proposal.customer_address ?? '')}&city=${encodeURIComponent(proposal.customer_city ?? '')}&state=${encodeURIComponent(proposal.customer_state ?? '')}&zip=${encodeURIComponent(proposal.customer_zip ?? '')}`
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
       className="max-w-2xl mx-auto px-4 pt-6 pb-52">
 
-      {/* Vendo import success banner */}
-      {importedBanner && (
-        <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl"
-          style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)' }}>
-          <div className="flex items-center gap-2">
-            <span style={{ color: '#34D399', fontSize: '16px' }}>✓</span>
-            <p className="text-sm font-medium" style={{ color: '#34D399' }}>
-              Vendo proposal imported! Review and add customer contact details.
-            </p>
-          </div>
-          <button onClick={() => setImportedBanner(false)} style={{ color: '#6B7280', fontSize: '18px', lineHeight: 1 }}>×</button>
+      {/* FIX 3 — Blue Vendo info banner */}
+      {vendoImported && (
+        <div className="mb-3 px-4 py-3 rounded-xl"
+          style={{ background: 'rgba(29,78,216,0.15)', border: '1px solid rgba(29,78,216,0.3)', borderRadius: '12px' }}>
+          <p style={{ color: '#60A5FA', fontSize: '13px' }}>
+            📋 Imported from Vendo{vendoQuoteNumber ? ` Quote #${vendoQuoteNumber}` : ''}
+          </p>
         </div>
       )}
 
-      {/* Missing contact info warning (Vendo imports) */}
-      {proposal.pricing_data?.vendo_imported && !proposal.customer_email && (
-        <div className="mb-4 px-4 py-3 rounded-2xl"
-          style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
-          <p className="text-sm font-semibold mb-0.5" style={{ color: '#FCD34D' }}>Missing customer contact info</p>
-          <p className="text-xs" style={{ color: '#92400E' }}>
-            Add phone and email to send this proposal to the customer.
+      {/* FIX 3 — Yellow missing-contact warning */}
+      {!proposal.customer_email && (
+        <div className="mb-3 px-4 py-3 rounded-xl"
+          style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '12px' }}>
+          <p style={{ color: '#FCD34D', fontSize: '13px' }}>
+            ⚠ Missing customer contact info — link to a lead file to add email and phone
           </p>
+        </div>
+      )}
+
+      {/* FIX 4 — Lead Linking Card */}
+      {vendoImported && !proposal.lead_id && (
+        <div className="mb-4 p-5 rounded-2xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}>
+          <p className="font-bold mb-1" style={{ color: '#F9FAFB', fontSize: '15px' }}>Link to Lead File</p>
+          <p className="mb-4" style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px' }}>
+            Connect this proposal to a lead to track this customer and add contact details.
+          </p>
+
+          {matchState === 'loading' && (
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>Searching for matching lead…</p>
+          )}
+
+          {matchState === 'found' && matchedLead && (
+            <div className="mb-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: '#6B7280' }}>Possible match found:</p>
+              <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl mb-2"
+                style={{ background: 'rgba(29,78,216,0.08)', border: '1px solid rgba(29,78,216,0.2)' }}>
+                <div>
+                  <p className="font-semibold text-sm" style={{ color: '#F9FAFB' }}>
+                    {matchedLead.first_name} {matchedLead.last_name}
+                  </p>
+                  {matchedLead.city && (
+                    <p className="text-xs" style={{ color: '#6B7280' }}>
+                      {[matchedLead.address, matchedLead.city, matchedLead.state].filter(Boolean).join(', ')}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  disabled={linkLoading}
+                  onClick={() => handleLinkToLead(matchedLead.id)}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold flex-shrink-0"
+                  style={{ background: '#1D4ED8', color: '#fff' }}>
+                  {linkLoading ? 'Linking…' : 'Link to this lead'}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMatchState('dismissed')}
+                style={{ color: '#6B7280', fontSize: '12px' }}>
+                Not the right person
+              </button>
+            </div>
+          )}
+
+          {(matchState === 'none' || matchState === 'dismissed') && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setSearchOpen(o => !o)}
+                className="w-full h-10 rounded-xl text-sm font-semibold"
+                style={{ background: 'rgba(29,78,216,0.15)', color: '#60A5FA', border: '1px solid rgba(29,78,216,0.3)' }}>
+                {searchOpen ? 'Close Search' : 'Search Leads'}
+              </button>
+              <AnimatePresence>
+                {searchOpen && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                    <div className="relative mt-2">
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={e => handleLeadSearch(e.target.value)}
+                        placeholder="Search by name…"
+                        autoFocus
+                        className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#F9FAFB' }}
+                      />
+                      {searchResults.length > 0 && (
+                        <div className="mt-1 rounded-xl overflow-hidden" style={{ background: '#1F2937', border: '1px solid rgba(255,255,255,0.12)' }}>
+                          {searchResults.map(lead => (
+                            <button
+                              key={lead.id}
+                              type="button"
+                              disabled={linkLoading}
+                              onClick={() => handleLinkToLead(lead.id)}
+                              className="w-full px-4 py-3 text-left text-sm"
+                              style={{ color: '#F9FAFB', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                              <span className="font-medium">{lead.first_name} {lead.last_name}</span>
+                              {lead.city && <span className="ml-2 text-xs" style={{ color: '#6B7280' }}>{lead.city}, {lead.state}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <Link
+                href={createLeadUrl}
+                className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center"
+                style={{ background: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,0.1)' }}>
+                Create New Lead
+              </Link>
+            </div>
+          )}
+
+          {linkToast && (
+            <div className="mt-3 px-3 py-2 rounded-xl text-sm" style={{ background: 'rgba(16,185,129,0.12)', color: '#34D399', border: '1px solid rgba(16,185,129,0.2)' }}>
+              {linkToast}
+            </div>
+          )}
         </div>
       )}
 
@@ -228,11 +446,28 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
             {aiCallToast}
           </motion.div>
         )}
+        {linkToast && !vendoImported && (
+          <motion.div key="link-toast" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="rounded-xl px-4 py-3 mb-3 text-sm font-medium flex items-center gap-2"
+            style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.2)', color: '#34D399' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+            {linkToast}
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Customer card */}
       <div className="p-5 mb-4" style={cardStyle}>
-        <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6B7280' }}>Customer</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>Customer</p>
+          {proposal.lead_id && (
+            <Link href={`/leads/${proposal.lead_id}`}
+              className="text-xs px-2 py-1 rounded-lg flex items-center gap-1"
+              style={{ background: 'rgba(29,78,216,0.1)', color: '#60A5FA', border: '1px solid rgba(29,78,216,0.2)' }}>
+              Linked to lead →
+            </Link>
+          )}
+        </div>
         <div className="flex items-start justify-between">
           <div>
             <p className="text-lg font-bold mb-1" style={{ color: '#F9FAFB' }}>{fullName}</p>
@@ -256,8 +491,45 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
         </div>
       </div>
 
-      {/* Pricing */}
-      {result && pricing && (
+      {/* Pricing — Vendo: display stored values; normal: use calcPrice */}
+      {vendoImported ? (
+        <div className="p-5 mb-4" style={cardStyle}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>Pricing</p>
+            <span className="px-2 py-0.5 rounded-lg text-xs font-semibold uppercase"
+              style={{ background: 'rgba(29,78,216,0.15)', color: '#60A5FA' }}>Vendo Import</span>
+          </div>
+          {(numWindows > 0 || numDoors > 0) && (
+            <p className="text-xs mb-4" style={{ color: '#6B7280' }}>
+              {[numWindows && `${numWindows} Windows`, numDoors && `${numDoors} Doors`].filter(Boolean).join(' · ')}
+            </p>
+          )}
+          <div className="space-y-2 text-sm">
+            {packagePrice > 0 && (
+              <div className="flex justify-between">
+                <span style={{ color: '#6B7280' }}>Package Price</span>
+                <span style={{ color: '#D1D5DB' }}>{fmt(packagePrice)}</span>
+              </div>
+            )}
+            {discountAmount > 0 && (
+              <div className="flex justify-between">
+                <span style={{ color: '#6B7280' }}>{discountName || 'Discount'}</span>
+                <span style={{ color: '#34D399' }}>-{fmt(discountAmount)}</span>
+              </div>
+            )}
+            {adminFee > 0 && (
+              <div className="flex justify-between">
+                <span style={{ color: '#6B7280' }}>Admin Fee</span>
+                <span style={{ color: '#D1D5DB' }}>{fmt(adminFee)}</span>
+              </div>
+            )}
+            <div className="flex justify-between pt-2 mt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+              <span className="font-bold" style={{ color: '#F9FAFB' }}>Your Price</span>
+              <span className="font-bold text-base" style={{ color: '#60A5FA' }}>{fmt(yourPrice)}</span>
+            </div>
+          </div>
+        </div>
+      ) : result && pricing ? (
         <div className="p-5 mb-4" style={cardStyle}>
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>Pricing</p>
@@ -271,7 +543,7 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
           ) : null}
           <PriceSummary result={result} inputs={pricing} />
         </div>
-      )}
+      ) : null}
 
       {/* Partial Job Card */}
       {proposal.is_partial_job && (
@@ -491,7 +763,6 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
                 <p className="text-sm" style={{ color: '#6B7280' }}>Finish the job in Vendo to complete paperwork.</p>
               </div>
 
-              {/* Partial job toggle */}
               <label className="flex items-center gap-3 cursor-pointer mb-4 p-3 rounded-xl"
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <div onClick={() => setIsPartial(p => !p)}

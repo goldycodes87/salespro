@@ -311,8 +311,11 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
   repSettings?: RepSettings
   downloadPdfUrl?: string
 }) {
-  const pricingData: PricingInputs | null = proposal.pricing_data?.proposal_type
-    ? (proposal.pricing_data as PricingInputs)
+  const rawPd = proposal.pricing_data || {}
+  const vendoImported: boolean = rawPd.vendo_imported === true
+
+  const pricingData: PricingInputs | null = rawPd.proposal_type && !vendoImported
+    ? (rawPd as PricingInputs)
     : null
 
   const discountOpts = useMemo(
@@ -442,6 +445,165 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
       style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)' }}
       onClick={() => window.history.back()}>×</button>
   )
+
+  // ── VENDO LOCKED VIEW ────────────────────────────────────────────────────────
+  if (vendoImported) {
+    const vPackage = Number(rawPd.package_price || proposal.package_price) || 0
+    const vDiscount = Number(rawPd.discount_amount) || 0
+    const vDiscountName: string = rawPd.discount_name || 'Discount Applied'
+    const vAdminFee = Number(rawPd.admin_fee) || 0
+    const vYourPrice = Number(rawPd.your_price || proposal.your_price) || 0
+    const vNumWindows = Number(rawPd.num_windows || proposal.num_windows) || 0
+    const vNumDoors = Number(rawPd.num_doors || proposal.num_doors) || 0
+    const subtitle = [
+      vNumWindows > 0 && `${vNumWindows} Window${vNumWindows !== 1 ? 's' : ''}`,
+      vNumDoors > 0 && `${vNumDoors} Door${vNumDoors !== 1 ? 's' : ''}`,
+    ].filter(Boolean).join(', ')
+
+    return (
+      <div className="fixed inset-0 z-[200] overflow-y-auto" style={{ background: '#000', color: '#fff' }}>
+        <AnimatedGradientBackground
+          gradientColors={['#000000', '#0A0F1E', '#0D1F3C', '#0A1628', '#000000']}
+          gradientStops={[0, 25, 50, 75, 100]}
+          Breathing={true} animationSpeed={0.008} breathingRange={3}
+        />
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '120px', background: 'linear-gradient(to bottom, transparent, #000000)', pointerEvents: 'none', zIndex: 10 }} />
+
+        {/* Sticky top bar */}
+        <div className="sticky top-0 z-20 px-5 flex items-center justify-between"
+          style={{ paddingTop: 'max(20px, env(safe-area-inset-top, 0px) + 12px)', paddingBottom: '12px', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.7 }} transition={{ duration: 0.8 }}>
+            <SalesProLogo variant="icon" height={28} />
+          </motion.div>
+          <div className="flex items-center gap-2">
+            {downloadPdfUrl && (
+              <a href={downloadPdfUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center w-8 h-8 rounded-full"
+                style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </a>
+            )}
+            <ExitBtn />
+          </div>
+        </div>
+
+        {/* Locked card stack */}
+        <div className="relative z-10 flex flex-col gap-3 px-4 py-4 max-w-sm mx-auto" style={{ paddingBottom: '120px' }}>
+
+          {/* Customer name header */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(0)} style={{ position: 'relative' }}>
+            <CardGlow color="rgba(255,255,255,0.3)" />
+            <div style={{ ...glassCard, padding: '24px 20px', position: 'relative', zIndex: 1, textAlign: 'center' }}>
+              <h1 style={{ fontSize: 'clamp(24px, 5vw, 48px)', fontWeight: 800, color: '#fff', letterSpacing: '0.05em', lineHeight: 1.15, marginBottom: '20px' }}>
+                {displayName}
+              </h1>
+              <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '8px' }}>
+                Starting Price
+              </p>
+              <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '52px', fontWeight: 700, color: '#fff', lineHeight: 1, marginBottom: '6px' }}>
+                {fmt(vPackage)}
+              </p>
+              {subtitle && (
+                <p style={{ fontSize: '18px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', marginTop: '8px' }}>{subtitle}</p>
+              )}
+            </div>
+          </motion.div>
+
+          {/* Discount Applied — locked */}
+          {vDiscount > 0 && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(1)} style={{ position: 'relative' }}>
+              <CardGlow color="rgba(6,182,212,0.4)" />
+              <div style={{ ...glassCard, border: '1px solid rgba(6,182,212,0.15)', padding: '20px', position: 'relative', zIndex: 1 }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span style={{ fontSize: '16px', fontWeight: 600, color: '#F9FAFB' }}>{vDiscountName}</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                  </div>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', color: '#2DD4BF', fontWeight: 700 }}>
+                    -{fmt(vDiscount)}
+                  </span>
+                </div>
+                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', fontStyle: 'italic' }}>Pricing set in Vendo</p>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Admin Fee */}
+          {vAdminFee > 0 && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(2)} style={{ position: 'relative' }}>
+              <CardGlow color="rgba(255,255,255,0.2)" />
+              <div style={{ ...glassCard, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', padding: '20px', position: 'relative', zIndex: 1 }}>
+                <div className="flex justify-between items-center">
+                  <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: '15px', fontWeight: 600 }}>Admin Fee</span>
+                  <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: '15px' }}>+{fmt(vAdminFee)}</span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Your Final Price */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(3)} style={{ position: 'relative' }}>
+            <CardGlow color="rgba(29,78,216,0.5)" />
+            <div style={{ ...glassCard, boxShadow: '0 0 60px rgba(29,78,216,0.25), 0 0 120px rgba(6,182,212,0.1), inset 0 1px 0 rgba(255,255,255,0.1)', padding: '28px 16px', position: 'relative', zIndex: 1 }}>
+              <div style={{ position: 'absolute', inset: 0, borderRadius: '20px', pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 100%, rgba(29,78,216,0.25) 0%, transparent 60%)' }} />
+              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', letterSpacing: '0.3em', textTransform: 'uppercase', marginBottom: '16px', position: 'relative', zIndex: 1 }}>
+                Your Final Price
+              </p>
+              <p style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 'clamp(36px, 7vw, 64px)', fontWeight: 800, lineHeight: 1, marginBottom: '16px',
+                letterSpacing: '-0.02em',
+                background: 'linear-gradient(135deg, #60A5FA 0%, #06B6D4 40%, #34D399 100%)',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                position: 'relative', zIndex: 1,
+              }}>
+                {fmt(vYourPrice)}
+              </p>
+              {vDiscount > 0 && (
+                <p style={{ fontSize: '18px', fontWeight: 700, color: '#2DD4BF', position: 'relative', zIndex: 1 }}>
+                  You saved {fmt(vDiscount)} today
+                </p>
+              )}
+            </div>
+          </motion.div>
+
+        </div>
+
+        {/* Action bar */}
+        <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pt-3"
+          style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))', background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="flex gap-2 max-w-sm mx-auto">
+            {backHref ? (
+              <Link href={backHref} className="flex-1 h-12 rounded-2xl flex items-center justify-center text-sm font-semibold"
+                style={{ border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.6)', background: 'transparent' }}>
+                Follow Up
+              </Link>
+            ) : (
+              <button type="button" className="flex-1 h-12 rounded-2xl flex items-center justify-center text-sm font-semibold"
+                style={{ border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.6)', background: 'transparent' }}
+                onClick={() => window.history.back()}>
+                Follow Up
+              </button>
+            )}
+            <button type="button" onClick={handleEmail} disabled={emailing}
+              className="flex-1 h-12 rounded-2xl flex items-center justify-center text-sm font-semibold"
+              style={{ border: '1px solid rgba(29,78,216,0.5)', color: emailing ? 'rgba(96,165,250,0.4)' : '#60A5FA', background: 'rgba(29,78,216,0.08)' }}>
+              {emailing ? 'Sending…' : 'Email Proposal'}
+            </button>
+            <button type="button" onClick={handleBooked} disabled={booking}
+              className="flex-1 h-12 rounded-2xl flex items-center justify-center text-sm font-bold"
+              style={{ background: booking ? 'rgba(29,78,216,0.3)' : 'linear-gradient(135deg, #1D4ED8, #06B6D4)', color: '#fff', boxShadow: booking ? 'none' : '0 4px 20px rgba(29,78,216,0.35)' }}>
+              {booking ? 'Saving…' : 'Booked! 🎉'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (!pricingData || !pp) {
     return (

@@ -246,10 +246,12 @@ export default function LeadForm({
   redirectAfterSave,
   initialData,
   editId,
+  proposalId,
 }: {
   redirectAfterSave?: string
   initialData?: Record<string, any>
   editId?: string
+  proposalId?: string
 }) {
   const router = useRouter()
 
@@ -325,6 +327,58 @@ export default function LeadForm({
     setLoading(true)
     try {
       const id = await saveLead()
+
+      // FIX 5: If created from a Vendo proposal, link them automatically
+      if (proposalId && !editId) {
+        // 1. Link lead_id on proposal
+        const pRes = await fetch(`/api/proposals/${proposalId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lead_id: id }),
+        })
+        const updatedProposal = pRes.ok ? await pRes.json() : null
+
+        // 2. Copy email/phone to proposal if missing
+        const contactPatch: Record<string, string> = {}
+        if (updatedProposal && !updatedProposal.customer_email && form.email)
+          contactPatch.customer_email = form.email
+        if (updatedProposal && !updatedProposal.customer_phone && form.phone)
+          contactPatch.customer_phone = form.phone.replace(/\D/g, '')
+        if (Object.keys(contactPatch).length > 0) {
+          await fetch(`/api/proposals/${proposalId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(contactPatch),
+          })
+        }
+
+        // 3. Set lead status → proposed
+        await fetch(`/api/leads/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'proposed' }),
+        })
+
+        // 4. Log activity (fire and forget)
+        const proposalRes = await fetch(`/api/proposals/${proposalId}`)
+        const proposalData = proposalRes.ok ? await proposalRes.json() : null
+        const quoteNumber = proposalData?.pricing_data?.vendo_quote_number
+        void fetch(`/api/leads/${id}/activity`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_type: 'proposal_linked',
+            description: quoteNumber
+              ? `Linked to Vendo proposal #${quoteNumber}`
+              : 'Linked to Vendo proposal',
+          }),
+        })
+
+        // 5. Redirect to proposal
+        router.push(`/proposals/${proposalId}`)
+        return
+      }
+
       if (redirectAfterSave) {
         router.push(editId ? redirectAfterSave : `${redirectAfterSave}?lead_id=${id}`)
       } else {
