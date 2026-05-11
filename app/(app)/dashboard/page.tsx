@@ -6,6 +6,7 @@ import StatCards from '@/components/dashboard/stat-cards'
 import CalendarSyncOnLoad from '@/components/dashboard/calendar-sync'
 import WelcomeToast from '@/components/dashboard/welcome-toast'
 import { getMTStartOfDay, getMTStartOfWeek, getMTHour } from '@/lib/time'
+import { getTerminology } from '@/lib/platform-registry'
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   new:       { bg: 'rgba(29,78,216,0.15)',  text: '#60A5FA', border: '#3B82F6' },
@@ -22,9 +23,10 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   const repData = user
-    ? await supabase.from('reps').select('headshot_url, full_name').eq('id', user.id).single()
+    ? await supabase.from('reps').select('headshot_url, full_name, industry').eq('id', user.id).single()
     : null
   const rep = repData?.data ?? null
+  const terminology = getTerminology(rep?.industry)
 
   const now = new Date()
   const mtHour = getMTHour(now)
@@ -37,8 +39,8 @@ export default async function DashboardPage() {
     : 'Good evening'
 
   const motivationalLine =
-    mtHour < 12 ? "Let's make today count. 💪"
-    : mtHour < 17 ? 'Keep closing. 🔥'
+    mtHour < 12 ? `Let's close some ${terminology.proposal.toLowerCase()}s today. 💪`
+    : mtHour < 17 ? `Keep closing ${terminology.proposal.toLowerCase()}s. 🔥`
     : 'Great work today. 🎯'
 
   const dateStr = new Intl.DateTimeFormat('en-US', {

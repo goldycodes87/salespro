@@ -30,13 +30,16 @@ export async function POST(request: NextRequest) {
   const admin = getSupabaseAdmin()
 
   // Fetch custom system prompt from DB, fall back to hardcoded persona
-  const { data: dbPersona } = await admin
-    .from('coach_prompts')
-    .select('system_prompt')
-    .eq('persona_id', personaId)
-    .maybeSingle()
+  const [{ data: dbPersona }, { data: repRow }] = await Promise.all([
+    admin.from('coach_prompts').select('system_prompt').eq('persona_id', personaId).maybeSingle(),
+    admin.from('reps').select('industry, full_name, company, position').eq('id', user.id).maybeSingle(),
+  ])
 
   const baseSystemPrompt = dbPersona?.system_prompt ?? persona.systemPrompt
+
+  const industryContext = repRow?.industry
+    ? `\n\nREP CONTEXT: The rep works in the ${repRow.industry.replace(/_/g, ' ')} industry${repRow.company ? ` at ${repRow.company}` : ''}${repRow.position ? ` as a ${repRow.position}` : ''}. Tailor all advice to this industry context.`
+    : ''
 
   // Save user message
   await admin.from('coach_messages').insert({
@@ -64,8 +67,8 @@ export async function POST(request: NextRequest) {
     .maybeSingle()
 
   const systemPrompt = memoryRow?.memory_text
-    ? `${baseSystemPrompt}\n\nREP MEMORY (facts from prior conversations):\n${memoryRow.memory_text}`
-    : baseSystemPrompt
+    ? `${baseSystemPrompt}${industryContext}\n\nREP MEMORY (facts from prior conversations):\n${memoryRow.memory_text}`
+    : `${baseSystemPrompt}${industryContext}`
 
   const messages = (historyRows ?? [])
     .reverse()

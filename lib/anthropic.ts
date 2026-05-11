@@ -1,7 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 
-const SYSTEM_PROMPT = `You are a sales intelligence assistant preparing a home improvement sales rep for an in-home appointment.
-CRITICAL OUTPUT RULES — FOLLOW EXACTLY:
+const SYSTEM_PROMPT_BODY = `CRITICAL OUTPUT RULES — FOLLOW EXACTLY:
 
 Begin your response IMMEDIATELY with "PROPERTY" as the first word.
 Do NOT write any introduction, preamble, or explanation of what you are about to do.
@@ -36,6 +35,7 @@ export interface ResearchParams {
   leadSource: string
   spouseFirstName?: string | null
   spouseLastName?: string | null
+  industry?: string | null
 }
 
 export async function researchLead(params: ResearchParams): Promise<string> {
@@ -44,6 +44,11 @@ export async function researchLead(params: ResearchParams): Promise<string> {
   }
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+  const industryLabel = params.industry
+    ? params.industry.replace(/_/g, ' ')
+    : 'home improvement'
+  const systemPrompt = `You are a sales intelligence assistant preparing a ${industryLabel} sales rep for an in-home appointment.\n${SYSTEM_PROMPT_BODY}`
 
   const spouseInfo =
     params.spouseFirstName && params.spouseLastName
@@ -59,7 +64,7 @@ export async function researchLead(params: ResearchParams): Promise<string> {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       // web_search_20250305 is Anthropic's server-executed built-in search tool
       tools: [{ type: 'web_search_20250305' as 'web_search_20250305', name: 'web_search' }],
       messages,

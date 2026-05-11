@@ -33,12 +33,10 @@ export async function POST(
   const { id } = await params
   const admin = getSupabaseAdmin()
 
-  const { data: lead, error: fetchError } = await admin
-    .from('leads')
-    .select('*')
-    .eq('id', id)
-    .eq('rep_id', user.id)
-    .single()
+  const [{ data: lead, error: fetchError }, { data: repRow }] = await Promise.all([
+    admin.from('leads').select('*').eq('id', id).eq('rep_id', user.id).single(),
+    admin.from('reps').select('industry').eq('id', user.id).maybeSingle(),
+  ])
 
   if (fetchError || !lead) {
     return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
@@ -56,6 +54,7 @@ export async function POST(
       leadSource: lead.lead_source ?? 'Unknown',
       spouseFirstName: lead.is_married ? lead.spouse_first_name : null,
       spouseLastName: lead.is_married ? lead.spouse_last_name : null,
+      industry: repRow?.industry ?? null,
     })
 
     await admin

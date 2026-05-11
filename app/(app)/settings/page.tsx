@@ -46,6 +46,7 @@ export default async function Settings() {
       usage={{ byService, totalCost, count: rows.length }}
       coachConfig={coachConfigResult.data}
       calendarConnections={calendarConnectionsResult.data ?? []}
+      industry={rep.industry ?? null}
     />
   )
 }

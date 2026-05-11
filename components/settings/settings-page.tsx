@@ -9,6 +9,7 @@ import type { FinancingOptionSetting, DiscountOptionSetting } from '@/lib/pricin
 import { DEFAULT_FINANCING_SETTINGS, DEFAULT_DISCOUNT_SETTINGS } from '@/lib/pricing'
 import { formatPhone } from '@/hooks/usePhoneFormat'
 import { PERSONAS } from '@/lib/coach-personas'
+import { getPlatformsForIndustry, PLATFORM_REGISTRY } from '@/lib/platform-registry'
 
 function PersonaPhoto({ personaId, color }: { personaId: string; color: string }) {
   const [error, setError] = useState(false)
@@ -184,18 +185,20 @@ function SaveButton({ saving, saved, onClick, label = 'Save' }: {
   )
 }
 
-type TabId = 'general' | 'coach' | 'calendar'
+type TabId = 'general' | 'coach' | 'calendar' | 'integrations'
 
 export default function SettingsPage({
   rep,
   usage,
   coachConfig,
   calendarConnections,
+  industry,
 }: {
   rep: Rep
   usage: Usage
   coachConfig?: { active_persona_id?: string } | null
   calendarConnections?: Array<{ id: string; provider: string; ical_url?: string | null; last_synced_at?: string | null }> | null
+  industry?: string | null
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -446,6 +449,7 @@ export default function SettingsPage({
     { id: 'general', label: 'General' },
     { id: 'coach', label: 'Coach' },
     { id: 'calendar', label: 'Calendar' },
+    { id: 'integrations', label: 'Integrations' },
   ]
 
   return (
@@ -1014,6 +1018,94 @@ export default function SettingsPage({
               {syncing ? 'Syncing…' : 'Sync Now'}
             </button>
           )}
+        </>
+      )}
+
+      {/* INTEGRATIONS TAB */}
+      {activeTab === 'integrations' && (
+        <>
+          {(() => {
+            const industryKey = industry ?? rep.industry ?? null
+            const platforms = industryKey ? getPlatformsForIndustry(industryKey) : Object.values(PLATFORM_REGISTRY)
+            const activePlatforms = platforms.filter(p => p.status === 'active')
+            const comingSoonPlatforms = platforms.filter(p => p.status === 'coming_soon')
+            return (
+              <>
+                {!industryKey && (
+                  <div className="rounded-xl px-4 py-3 mb-4 text-sm"
+                    style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', color: '#FCD34D' }}>
+                    Set your industry in General settings to see relevant integrations.
+                  </div>
+                )}
+
+                {activePlatforms.length > 0 && (
+                  <CollapsibleSection title="Active Integrations" storageKey="active-integrations" defaultOpen={true}>
+                    <div className="space-y-3">
+                      {activePlatforms.map(platform => (
+                        <div key={platform.key} className="rounded-xl p-4"
+                          style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)' }}>
+                          <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl"
+                              style={{ background: 'rgba(16,185,129,0.1)' }}>
+                              {platform.icon}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <p className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>{platform.name}</p>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                                  style={{ background: 'rgba(16,185,129,0.2)', color: '#34D399', border: '1px solid rgba(16,185,129,0.3)' }}>
+                                  Active
+                                </span>
+                              </div>
+                              <p className="text-xs mb-2" style={{ color: '#6B7280' }}>{platform.description}</p>
+                              {platform.instructions && (
+                                <div className="rounded-lg px-3 py-2"
+                                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                  <p className="text-xs font-medium" style={{ color: '#9CA3AF' }}>Setup</p>
+                                  <p className="text-xs mt-0.5" style={{ color: '#D1D5DB' }}>{platform.instructions}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleSection>
+                )}
+
+                {comingSoonPlatforms.length > 0 && (
+                  <CollapsibleSection title="Coming Soon" storageKey="coming-soon-integrations" defaultOpen={true}>
+                    <div className="space-y-2">
+                      {comingSoonPlatforms.map(platform => (
+                        <div key={platform.key} className="flex items-center gap-3 p-4 rounded-xl"
+                          style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', opacity: 0.7 }}>
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl"
+                            style={{ background: 'rgba(255,255,255,0.05)' }}>
+                            {platform.icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold" style={{ color: '#9CA3AF' }}>{platform.name}</p>
+                            <p className="text-xs mt-0.5" style={{ color: '#4B5563' }}>{platform.description}</p>
+                          </div>
+                          <span className="text-[10px] px-2 py-1 rounded-full flex-shrink-0 font-medium"
+                            style={{ background: 'rgba(255,255,255,0.05)', color: '#6B7280', border: '1px solid rgba(255,255,255,0.08)' }}>
+                            Soon
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleSection>
+                )}
+
+                {platforms.length === 0 && (
+                  <div className="rounded-2xl p-8 text-center"
+                    style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <p className="text-sm" style={{ color: '#6B7280' }}>No integrations available for your industry yet.</p>
+                  </div>
+                )}
+              </>
+            )
+          })()}
         </>
       )}
 
