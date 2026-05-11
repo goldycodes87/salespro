@@ -18,6 +18,12 @@ export default function AdminRepsPage() {
   const [addError, setAddError] = useState<string | null>(null)
   const [addSuccess, setAddSuccess] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [resetRep, setResetRep] = useState<Rep | null>(null)
+  const [resetPw, setResetPw] = useState('')
+  const [resetConfirm, setResetConfirm] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetToast, setResetToast] = useState<string | null>(null)
+  const [resetError, setResetError] = useState<string | null>(null)
 
   useEffect(() => { loadReps() }, [])
 
@@ -53,6 +59,58 @@ export default function AdminRepsPage() {
     })
     await loadReps()
     setTogglingId(null)
+  }
+
+  const openResetModal = (rep: Rep) => {
+    setResetRep(rep)
+    setResetPw('')
+    setResetConfirm('')
+    setResetError(null)
+    setResetToast(null)
+  }
+
+  const sendResetEmail = async () => {
+    if (!resetRep) return
+    setResetLoading(true)
+    setResetError(null)
+    try {
+      const res = await fetch(`/api/admin/reps/${resetRep.id}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'email' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to send reset email')
+      setResetToast(`Reset email sent to ${resetRep.email}`)
+    } catch (err: any) {
+      setResetError(err.message)
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  const setManualPassword = async () => {
+    if (!resetRep) return
+    if (resetPw.length < 8) { setResetError('Password must be at least 8 characters'); return }
+    if (resetPw !== resetConfirm) { setResetError('Passwords do not match'); return }
+    setResetLoading(true)
+    setResetError(null)
+    try {
+      const res = await fetch(`/api/admin/reps/${resetRep.id}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'manual', password: resetPw }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to set password')
+      setResetToast('Password updated successfully')
+      setResetPw('')
+      setResetConfirm('')
+    } catch (err: any) {
+      setResetError(err.message)
+    } finally {
+      setResetLoading(false)
+    }
   }
 
   const makeAdmin = async (repId: string) => {
@@ -105,7 +163,7 @@ export default function AdminRepsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  {['Name', 'Email', 'Company', 'Proposals', 'Close Rate', 'Month Cost', 'Status', 'Actions'].map(h => (
+                  {['Name', 'Email', 'Company', 'Phone', 'Proposals', 'Close Rate', 'Status', 'Actions'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: '#6B7280' }}>{h}</th>
                   ))}
                 </tr>
@@ -123,17 +181,18 @@ export default function AdminRepsPage() {
                       </td>
                       <td className="px-4 py-3 text-xs" style={{ color: '#9CA3AF' }}>{rep.email}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: '#9CA3AF' }}>{rep.settings?.company_name ?? '—'}</td>
+                      <td className="px-4 py-3 text-xs" style={{ color: '#9CA3AF' }}>{rep.phone ? formatPhone(rep.phone) : '—'}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: '#D1D5DB' }}>{s?.proposal_count ?? 0}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: closeRate >= 30 ? '#34D399' : '#9CA3AF' }}>{closeRate}%</td>
-                      <td className="px-4 py-3 text-xs font-mono" style={{ color: '#FCD34D' }}>${(s?.month_cost ?? 0).toFixed(2)}</td>
                       <td className="px-4 py-3">
                         <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: isActive ? 'rgba(16,185,129,0.15)' : 'rgba(107,114,128,0.15)', color: isActive ? '#34D399' : '#6B7280' }}>
                           {isActive ? 'active' : 'inactive'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex gap-2">
+                        <div className="flex gap-1.5 flex-wrap">
                           <button onClick={() => openRepModal(rep)} className="px-2 py-1 rounded-lg text-xs font-medium" style={{ background: 'rgba(29,78,216,0.15)', color: '#60A5FA', border: '1px solid rgba(29,78,216,0.2)' }}>View</button>
+                          <button onClick={() => openResetModal(rep)} className="px-2 py-1 rounded-lg text-xs font-medium" style={{ background: 'rgba(245,158,11,0.1)', color: '#FCD34D', border: '1px solid rgba(245,158,11,0.2)' }}>Reset PW</button>
                           <button onClick={() => toggleActive(rep)} disabled={togglingId === rep.id} className="px-2 py-1 rounded-lg text-xs font-medium" style={{ background: isActive ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', color: isActive ? '#F87171' : '#34D399', border: `1px solid ${isActive ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}` }}>
                             {togglingId === rep.id ? '…' : isActive ? 'Deactivate' : 'Activate'}
                           </button>
@@ -267,6 +326,102 @@ export default function AdminRepsPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {resetRep && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setResetRep(null) }}>
+          <div className="w-full max-w-md rounded-3xl overflow-hidden"
+            style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.12)' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <div>
+                <h2 className="text-base font-bold" style={{ color: '#F9FAFB' }}>Reset Password</h2>
+                <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>{resetRep.full_name || resetRep.email}</p>
+              </div>
+              <button onClick={() => setResetRep(null)}
+                className="w-8 h-8 rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(255,255,255,0.07)', color: '#9CA3AF' }}>✕</button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Toast */}
+              {resetToast && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl"
+                  style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                  <span style={{ color: '#34D399' }}>✓</span>
+                  <p className="text-sm" style={{ color: '#34D399' }}>{resetToast}</p>
+                </div>
+              )}
+
+              {/* Error */}
+              {resetError && (
+                <p className="text-sm px-3 py-2 rounded-lg"
+                  style={{ color: '#F87171', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                  {resetError}
+                </p>
+              )}
+
+              {/* Option 1: Send email */}
+              <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <p className="text-sm font-semibold mb-1" style={{ color: '#F9FAFB' }}>Send reset email</p>
+                <p className="text-xs mb-3" style={{ color: '#6B7280' }}>
+                  Sends a password reset link to {resetRep.email} via Supabase email.
+                </p>
+                <button
+                  onClick={sendResetEmail}
+                  disabled={resetLoading}
+                  className="w-full h-10 rounded-xl text-sm font-semibold"
+                  style={{ background: 'rgba(29,78,216,0.2)', color: '#60A5FA', border: '1px solid rgba(29,78,216,0.3)', opacity: resetLoading ? 0.6 : 1 }}>
+                  {resetLoading ? 'Sending…' : 'Send Reset Email'}
+                </button>
+              </div>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
+                <span className="text-xs" style={{ color: '#4B5563' }}>or set manually</span>
+                <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
+              </div>
+
+              {/* Option 2: Manual password */}
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs mb-1.5" style={{ color: '#9CA3AF' }}>New Password</label>
+                  <input
+                    type="password"
+                    value={resetPw}
+                    onChange={e => setResetPw(e.target.value)}
+                    placeholder="Min. 8 characters"
+                    className="w-full h-10 rounded-xl px-3 text-sm outline-none"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', color: '#F9FAFB' }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs mb-1.5" style={{ color: '#9CA3AF' }}>Confirm Password</label>
+                  <input
+                    type="password"
+                    value={resetConfirm}
+                    onChange={e => setResetConfirm(e.target.value)}
+                    placeholder="Repeat password"
+                    className="w-full h-10 rounded-xl px-3 text-sm outline-none"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', color: '#F9FAFB' }}
+                  />
+                </div>
+                <button
+                  onClick={setManualPassword}
+                  disabled={resetLoading || !resetPw || !resetConfirm}
+                  className="w-full h-10 rounded-xl text-sm font-semibold"
+                  style={{ background: 'rgba(15,118,110,0.2)', color: '#34D399', border: '1px solid rgba(15,118,110,0.3)', opacity: (resetLoading || !resetPw || !resetConfirm) ? 0.5 : 1 }}>
+                  {resetLoading ? 'Setting…' : 'Set Password'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
