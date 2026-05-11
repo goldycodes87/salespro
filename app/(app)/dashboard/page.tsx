@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import DashboardHero from '@/components/dashboard/dashboard-hero'
@@ -58,7 +59,7 @@ export default async function DashboardPage() {
   todayEnd.setHours(23, 59, 59, 999)
 
   // Dashboard stats — all scoped to current rep via RLS
-  const [todayProposals, weekProposals, pipeline, signed, recentProposals, recentLeads, followUps, todayEvents] =
+  const [todayProposals, weekProposals, pipeline, signed, recentProposals, recentLeads, followUps, todayEvents, calendarConnection] =
     await Promise.all([
       // Today's proposals
       supabase
@@ -127,18 +128,12 @@ export default async function DashboardPage() {
             .order('start_at', { ascending: true })
             .limit(8)
         : Promise.resolve({ data: [] }),
-    ])
 
-  // FIX 5 — calendar debug
-  if (user) {
-    const calConn = await admin
-      .from('calendar_connections')
-      .select('id, provider, last_synced_at')
-      .eq('rep_id', user.id)
-    console.log('CALENDAR CONNECTION:', JSON.stringify(calConn.data))
-    console.log('EVENTS TODAY:', JSON.stringify(todayEvents.data))
-    console.log('SYNC TRIGGERED:', true)
-  }
+      // Calendar connection check
+      user
+        ? admin.from('calendar_connections').select('id').eq('rep_id', user.id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ])
 
   const pipelineValue = (pipeline.data ?? []).reduce(
     (sum: number, p: any) => sum + (p.your_price ?? 0),
@@ -181,9 +176,12 @@ export default async function DashboardPage() {
       background: 'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(15,118,110,0.08) 0%, transparent 70%)',
       minHeight: '100vh',
     }}>
+    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, opacity: 0.04, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Image src="/SalesPro S.png" alt="" width={500} height={500} style={{ objectFit: 'contain' }} />
+    </div>
     <CalendarSyncOnLoad />
     <WelcomeToast />
-    <div className="px-4 pt-6 pb-6 max-w-2xl mx-auto">
+    <div className="px-4 pt-6 pb-6 max-w-2xl mx-auto" style={{ position: 'relative', zIndex: 1 }}>
       <DashboardHero
         greetingPrefix={greetingPrefix}
         dateStr={dateStr}
@@ -194,12 +192,32 @@ export default async function DashboardPage() {
       <StatCards stats={stats} />
 
       {/* Today's Schedule */}
-      {todayEvents.data && todayEvents.data.length > 0 && (
-        <section className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold" style={{ color: '#F9FAFB' }}>Today&apos;s Schedule</h2>
-            <Link href="/calendar" className="text-xs font-medium" style={{ color: '#3B82F6' }}>View calendar</Link>
-          </div>
+      <section className="mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold" style={{ color: '#F9FAFB' }}>Today&apos;s Schedule</h2>
+          <Link href="/calendar" className="text-xs font-medium" style={{ color: '#3B82F6' }}>View calendar</Link>
+        </div>
+        {!calendarConnection?.data ? (
+          <Link href="/calendar" className="flex items-center gap-3 p-4 rounded-2xl"
+            style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'rgba(29,78,216,0.15)' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium" style={{ color: '#F9FAFB' }}>Connect your calendar</p>
+              <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>Sync Google Calendar to see your schedule here</p>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </Link>
+        ) : todayEvents.data && todayEvents.data.length > 0 ? (
           <div className="space-y-2">
             {todayEvents.data.map((ev: any) => {
               const timeStr = ev.all_day
@@ -230,8 +248,12 @@ export default async function DashboardPage() {
               )
             })}
           </div>
-        </section>
-      )}
+        ) : (
+          <div className="rounded-2xl p-4 text-center" style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <p className="text-sm" style={{ color: '#6B7280' }}>No appointments today</p>
+          </div>
+        )}
+      </section>
 
       {/* Recent Proposals */}
       <section className="mb-6">

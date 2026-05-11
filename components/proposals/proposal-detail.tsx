@@ -98,9 +98,13 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
         const exact = leads.find(l =>
           l.first_name?.toLowerCase() === (proposal.customer_first_name as string)?.toLowerCase() &&
           l.last_name?.toLowerCase() === lastName.toLowerCase()
-        ) || leads[0]
-        setMatchedLead(exact)
-        setMatchState('found')
+        )
+        if (exact) {
+          setMatchedLead(exact)
+          setMatchState('found')
+        } else {
+          setMatchState('none')
+        }
       })
       .catch(() => setMatchState('none'))
   // eslint-disable-next-line react-hooks/exhaustive-deps

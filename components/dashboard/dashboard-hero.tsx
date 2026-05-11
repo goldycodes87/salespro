@@ -2,7 +2,6 @@
 
 import { motion } from 'framer-motion'
 import { LampContainer } from '@/components/ui/lamp'
-import SalesProLogo from '@/components/ui/salespro-logo'
 
 interface DashboardHeroProps {
   greetingPrefix: string
@@ -22,14 +21,6 @@ export default function DashboardHero({
   return (
     <div className="relative mb-6">
       <LampContainer className="min-h-[320px]">
-        {/* Big watermark icon */}
-        <div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
-          style={{ zIndex: 0, opacity: 0.04 }}
-        >
-          <SalesProLogo variant="icon" height={300} />
-        </div>
-
         {/* Greeting */}
         <motion.div
           initial={{ opacity: 0.5, y: 60 }}
