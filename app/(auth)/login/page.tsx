@@ -78,7 +78,7 @@ export default function LoginPage() {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-3">
-              <SalesProLogo variant="icon" height={56} />
+              <SalesProLogo variant="full" height={40} />
             </div>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
               Your sales command center.

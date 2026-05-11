@@ -166,7 +166,7 @@ export default function OnboardingPage() {
               <StepIndicator current={0} total={3} />
               <div className="text-center mb-10">
                 <div className="flex justify-center mb-5">
-                  <SalesProLogo variant="full" height={44} />
+                  <SalesProLogo variant="full" height={36} />
                 </div>
                 <p className="text-base mt-3" style={{ color: 'rgba(255,255,255,0.5)' }}>
                   Let&apos;s get you set up in 3 quick steps

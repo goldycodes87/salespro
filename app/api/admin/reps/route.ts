@@ -20,7 +20,7 @@ export async function GET() {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
   const [repsRes, proposalStatsRes, usageRes] = await Promise.all([
-    admin.from('reps').select('id, full_name, email, phone, settings, is_admin, is_active, created_at').order('created_at', { ascending: false }),
+    admin.from('reps').select('*').order('created_at', { ascending: true }),
     admin.from('proposals').select('rep_id, status'),
     admin.from('api_usage_log').select('rep_id, estimated_cost_usd').gte('created_at', monthStart),
   ])

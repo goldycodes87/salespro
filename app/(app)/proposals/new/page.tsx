@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import ProposalWizard from '@/components/proposals/proposal-wizard'
+import VendoImport from '@/components/proposals/vendo-import'
 import Link from 'next/link'
 
 export default async function NewProposalPage({
@@ -55,6 +56,7 @@ export default async function NewProposalPage({
         </div>
       </div>
 
+      {!existingProposal && <VendoImport />}
       <ProposalWizard
         leadId={lead_id}
         defaultCustomer={defaultCustomer}

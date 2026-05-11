@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import PriceSummary from './price-summary'
@@ -32,7 +32,9 @@ function sixMonthsFromNow(): string {
 
 export default function ProposalDetail({ proposal: initial }: { proposal: Proposal }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [proposal, setProposal] = useState<Proposal>(initial)
+  const [importedBanner, setImportedBanner] = useState(() => searchParams.get('imported') === 'true')
   const [showBookedModal, setShowBookedModal] = useState(false)
   const [isPartial, setIsPartial] = useState(false)
   const [partialNotes, setPartialNotes] = useState('')
@@ -167,6 +169,31 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
       className="max-w-2xl mx-auto px-4 pt-6 pb-52">
+
+      {/* Vendo import success banner */}
+      {importedBanner && (
+        <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl"
+          style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)' }}>
+          <div className="flex items-center gap-2">
+            <span style={{ color: '#34D399', fontSize: '16px' }}>✓</span>
+            <p className="text-sm font-medium" style={{ color: '#34D399' }}>
+              Vendo proposal imported! Review and add customer contact details.
+            </p>
+          </div>
+          <button onClick={() => setImportedBanner(false)} style={{ color: '#6B7280', fontSize: '18px', lineHeight: 1 }}>×</button>
+        </div>
+      )}
+
+      {/* Missing contact info warning (Vendo imports) */}
+      {proposal.pricing_data?.vendo_imported && !proposal.customer_email && (
+        <div className="mb-4 px-4 py-3 rounded-2xl"
+          style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
+          <p className="text-sm font-semibold mb-0.5" style={{ color: '#FCD34D' }}>Missing customer contact info</p>
+          <p className="text-xs" style={{ color: '#92400E' }}>
+            Add phone and email to send this proposal to the customer.
+          </p>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-5">

@@ -475,7 +475,7 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
           WebkitBackdropFilter: 'blur(20px)',
         }}>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.7 }} transition={{ duration: 0.8 }}>
-          <SalesProLogo variant="full" height={28} />
+          <SalesProLogo variant="icon" height={24} />
         </motion.div>
         <div className="flex items-center gap-2">
           {downloadPdfUrl && (
