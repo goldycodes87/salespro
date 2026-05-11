@@ -9,7 +9,7 @@ import { calcPrice, type PricingInputs } from '@/lib/pricing'
 import { formatPhone } from '@/hooks/usePhoneFormat'
 
 type Proposal = Record<string, any>
-type LeadResult = { id: string; first_name: string; last_name: string; address?: string; city?: string; state?: string; email?: string; phone?: string }
+type LeadResult = { id: string; first_name: string; last_name: string; address?: string; city?: string; state?: string; email?: string; phone?: string; is_married?: boolean; spouse_first_name?: string; spouse_last_name?: string }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   draft:  { bg: 'rgba(107,114,128,0.15)', text: '#9CA3AF', border: '#9CA3AF33' },
@@ -136,10 +136,12 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
       const lRes = await fetch(`/api/leads/${leadId}`)
       const lead: LeadResult = await lRes.json()
 
-      // 3. Copy email/phone to proposal if missing
+      // 3. Copy contact info to proposal if missing (never copy address fields)
       const contactPatch: Record<string, string> = {}
       if (!updatedProposal.customer_email && lead.email) contactPatch.customer_email = lead.email
       if (!updatedProposal.customer_phone && lead.phone) contactPatch.customer_phone = lead.phone
+      if (lead.is_married && lead.spouse_first_name && !updatedProposal.spouse_first_name) contactPatch.spouse_first_name = lead.spouse_first_name
+      if (lead.is_married && lead.spouse_last_name && !updatedProposal.spouse_last_name) contactPatch.spouse_last_name = lead.spouse_last_name
       if (Object.keys(contactPatch).length > 0) {
         await fetch(`/api/proposals/${proposal.id}`, {
           method: 'PATCH',

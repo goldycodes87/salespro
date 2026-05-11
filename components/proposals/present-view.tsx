@@ -394,6 +394,7 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
   const [booking, setBooking] = useState(false)
   const [emailing, setEmailing] = useState(false)
   const [actionDone, setActionDone] = useState<string | null>(null)
+  const [revealedCount, setRevealedCount] = useState(1)
 
   // Derived option lists
   const promoOpts = discountOpts.filter(d => d.type === 'promotion')
@@ -429,6 +430,30 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
     const n = pp?.totalWindows ?? 0
     return n > 0 ? `For ${n} Window${n !== 1 ? 's' : ''}` : ''
   }, [pricingData, pp?.totalWindows])
+
+  const cardOrder = useMemo(() => {
+    const cards: string[] = ['starting_price']
+    if (hasFees) { cards.push('fees'); cards.push('bridge1') }
+    if (promoOpts.length > 0) cards.push('promo')
+    if (bnsnOpts.length > 0) cards.push('bnsn')
+    if (cashOpt) cards.push('cash')
+    cards.push('bridge2')
+    if (financingOpts.length > 0) cards.push('financing')
+    if (hasCostco) cards.push('costco')
+    cards.push('final_price')
+    return cards
+  }, [hasFees, promoOpts.length, bnsnOpts.length, cashOpt, financingOpts.length, hasCostco])
+
+  const totalCards = cardOrder.length
+  const fullyRevealed = revealedCount >= totalCards
+  const handleTap = () => {
+    console.log('TAP', revealedCount, 'of', totalCards, 'revealed:', fullyRevealed)
+    setRevealedCount(c => Math.min(c + 1, totalCards))
+  }
+  const shown = (id: string) => {
+    const idx = cardOrder.indexOf(id)
+    return idx !== -1 && idx < revealedCount
+  }
 
   // Toggle handlers
   const togglePromo = () => setTs(prev => {
@@ -590,7 +615,7 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
         </motion.div>
 
         {/* ── CARD 2: FEES ── */}
-        {hasFees && (
+        {hasFees && shown('fees') && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(1)}
             style={{ position: 'relative' }}>
             <CardGlow color="rgba(255,255,255,0.2)" />
@@ -622,14 +647,14 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
         )}
 
         {/* ── PRICE BRIDGE 1 ── */}
-        {hasFees && (
+        {hasFees && shown('bridge1') && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(2)}>
             <PriceBridge label="Price Before Discounts" value={pp.priceBeforeDiscounts} />
           </motion.div>
         )}
 
         {/* ── CARD 3: PACKAGE DISCOUNT ── */}
-        {promoOpts.length > 0 && (
+        {promoOpts.length > 0 && shown('promo') && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(3)}
             style={{ position: 'relative' }}>
             <CardGlow color="rgba(6,182,212,0.4)" />
@@ -661,7 +686,7 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
         )}
 
         {/* ── CARD 4: BNSN ── */}
-        {bnsnOpts.length > 0 && (
+        {bnsnOpts.length > 0 && shown('bnsn') && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(4)}
             style={{ position: 'relative', opacity: ts.promoOn ? 1 : 0.5, transition: 'opacity 0.2s' }}>
             <CardGlow color="rgba(6,182,212,0.4)" />
@@ -693,7 +718,7 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
         )}
 
         {/* ── CARD 5: CASH INCENTIVE ── */}
-        {cashOpt && (
+        {cashOpt && shown('cash') && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(5)}
             style={{ position: 'relative' }}>
             <CardGlow color="rgba(6,182,212,0.4)" />
@@ -737,12 +762,14 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
         )}
 
         {/* ── PRICE BRIDGE 2 ── */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(6)}>
-          <PriceBridge label="Your Price" value={pp.yourPrice} />
-        </motion.div>
+        {shown('bridge2') && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(6)}>
+            <PriceBridge label="Your Price" value={pp.yourPrice} />
+          </motion.div>
+        )}
 
         {/* ── CARD 6: FINANCING ── */}
-        {financingOpts.length > 0 && (
+        {financingOpts.length > 0 && shown('financing') && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(7)}
             style={{ position: 'relative' }}>
             <CardGlow color="rgba(99,102,241,0.4)" />
@@ -791,39 +818,8 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
           </motion.div>
         )}
 
-        {/* ── FINAL PRICE DISPLAY ── */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(8)}
-          className="text-center py-4">
-          <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', letterSpacing: '0.3em', textTransform: 'uppercase', marginBottom: '12px' }}>
-            Your Final Price
-          </p>
-          <motion.p
-            key={Math.round(pp.yourPrice)}
-            initial={{ scale: 0.95, opacity: 0.5 }} animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-            style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 'clamp(36px, 7vw, 64px)',
-              fontWeight: 800, lineHeight: 1, overflow: 'visible', letterSpacing: '-0.02em',
-              background: 'linear-gradient(135deg, #60A5FA 0%, #06B6D4 40%, #34D399 100%)',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-            }}>
-            {fmt(pp.yourPrice)}
-          </motion.p>
-          {pp.youSave > 0 && (
-            <p style={{ fontSize: '16px', fontWeight: 700, color: '#2DD4BF', marginTop: '10px' }}>
-              You saved {fmt(pp.youSave)} today
-            </p>
-          )}
-          {ts.financingOn && ts.selectedFinancingId && pp.monthlyPayment > 0 && (
-            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginTop: '4px' }}>
-              Or as low as {fmt(pp.monthlyPayment)}/mo
-            </p>
-          )}
-        </motion.div>
-
         {/* ── CARD 7: COSTCO ── */}
-        {hasCostco && (
+        {hasCostco && shown('costco') && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(9)}
             style={{ position: 'relative' }}>
             <CardGlow color="rgba(251,191,36,0.4)" />
@@ -883,6 +879,7 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
         )}
 
         {/* ── CARD 8: FINAL PRICE SUMMARY ── */}
+        {shown('final_price') && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(10)}
           style={{ position: 'relative' }}>
           <CardGlow color="rgba(29,78,216,0.5)" />
@@ -931,8 +928,14 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
             </div>
           </div>
         </motion.div>
+        )}
 
       </div>
+
+      {/* Tap overlay — captures taps to advance cinematic reveal */}
+      {!fullyRevealed && (
+        <div onClick={handleTap} style={{ position: 'fixed', inset: 0, zIndex: 10, cursor: 'pointer', background: 'transparent' }} />
+      )}
 
       {/* Bottom action bar */}
       <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pt-3"

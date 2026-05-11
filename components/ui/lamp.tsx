@@ -14,7 +14,7 @@ export function LampContainer({
   return (
     <div
       className={cn(
-        'relative flex flex-col items-center justify-center overflow-hidden w-full rounded-3xl',
+        'relative flex flex-col items-center justify-center overflow-visible w-full rounded-3xl',
         className,
       )}
       style={{ background: '#0A0F1E' }}

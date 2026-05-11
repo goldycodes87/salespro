@@ -175,13 +175,16 @@ export default async function DashboardPage() {
     <div style={{
       background: 'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(15,118,110,0.08) 0%, transparent 70%)',
       minHeight: '100vh',
+      position: 'relative',
+      overflow: 'hidden',
     }}>
-    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, opacity: 0.04, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Image src="/SalesPro S.png" alt="" width={500} height={500} style={{ objectFit: 'contain' }} />
+    <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 0, pointerEvents: 'none', userSelect: 'none' }}>
+      <Image src="/SalesPro S.png" alt="" width={600} height={600} style={{ objectFit: 'contain', opacity: 0.04 }} />
     </div>
+    <div style={{ position: 'relative', zIndex: 1 }}>
     <CalendarSyncOnLoad />
     <WelcomeToast />
-    <div className="px-4 pt-6 pb-6 max-w-2xl mx-auto" style={{ position: 'relative', zIndex: 1 }}>
+    <div className="px-4 pt-6 pb-6 max-w-2xl mx-auto">
       <DashboardHero
         greetingPrefix={greetingPrefix}
         dateStr={dateStr}
@@ -396,6 +399,7 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+    </div>
     </div>
     </div>
   )

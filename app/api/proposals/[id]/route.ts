@@ -51,6 +51,13 @@ export async function PATCH(
 
   const updates: Record<string, unknown> = { ...body, updated_at: new Date().toISOString() }
 
+  if (body.lead_id) {
+    delete updates.customer_address
+    delete updates.customer_city
+    delete updates.customer_state
+    delete updates.customer_zip
+  }
+
   if (body.pricing_data?.proposal_type) {
     const calc = calcPrice(body.pricing_data)
     updates.your_price = calc.your_price

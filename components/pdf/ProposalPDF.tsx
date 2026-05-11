@@ -1,40 +1,42 @@
 import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
 
 const BLUE = '#1D4ED8'
+const BLUE_LIGHT = '#EFF6FF'
 const DARK = '#111827'
 const GRAY = '#6B7280'
 const LIGHT_GRAY = '#9CA3AF'
 const BORDER = '#E5E7EB'
-const BG_BLUE = '#EFF6FF'
+const BG_GRAY = '#F9FAFB'
 
 const styles = StyleSheet.create({
+  // ── Cover page ──────────────────────────────────────────────────
   coverPage: {
     backgroundColor: '#FFFFFF',
     fontFamily: 'Helvetica',
-    display: 'flex',
     flexDirection: 'column',
   },
-  page: {
-    backgroundColor: '#FFFFFF',
-    fontFamily: 'Helvetica',
-    paddingHorizontal: 48,
-    paddingTop: 36,
-    paddingBottom: 48,
-    fontSize: 10,
-    color: DARK,
+  coverTopBar: {
+    backgroundColor: BLUE,
+    height: 8,
   },
-  // Cover page styles
   coverHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: 48,
+    paddingHorizontal: 48,
+    paddingTop: 30,
     paddingBottom: 0,
   },
-  coverLogoText: {
-    fontSize: 20,
+  coverCompanyFirst: {
+    fontSize: 28,
     fontFamily: 'Helvetica-Bold',
     color: BLUE,
+    lineHeight: 1,
+  },
+  coverCompanyRest: {
+    fontSize: 11,
+    color: GRAY,
+    marginTop: 4,
   },
   coverMeta: {
     alignItems: 'flex-end',
@@ -44,90 +46,137 @@ const styles = StyleSheet.create({
     color: GRAY,
     marginBottom: 3,
   },
-  coverCenter: {
+  coverHero: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 60,
+    position: 'relative',
   },
-  coverTitle: {
-    fontSize: 38,
+  coverCustomerName: {
+    fontSize: 36,
     fontFamily: 'Helvetica-Bold',
     color: DARK,
     textAlign: 'center',
-    lineHeight: 1.2,
+    lineHeight: 1.15,
+    marginBottom: 14,
   },
-  coverBar: {
+  coverAddress: {
+    fontSize: 12,
+    color: GRAY,
+    textAlign: 'center',
+  },
+  coverDecorA: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: BLUE,
+    opacity: 0.06,
+    right: -20,
+    top: 40,
+  },
+  coverDecorB: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: BLUE,
+    opacity: 0.08,
+    left: 10,
+    bottom: 30,
+  },
+  coverDecorC: {
+    position: 'absolute',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#06B6D4',
+    opacity: 0.1,
+    right: 80,
+    bottom: 60,
+  },
+  coverBottomBar: {
     backgroundColor: BLUE,
     paddingHorizontal: 48,
     paddingVertical: 18,
   },
-  coverBarText: {
-    fontSize: 12,
+  coverBottomBarText: {
+    fontSize: 11,
     color: '#FFFFFF',
     textAlign: 'center',
   },
-  // Page 2 styles
+  // ── Page 2 ──────────────────────────────────────────────────────
+  page2: {
+    backgroundColor: '#FFFFFF',
+    fontFamily: 'Helvetica',
+    paddingHorizontal: 48,
+    paddingTop: 36,
+    paddingBottom: 80,
+    fontSize: 10,
+    color: DARK,
+  },
   pageHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingBottom: 14,
+    alignItems: 'flex-end',
+    paddingBottom: 12,
     borderBottomWidth: 2,
     borderBottomColor: BLUE,
+    marginBottom: 16,
   },
   logoText: {
-    fontSize: 18,
+    fontSize: 20,
     fontFamily: 'Helvetica-Bold',
     color: BLUE,
   },
   proposalTypeLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontFamily: 'Helvetica-Bold',
     color: BLUE,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  // Customer info box
+  // Customer info box — gray bg, two columns
   infoBox: {
-    borderWidth: 1,
-    borderColor: BORDER,
+    backgroundColor: BG_GRAY,
     borderRadius: 6,
     padding: 14,
-    marginBottom: 16,
-  },
-  infoRow: {
+    marginBottom: 14,
     flexDirection: 'row',
-    marginBottom: 5,
+  },
+  infoCol: {
+    width: '50%',
+  },
+  infoField: {
+    marginBottom: 7,
   },
   infoLabel: {
-    width: 80,
-    fontSize: 9,
+    fontSize: 8,
     color: GRAY,
+    marginBottom: 2,
   },
   infoValue: {
-    flex: 1,
     fontSize: 9,
     fontFamily: 'Helvetica-Bold',
     color: DARK,
   },
-  // Section
+  // Section header
   sectionTitle: {
     fontSize: 10,
     fontFamily: 'Helvetica-Bold',
     color: BLUE,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 8,
-    marginTop: 14,
+    marginBottom: 6,
+    marginTop: 10,
   },
   scopeItem: {
     flexDirection: 'row',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   bullet: {
-    width: 14,
+    width: 12,
     fontSize: 9,
     color: BLUE,
   },
@@ -136,35 +185,31 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: '#374151',
   },
-  // Pricing table
-  pricingTable: {
-    borderWidth: 1,
-    borderColor: BORDER,
+  // YOUR INVESTMENT box
+  investmentBox: {
+    backgroundColor: BLUE_LIGHT,
     borderRadius: 6,
-    marginBottom: 16,
-    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    padding: 16,
+    marginBottom: 14,
+    marginTop: 10,
+  },
+  investmentTitle: {
+    fontSize: 10,
+    fontFamily: 'Helvetica-Bold',
+    color: BLUE,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 10,
   },
   priceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 9,
+    paddingVertical: 5,
     borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-  },
-  priceRowHighlight: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: BG_BLUE,
-  },
-  priceDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#D1D5DB',
-    marginHorizontal: 16,
+    borderBottomColor: '#DBEAFE',
   },
   priceLabel: {
     fontSize: 10,
@@ -185,6 +230,15 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
     color: '#059669',
   },
+  yourPriceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#93C5FD',
+  },
   yourPriceLabel: {
     fontSize: 13,
     fontFamily: 'Helvetica-Bold',
@@ -195,27 +249,27 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
     color: BLUE,
   },
-  // Financing row
+  // Financing
   financingBox: {
     backgroundColor: '#F0F9FF',
     borderWidth: 1,
     borderColor: '#BAE6FD',
     borderRadius: 6,
-    padding: 12,
-    marginBottom: 16,
+    padding: 10,
+    marginBottom: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  // Signature section
+  // Signature
   signatureSection: {
-    marginTop: 20,
-    marginBottom: 16,
+    marginTop: 14,
+    marginBottom: 10,
   },
   signatureRow: {
     flexDirection: 'row',
     gap: 24,
-    marginBottom: 24,
+    marginBottom: 18,
   },
   signatureBlock: {
     flex: 1,
@@ -223,8 +277,8 @@ const styles = StyleSheet.create({
   signatureLine: {
     borderBottomWidth: 1,
     borderBottomColor: DARK,
-    marginBottom: 4,
     height: 28,
+    marginBottom: 4,
   },
   signatureLabel: {
     fontSize: 8,
@@ -250,7 +304,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderTopWidth: 1,
     borderTopColor: BORDER,
-    paddingTop: 10,
+    paddingTop: 8,
   },
   footerText: {
     fontSize: 8,
@@ -298,14 +352,17 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
   const addressLine = [proposal.customer_address].filter(Boolean).join(', ')
   const cityStateZip = [proposal.customer_city, proposal.customer_state, proposal.customer_zip].filter(Boolean).join(', ')
   const fullAddress = [addressLine, cityStateZip].filter(Boolean).join(', ')
-  const phone = fmtPhone(proposal.customer_phone)
-  const email = proposal.customer_email ?? ''
+  const customerPhone = fmtPhone(proposal.customer_phone)
+  const customerEmail = proposal.customer_email ?? ''
 
-  // Rep info
+  // Rep info — from rep columns (no hardcoded values)
   const repName = repSettings?.rep_name ?? ''
   const repPhone = fmtPhone(repSettings?.phone)
   const repEmail = repSettings?.email ?? ''
-  const companyName = repSettings?.company_name ?? 'Lifetime Home Remodeling'
+  const companyName = repSettings?.company ?? ''
+  const companyParts = companyName.trim().split(/\s+/)
+  const companyFirst = companyParts[0] ?? ''
+  const companyRest = companyParts.slice(1).join(' ')
 
   // Dates & meta
   const createdDate = formatDate(proposal.created_at)
@@ -356,9 +413,19 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
     <Document>
       {/* ─── PAGE 1: COVER ─── */}
       <Page size="A4" style={styles.coverPage}>
-        {/* Header */}
+        {/* Blue top bar */}
+        <View style={styles.coverTopBar} />
+
+        {/* Header row: company name | meta */}
         <View style={styles.coverHeader}>
-          <Text style={styles.coverLogoText}>Lifetime</Text>
+          <View>
+            {companyFirst ? (
+              <>
+                <Text style={styles.coverCompanyFirst}>{companyFirst}</Text>
+                {companyRest ? <Text style={styles.coverCompanyRest}>{companyRest}</Text> : null}
+              </>
+            ) : null}
+          </View>
           <View style={styles.coverMeta}>
             <Text style={styles.coverMetaLine}>Date: {createdDate}</Text>
             <Text style={styles.coverMetaLine}>Quote #: {quoteNumber}</Text>
@@ -366,40 +433,67 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
           </View>
         </View>
 
-        {/* Center */}
-        <View style={styles.coverCenter}>
-          <Text style={styles.coverTitle}>{customerName} Project</Text>
+        {/* Hero — customer name + address */}
+        <View style={styles.coverHero}>
+          {/* Decorative geometric shapes */}
+          <View style={styles.coverDecorA} />
+          <View style={styles.coverDecorB} />
+          <View style={styles.coverDecorC} />
+
+          <Text style={styles.coverCustomerName}>{customerName}</Text>
+          {fullAddress ? <Text style={styles.coverAddress}>{fullAddress}</Text> : null}
         </View>
 
-        {/* Bottom bar */}
-        <View style={styles.coverBar}>
-          <Text style={styles.coverBarText}>{fullAddress || companyName}</Text>
+        {/* Blue bottom bar */}
+        <View style={styles.coverBottomBar}>
+          <Text style={styles.coverBottomBarText}>{fullAddress || companyName}</Text>
         </View>
       </Page>
 
       {/* ─── PAGE 2: PRICING SUMMARY ─── */}
-      <Page size="A4" style={styles.page}>
+      <Page size="A4" style={styles.page2}>
         {/* Header */}
         <View style={styles.pageHeader}>
-          <Text style={styles.logoText}>Lifetime</Text>
+          <Text style={styles.logoText}>{companyName || 'Proposal'}</Text>
           <Text style={styles.proposalTypeLabel}>{proposalTypeLabel}</Text>
         </View>
 
-        {/* Customer info */}
+        {/* Customer info box — gray bg, two columns */}
         <View style={styles.infoBox}>
-          {[
-            { label: 'Name', value: customerName },
-            { label: 'Address', value: fullAddress },
-            phone ? { label: 'Phone', value: phone } : null,
-            email ? { label: 'Email', value: email } : null,
-            { label: 'Date', value: createdDate },
-            { label: 'Quote #', value: quoteNumber },
-          ].filter(Boolean).map((row: any, i) => (
-            <View key={i} style={styles.infoRow}>
-              <Text style={styles.infoLabel}>{row.label}</Text>
-              <Text style={styles.infoValue}>{row.value}</Text>
+          <View style={styles.infoCol}>
+            <View style={styles.infoField}>
+              <Text style={styles.infoLabel}>CUSTOMER</Text>
+              <Text style={styles.infoValue}>{customerName}</Text>
             </View>
-          ))}
+            {fullAddress ? (
+              <View style={styles.infoField}>
+                <Text style={styles.infoLabel}>ADDRESS</Text>
+                <Text style={styles.infoValue}>{fullAddress}</Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.infoCol}>
+            {customerPhone ? (
+              <View style={styles.infoField}>
+                <Text style={styles.infoLabel}>PHONE</Text>
+                <Text style={styles.infoValue}>{customerPhone}</Text>
+              </View>
+            ) : null}
+            {customerEmail ? (
+              <View style={styles.infoField}>
+                <Text style={styles.infoLabel}>EMAIL</Text>
+                <Text style={styles.infoValue}>{customerEmail}</Text>
+              </View>
+            ) : null}
+            <View style={styles.infoField}>
+              <Text style={styles.infoLabel}>DATE</Text>
+              <Text style={styles.infoValue}>{createdDate}</Text>
+            </View>
+            <View style={styles.infoField}>
+              <Text style={styles.infoLabel}>QUOTE #</Text>
+              <Text style={styles.infoValue}>{quoteNumber}</Text>
+            </View>
+          </View>
         </View>
 
         {/* Project summary */}
@@ -415,10 +509,10 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
           </View>
         )}
 
-        {/* Pricing table */}
-        <Text style={styles.sectionTitle}>Pricing</Text>
-        <View style={styles.pricingTable}>
-          {/* Package Price */}
+        {/* YOUR INVESTMENT box */}
+        <View style={styles.investmentBox}>
+          <Text style={styles.investmentTitle}>Your Investment</Text>
+
           {packagePrice != null && (
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>Package Price</Text>
@@ -428,7 +522,6 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
             </View>
           )}
 
-          {/* Discount */}
           {discountAmount != null && discountAmount > 0 && (
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>{discountName}</Text>
@@ -436,7 +529,6 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
             </View>
           )}
 
-          {/* You Save */}
           {youSave != null && youSave > 0 && (
             <View style={styles.priceRow}>
               <Text style={[styles.priceLabel, { color: '#059669' }]}>You Save</Text>
@@ -444,7 +536,6 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
             </View>
           )}
 
-          {/* Subtotal */}
           {subtotal != null && discountAmount != null && discountAmount > 0 && (
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>Subtotal</Text>
@@ -452,7 +543,6 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
             </View>
           )}
 
-          {/* Admin Fee */}
           {adminFee != null && (
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>Admin Fee</Text>
@@ -460,11 +550,7 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
             </View>
           )}
 
-          {/* Divider before final price */}
-          <View style={styles.priceDivider} />
-
-          {/* Your Price */}
-          <View style={styles.priceRowHighlight}>
+          <View style={styles.yourPriceRow}>
             <Text style={styles.yourPriceLabel}>Your Price</Text>
             <Text style={styles.yourPriceValue}>{fmtDollar(yourPrice)}</Text>
           </View>
@@ -485,17 +571,19 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
               <Text style={[styles.priceLabel, { fontFamily: 'Helvetica-Bold', color: '#0369A1' }]}>
                 {financingOption ?? 'Financing Available'}
               </Text>
-              <Text style={[styles.priceLabel, { color: '#6B7280', fontSize: 8, marginTop: 2 }]}>Subject to credit approval</Text>
+              <Text style={[styles.priceLabel, { color: '#6B7280', fontSize: 8, marginTop: 2 }]}>
+                Subject to credit approval
+              </Text>
             </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={[styles.yourPriceLabel, { color: '#0369A1', fontSize: 14 }]}>{fmtDollar(monthlyPayment)}/mo</Text>
-            </View>
+            <Text style={[styles.yourPriceLabel, { color: '#0369A1', fontSize: 14 }]}>
+              {fmtDollar(monthlyPayment)}/mo
+            </Text>
           </View>
         )}
 
         {/* Signature section */}
         <View style={styles.signatureSection}>
-          <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Authorization</Text>
+          <Text style={[styles.sectionTitle, { marginTop: 6 }]}>Authorization</Text>
           <View style={styles.signatureRow}>
             <View style={styles.signatureBlock}>
               <View style={styles.signatureLine} />
@@ -520,8 +608,10 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
 
         {/* Terms */}
         <View style={{ marginBottom: 60 }}>
-          <Text style={styles.termsText}>• James Hardie HZ5 30-year limited product warranty / Infinity by Marvin lifetime limited warranty</Text>
-          <Text style={styles.termsText}>• Lifetime Labor Warranty provided by {companyName}</Text>
+          <Text style={styles.termsText}>• Infinity by Marvin lifetime limited warranty / James Hardie HZ5 30-year limited product warranty</Text>
+          {companyName ? (
+            <Text style={styles.termsText}>• Lifetime Labor Warranty provided by {companyName}</Text>
+          ) : null}
           <Text style={styles.termsText}>• Estimated project completion: 4–6 weeks from signed agreement</Text>
           <Text style={styles.termsText}>• This proposal is valid for 30 days from the date above</Text>
         </View>
@@ -534,8 +624,7 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
             {repPhone ? <Text style={styles.footerText}>{repPhone}</Text> : null}
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.footerText}>Office: 303-934-4508</Text>
-            <Text style={styles.footerText}>www.mylifetimehome.com</Text>
+            {companyName ? <Text style={styles.footerText}>{companyName}</Text> : null}
           </View>
         </View>
       </Page>

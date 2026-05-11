@@ -23,7 +23,7 @@ export async function GET(
 
   const { data: rep } = await admin
     .from('reps')
-    .select('full_name, name, settings')
+    .select('full_name, name, company, phone, email, settings')
     .eq('id', proposal.rep_id)
     .single()
 
@@ -31,6 +31,9 @@ export async function GET(
   const repSettings = {
     ...(rep?.settings ?? {}),
     rep_name: repName,
+    company: rep?.company ?? '',
+    phone: rep?.phone ?? '',
+    email: rep?.email ?? '',
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
