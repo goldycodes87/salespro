@@ -27,18 +27,22 @@ export default function LoginPage() {
       setError(error.message)
       setLoading(false)
     } else {
-      // Check if rep profile is complete; redirect to onboarding if not
+      // Check rep profile — set cookies, handle admin vs rep routing
       const repRes = await fetch('/api/reps')
       if (repRes.ok) {
         const rep = await repRes.json()
         if (rep?.full_name) {
           document.cookie = 'sp_onboarded=true; path=/; max-age=31536000; samesite=lax'
-          router.push('/dashboard')
+          if (rep?.is_admin) {
+            document.cookie = 'sp_admin=true; path=/; max-age=31536000; samesite=lax'
+            router.push('/admin')
+          } else {
+            router.push('/dashboard')
+          }
         } else {
           router.push('/onboarding')
         }
       } else {
-        // No rep row yet
         router.push('/onboarding')
       }
       router.refresh()

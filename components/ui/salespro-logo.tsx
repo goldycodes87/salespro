@@ -6,7 +6,6 @@ interface SalesProLogoProps {
 
 // Gradient IDs are static — all instances use the same colors so conflicts are harmless.
 const GRAD = 'sp-gradient'
-const BG_GRAD = 'sp-bg-gradient'
 
 function Defs() {
   return (
@@ -15,22 +14,14 @@ function Defs() {
         <stop offset="0%" stopColor="#1D4ED8" />
         <stop offset="100%" stopColor="#06B6D4" />
       </linearGradient>
-      <linearGradient id={BG_GRAD} x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" stopColor="#071436" />
-        <stop offset="100%" stopColor="#033D50" />
-      </linearGradient>
     </defs>
   )
 }
 
-// Pointy-top regular hexagon (R=21, center 24,24) + two interlocking S chevrons.
-// Upper chevron: right-pointing bracket (upper S curve).
-// Lower chevron: left-pointing bracket (lower S curve), 180° rotation of upper.
+// Two interlocking S chevrons on transparent background.
 function IconPaths() {
   return (
     <>
-      {/* Hex background */}
-      <path d="M24 3L42 13L42 35L24 45L6 35L6 13Z" fill={`url(#${BG_GRAD})`} />
       {/* Upper S chevron — right-pointing */}
       <path d="M10 12L28 12L40 22L28 28L12 28L10 22Z" fill={`url(#${GRAD})`} />
       {/* Lower S chevron — left-pointing (180° rotation of upper) */}

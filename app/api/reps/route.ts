@@ -34,7 +34,17 @@ export async function GET() {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+
+  const res = NextResponse.json(data)
+  if (data?.is_admin) {
+    res.cookies.set('sp_admin', 'true', {
+      httpOnly: false,
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: 'lax',
+    })
+  }
+  return res
 }
 
 // PATCH /api/reps — update profile + settings

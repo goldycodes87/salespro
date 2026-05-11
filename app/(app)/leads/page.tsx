@@ -17,10 +17,12 @@ export default async function LeadsPage({
 }) {
   const { status = 'all' } = await searchParams
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
   let query = supabase
     .from('leads')
     .select('*')
+    .eq('rep_id', user?.id ?? '')
     .order('created_at', { ascending: false })
 
   if (status && status !== 'all') {

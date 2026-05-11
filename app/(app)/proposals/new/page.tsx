@@ -19,13 +19,14 @@ export default async function NewProposalPage({
   }
 
   if (id) {
-    const { data } = await supabase.from('proposals').select('*').eq('id', id).single()
+    const { data } = await supabase.from('proposals').select('*').eq('id', id).eq('rep_id', user?.id ?? '').single()
     if (data) existingProposal = data
   } else if (lead_id) {
     const { data: lead } = await supabase
       .from('leads')
       .select('first_name, last_name, email, phone, spouse_first_name, spouse_last_name, address, city, state, zip')
       .eq('id', lead_id)
+      .eq('rep_id', user?.id ?? '')
       .single()
     if (lead) defaultCustomer = lead
   }

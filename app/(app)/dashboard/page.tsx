@@ -62,30 +62,35 @@ export default async function DashboardPage() {
       supabase
         .from('proposals')
         .select('id', { count: 'exact', head: true })
+        .eq('rep_id', user?.id ?? '')
         .gte('created_at', todayStart),
 
       // This week's proposals
       supabase
         .from('proposals')
         .select('id', { count: 'exact', head: true })
+        .eq('rep_id', user?.id ?? '')
         .gte('created_at', weekStart),
 
       // Pipeline value (unsigned proposals)
       supabase
         .from('proposals')
         .select('your_price')
+        .eq('rep_id', user?.id ?? '')
         .neq('status', 'signed'),
 
       // Signed proposals
       supabase
         .from('proposals')
         .select('id', { count: 'exact', head: true })
+        .eq('rep_id', user?.id ?? '')
         .eq('status', 'signed'),
 
       // Recent proposals
       supabase
         .from('proposals')
         .select('id, customer_name, type, status, your_price, created_at')
+        .eq('rep_id', user?.id ?? '')
         .order('created_at', { ascending: false })
         .limit(5),
 
@@ -93,6 +98,7 @@ export default async function DashboardPage() {
       supabase
         .from('leads')
         .select('id, first_name, last_name, spouse_first_name, is_married, city, state, status, appointment_date')
+        .eq('rep_id', user?.id ?? '')
         .order('created_at', { ascending: false })
         .limit(5),
 
@@ -100,6 +106,7 @@ export default async function DashboardPage() {
       supabase
         .from('proposals')
         .select('id, customer_first_name, customer_last_name, customer_phone, followup_date, partial_job_notes')
+        .eq('rep_id', user?.id ?? '')
         .eq('is_partial_job', true)
         .eq('status', 'signed')
         .not('followup_date', 'is', null)

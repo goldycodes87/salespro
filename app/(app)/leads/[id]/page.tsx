@@ -9,11 +9,13 @@ export default async function LeadDetailPage({
 }) {
   const { id } = await params
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
   const { data: lead, error } = await supabase
     .from('leads')
     .select('*')
     .eq('id', id)
+    .eq('rep_id', user?.id ?? '')
     .single()
 
   if (error || !lead) notFound()

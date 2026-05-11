@@ -38,8 +38,9 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user && pathname === '/login') {
+    const isAdmin = request.cookies.get('sp_admin')?.value === 'true'
     const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
+    url.pathname = isAdmin ? '/admin' : '/dashboard'
     return NextResponse.redirect(url)
   }
 
