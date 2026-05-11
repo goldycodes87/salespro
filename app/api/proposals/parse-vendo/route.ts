@@ -16,6 +16,23 @@ async function getUser() {
   return user
 }
 
+function mapToToggles(pct: number): {
+  promotion: string | null
+  bnsn: string | null
+  cash_incentive: boolean
+  costco_shop: boolean
+  costco_executive: boolean
+  financing: string
+} {
+  const p = Math.round(pct * 100)
+  if (p >= 36 && p <= 38) return { promotion: '20_off', bnsn: '10_off', cash_incentive: true,  costco_shop: false, costco_executive: false, financing: 'none' }
+  if (p >= 29 && p <= 31) return { promotion: '20_off', bnsn: '10_off', cash_incentive: false, costco_shop: false, costco_executive: false, financing: 'none' }
+  if (p >= 26 && p <= 28) return { promotion: '20_off', bnsn: null,     cash_incentive: true,  costco_shop: false, costco_executive: false, financing: 'none' }
+  if (p === 25)            return { promotion: '25_off', bnsn: null,     cash_incentive: false, costco_shop: false, costco_executive: false, financing: 'none' }
+  if (p === 20)            return { promotion: '20_off', bnsn: null,     cash_incentive: false, costco_shop: false, costco_executive: false, financing: 'none' }
+  return                          { promotion: null,     bnsn: null,     cash_incentive: false, costco_shop: false, costco_executive: false, financing: 'none' }
+}
+
 export async function POST(request: NextRequest) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -98,6 +115,7 @@ CRITICAL RULES:
 - Extract numbers EXACTLY as shown in the PDF
 - Never calculate or modify amounts
 - your_price must match exactly what the PDF shows as final price
+- line_items: unit_price is the per-unit price BEFORE discount, discounted_price is AFTER discount
 - If a field is not present, use null
 - Return only the JSON object, nothing else`,
           },
@@ -125,12 +143,56 @@ CRITICAL RULES:
     return NextResponse.json({ error: 'Failed to extract proposal data from PDF' }, { status: 500 })
   }
 
+  // Compute actual discount percentage from line items
+  const packagePrice: number = parsed.package_price ?? 0
+  const adminFee: number = parsed.admin_fee || 850
+  const discountableBase = packagePrice - adminFee
+
+  let itemDiscountPct = 0
+  const lineItems: Array<{ unit_price: number; discounted_price: number }> = parsed.line_items ?? []
+  const firstItem = lineItems.find(i => i.unit_price > 0 && i.discounted_price > 0)
+  if (firstItem) {
+    // discounted_price < unit_price; pct = 1 - (discounted_price / unit_price)
+    itemDiscountPct = 1 - (firstItem.discounted_price / firstItem.unit_price)
+  } else if (parsed.discount_amount && discountableBase > 0) {
+    itemDiscountPct = parsed.discount_amount / discountableBase
+  }
+
+  const toggleState = mapToToggles(itemDiscountPct)
+
   // Split customer name into first/last
   const nameParts = (parsed.customer_name ?? '').trim().split(/\s+/)
   const customer_first_name = nameParts[0] ?? ''
   const customer_last_name = nameParts.slice(1).join(' ') ?? ''
 
   const admin = getSupabaseAdmin()
+
+  const pricingData = {
+    // PricingInputs-compatible shape for present-view
+    proposal_type: parsed.project_type ?? 'windows',
+    windows_project_value: packagePrice,
+    num_windows: parsed.num_windows ?? 0,
+    num_doors: parsed.num_doors ?? 0,
+    line_items: [],
+    project_value: 0,
+    admin_fee_enabled: true,
+    admin_fee_amount: adminFee,
+    lead_paint_enabled: false,
+    lead_paint_amount: 500,
+    costco_revealed: false,
+    costco_member: false,
+    costco_executive: false,
+    financing: 'none',
+    deposit: 0,
+    // Stored toggle state for pre-selecting discounts in present-view
+    toggle_state: toggleState,
+    // Vendo metadata
+    package_price: packagePrice,
+    your_price: parsed.your_price ?? 0,
+    vendo_quote_number: parsed.quote_number ?? null,
+    vendo_imported: true,
+    line_items_raw: parsed.line_items ?? [],
+  }
 
   const insertData = {
     rep_id: user.id,
@@ -146,22 +208,7 @@ CRITICAL RULES:
     type: parsed.project_type ?? 'windows',
     status: 'draft',
     your_price: parsed.your_price ?? 0,
-    pricing_data: {
-      proposal_type: parsed.project_type ?? 'windows',
-      num_windows: parsed.num_windows ?? 0,
-      num_doors: parsed.num_doors ?? 0,
-      package_price: parsed.package_price ?? null,
-      discount_name: parsed.discount_name ?? null,
-      discount_amount: parsed.discount_amount ?? null,
-      admin_fee: parsed.admin_fee ?? 0,
-      subtotal: parsed.subtotal ?? null,
-      your_price: parsed.your_price ?? 0,
-      financing_option: parsed.financing_option ?? null,
-      monthly_payment: parsed.monthly_payment ?? null,
-      vendo_quote_number: parsed.quote_number ?? null,
-      vendo_imported: true,
-      line_items: parsed.line_items ?? [],
-    },
+    pricing_data: pricingData,
     public_token: Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
   }
 
@@ -176,13 +223,13 @@ CRITICAL RULES:
     return NextResponse.json({ error: insertError?.message ?? 'Failed to create proposal' }, { status: 500 })
   }
 
-  // Populate top-level numeric columns (fire and forget — ignore unknown column errors)
+  // Populate top-level numeric columns (fire and forget)
   void admin
     .from('proposals')
     .update({
-      package_price: parsed.package_price ?? null,
+      package_price: packagePrice || null,
       your_price: parsed.your_price ?? 0,
-      windows_project_value: parsed.package_price ?? null,
+      windows_project_value: packagePrice || null,
       num_windows: parsed.num_windows ?? 0,
       num_doors: parsed.num_doors ?? 0,
     })

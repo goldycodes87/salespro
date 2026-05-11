@@ -103,7 +103,7 @@ export const DEFAULT_DISCOUNT_SETTINGS: DiscountOptionSetting[] = [
   { id: 'bnsn_10', name: 'Buy Now Save Now 10%', pct: 10, type: 'bnsn', active: true },
   { id: 'bnsn_5', name: 'Buy Now Save Now 5%', pct: 5, type: 'bnsn', active: true },
   { id: 'bnsn_30', name: 'Full 30% Combined', pct: 30, type: 'bnsn', is_combined: true, active: true },
-  { id: 'cash_6', name: 'Cash Incentive', pct: 6, type: 'cash', active: true },
+  { id: 'cash_6', name: 'Cash Incentive', pct: 7, type: 'cash', active: true },
 ]
 
 export interface PricingInputs {
@@ -142,6 +142,7 @@ export interface PricingInputs {
 
 export interface PricingResult {
   package_price: number
+  discountable_base: number
   discount_pct: number
   discount_amount: number
   cash_discount: number
@@ -211,16 +212,17 @@ export function calcPrice(inputs: PricingInputs): PricingResult {
     discount_pct = promo + bnsn
   }
 
-  const discount_amount = package_price * (discount_pct / 100)
-  const cash_pct = inputs.cash_pct ?? 6
-  const cash_discount = inputs.cash_incentive ? package_price * (cash_pct / 100) : 0
-  const you_save = discount_amount + cash_discount
-
-  const discounted_package = package_price - discount_amount - cash_discount
+  // Admin fee and lead paint are excluded from the discountable base
   const admin_fee = inputs.admin_fee_enabled ? inputs.admin_fee_amount : 0
   const lead_paint = inputs.lead_paint_enabled ? inputs.lead_paint_amount : 0
+  const discountable_base = package_price - admin_fee - lead_paint
 
-  const subtotal = discounted_package + non_disc_line_total
+  const discount_amount = Math.round(discountable_base * (discount_pct / 100))
+  const cash_pct = inputs.cash_pct ?? 7
+  const cash_discount = inputs.cash_incentive ? Math.round(discountable_base * (cash_pct / 100)) : 0
+  const you_save = discount_amount + cash_discount
+
+  const subtotal = discountable_base - discount_amount - cash_discount + non_disc_line_total
   const your_price = subtotal + admin_fee + lead_paint
 
   // Financing — settings overrides take priority over enum keys
@@ -240,6 +242,7 @@ export function calcPrice(inputs: PricingInputs): PricingResult {
 
   return {
     package_price,
+    discountable_base,
     discount_pct,
     discount_amount,
     cash_discount,

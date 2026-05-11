@@ -39,6 +39,7 @@ interface ToggleState {
 
 interface PricePoints {
   packagePrice: number
+  discountableBase: number
   adminFee: number
   leadPaint: number
   totalFees: number
@@ -79,13 +80,17 @@ function calculatePricing(
 
   const inputs: PricingInputs = {
     ...pd,
+    // Normalize: ensure calcPrice can find the package price
+    line_items: pd.line_items ?? [],
+    project_value: pd.project_value ?? 0,
+    windows_project_value: pd.windows_project_value ?? (pd as any).package_price ?? undefined,
     promotion: (selectedPromo && !isCombined) ? '20_off' : 'none',
     promotion_pct: (selectedPromo && !isCombined) ? selectedPromo.pct : undefined,
     bnsn: isCombined ? '30_combined' : (selectedBnsn ? '10_off' : 'none'),
     bnsn_pct: selectedBnsn?.pct,
     bnsn_is_combined: isCombined || undefined,
     cash_incentive: ts.cashOn && cashAvailable,
-    cash_pct: cashOpt?.pct ?? 6,
+    cash_pct: cashOpt?.pct ?? 7,
     costco_revealed: ts.costcoShopOn || ts.costcoExecOn,
     costco_member: pd.costco_member,
     costco_executive: pd.costco_executive,
@@ -96,15 +101,15 @@ function calculatePricing(
   }
 
   const r = calcPrice(inputs)
-  const base = r.package_price
+  const discountableBase = r.discountable_base
 
   let promoDiscount = 0
   let bnsnDiscount = 0
   if (isCombined && selectedBnsn) {
-    bnsnDiscount = base * (selectedBnsn.pct / 100)
+    bnsnDiscount = discountableBase * (selectedBnsn.pct / 100)
   } else {
-    if (selectedPromo) promoDiscount = base * (selectedPromo.pct / 100)
-    if (selectedBnsn) bnsnDiscount = base * (selectedBnsn.pct / 100)
+    if (selectedPromo) promoDiscount = discountableBase * (selectedPromo.pct / 100)
+    if (selectedBnsn) bnsnDiscount = discountableBase * (selectedBnsn.pct / 100)
   }
 
   const costcoShopCard = r.your_price * 0.10
@@ -113,10 +118,11 @@ function calculatePricing(
 
   return {
     packagePrice: r.package_price,
+    discountableBase,
     adminFee: r.admin_fee,
     leadPaint: r.lead_paint,
     totalFees: r.admin_fee + r.lead_paint,
-    priceBeforeDiscounts: r.package_price + r.admin_fee + r.lead_paint,
+    priceBeforeDiscounts: r.package_price,
     promoDiscount,
     bnsnDiscount,
     cashDiscount: r.cash_discount,
@@ -138,8 +144,38 @@ function initToggleState(
   discountOpts: DiscountOptionSetting[],
   financingOpts: FinancingOptionSetting[],
 ): ToggleState {
+  // Vendo imports store pre-computed toggle state
+  const storedTs = (pd as any).toggle_state as {
+    promotion?: string | null
+    bnsn?: string | null
+    cash_incentive?: boolean
+  } | undefined
+
+  if (storedTs) {
+    const isCombined = storedTs.bnsn === '30_combined'
+    const promoPct = storedTs.promotion === '20_off' ? 20 : storedTs.promotion === '25_off' ? 25 : null
+    const bnsnPct = storedTs.bnsn === '10_off' ? 10 : storedTs.bnsn === '5_off' ? 5 : storedTs.bnsn === '30_combined' ? 30 : null
+    const selectedPromoId = promoPct
+      ? (discountOpts.find(d => d.type === 'promotion' && d.pct === promoPct && d.active)?.id ?? null)
+      : null
+    const selectedBnsnId = bnsnPct
+      ? (discountOpts.find(d => d.type === 'bnsn' && d.pct === bnsnPct && (isCombined ? !!d.is_combined : !d.is_combined) && d.active)?.id ?? null)
+      : null
+    return {
+      promoOn: !!storedTs.promotion || isCombined,
+      selectedPromoId: isCombined ? null : selectedPromoId,
+      bnsnOn: !!storedTs.bnsn,
+      selectedBnsnId,
+      cashOn: !!storedTs.cash_incentive,
+      financingOn: false,
+      selectedFinancingId: null,
+      costcoShopOn: false,
+      costcoExecOn: false,
+    }
+  }
+
   const isCombined = pd.bnsn === '30_combined' || !!pd.bnsn_is_combined
-  const hasPromo = pd.promotion !== 'none' || (pd.promotion_pct != null && pd.promotion_pct > 0)
+  const hasPromo = (pd.promotion != null && pd.promotion !== 'none') || (pd.promotion_pct != null && pd.promotion_pct > 0)
   const hasBnsn = pd.bnsn !== 'none' || (pd.bnsn_pct != null && pd.bnsn_pct > 0)
 
   let selectedPromoId: string | null = null
@@ -313,8 +349,10 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
 }) {
   const rawPd = proposal.pricing_data || {}
   const vendoImported: boolean = rawPd.vendo_imported === true
+  // New-format Vendo imports have toggle_state and are handled identically to manual proposals
+  const vendoHasNewFormat = vendoImported && !!(rawPd as any).toggle_state
 
-  const pricingData: PricingInputs | null = rawPd.proposal_type && !vendoImported
+  const pricingData: PricingInputs | null = rawPd.proposal_type && (!vendoImported || vendoHasNewFormat)
     ? (rawPd as PricingInputs)
     : null
 
@@ -687,6 +725,11 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
             {startingSubtitle && (
               <p style={{ fontSize: '18px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', marginTop: '8px' }}>{startingSubtitle}</p>
             )}
+            {pp.adminFee > 0 && (
+              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '10px', fontStyle: 'italic' }}>
+                Includes {fmt(pp.adminFee)} admin fee — not subject to discount
+              </p>
+            )}
           </div>
         </motion.div>
 
@@ -749,7 +792,7 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
                           selected={ts.selectedPromoId === opt.id}
                           onSelect={() => selectPromo(opt.id)}
                           label={opt.name}
-                          rightLabel={`-${fmt(pp.packagePrice * (opt.pct / 100))}`}
+                          rightLabel={`-${fmt(pp.discountableBase * (opt.pct / 100))}`}
                         />
                       ))}
                       {ts.selectedPromoId && <NewPriceRow value={pp.yourPrice} />}
@@ -781,7 +824,7 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
                           selected={ts.selectedBnsnId === opt.id}
                           onSelect={() => selectBnsn(opt.id)}
                           label={opt.name}
-                          rightLabel={`-${fmt(pp.packagePrice * (opt.pct / 100))}`}
+                          rightLabel={`-${fmt(pp.discountableBase * (opt.pct / 100))}`}
                         />
                       ))}
                       {ts.selectedBnsnId && <NewPriceRow value={pp.yourPrice} />}
