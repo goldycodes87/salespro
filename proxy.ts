@@ -62,8 +62,13 @@ export async function proxy(request: NextRequest) {
   }
 
   // Onboarding gate: authenticated but not onboarded
+  // Admins bypass this — they may have been provisioned before the onboarding flow existed
+  const isAdmin = request.cookies.get('clozr_admin')?.value === 'true'
+
   const onboardingExempt =
+    isAdmin ||
     pathname === '/onboarding' ||
+    pathname.startsWith('/admin') ||
     pathname.startsWith('/api/') ||
     pathname.startsWith('/p/') ||
     pathname.startsWith('/coaches/') ||
@@ -78,14 +83,11 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Admin redirect from /dashboard
-  if (user && pathname === '/dashboard') {
-    const isAdmin = request.cookies.get('clozr_admin')?.value === 'true'
-    if (isAdmin) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/admin'
-      return NextResponse.redirect(url)
-    }
+  // Admin redirect: ONLY from /dashboard, nowhere else
+  if (user && isAdmin && pathname === '/dashboard') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/admin'
+    return NextResponse.redirect(url)
   }
 
   return supabaseResponse
