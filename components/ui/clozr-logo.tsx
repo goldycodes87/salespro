@@ -33,7 +33,6 @@ export default function ClozrLogo({
         width: 'auto',
         maxWidth: 480,
         display: 'block',
-        margin: '0 auto',
       }}
       className={className}
     />

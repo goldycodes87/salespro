@@ -64,6 +64,14 @@ export default function LoginPage() {
         transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
         className="relative z-10 w-full max-w-sm mx-4"
       >
+        {/* Logo — above the card */}
+        <div className="flex flex-col items-center" style={{ marginBottom: 28 }}>
+          <ClozrLogo variant="full" height={288} />
+          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', margin: '8px 0 0' }}>
+            Built for closers.
+          </p>
+        </div>
+
         {/* Glass card */}
         <div
           className="rounded-2xl p-8"
@@ -75,16 +83,6 @@ export default function LoginPage() {
             boxShadow: '0 32px 64px rgba(0,0,0,0.4)',
           }}
         >
-          {/* Logo */}
-          <div className="flex flex-col items-center" style={{ marginBottom: 32 }}>
-            <div className="flex justify-center" style={{ marginBottom: 8 }}>
-              <ClozrLogo variant="full" height={144} />
-            </div>
-            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', margin: 0 }}>
-              Built for closers.
-            </p>
-          </div>
-
           {/* Form */}
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
