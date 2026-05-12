@@ -78,7 +78,7 @@ export default function LoginPage() {
           {/* Logo */}
           <div className="flex flex-col items-center" style={{ marginBottom: 32 }}>
             <div className="flex justify-center" style={{ marginBottom: 8 }}>
-              <ClozrLogo variant="full" height={48} />
+              <ClozrLogo variant="full" height={56} />
             </div>
             <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', margin: 0 }}>
               Built for closers.

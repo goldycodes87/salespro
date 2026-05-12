@@ -16,8 +16,9 @@ export default function ClozrLogo({
         alt="Clozr"
         style={{
           height: height,
-          width: height,
+          width: height * 1.2,
           objectFit: 'contain',
+          objectPosition: 'left center',
           display: 'block',
         }}
         className={className}
@@ -30,7 +31,7 @@ export default function ClozrLogo({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: Math.round(height * 0.3),
+        gap: Math.round(height * 0.25),
         flexShrink: 0,
       }}
       className={className}
@@ -40,8 +41,9 @@ export default function ClozrLogo({
         alt="Clozr"
         style={{
           height: height,
-          width: height,
+          width: height * 1.2,
           objectFit: 'contain',
+          objectPosition: 'left center',
           display: 'block',
           flexShrink: 0,
         }}
