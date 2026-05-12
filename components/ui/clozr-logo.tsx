@@ -12,12 +12,11 @@ export default function ClozrLogo({
   if (variant === 'icon') {
     return (
       <img
-        src="/clozr-icon.png"
+        src="/clozr-icon.svg"
         alt="Clozr"
         style={{
           height: height,
-          width: Math.round(height * 1.5),
-          objectFit: 'contain',
+          width: 'auto',
           display: 'block',
         }}
         className={className}
@@ -26,35 +25,15 @@ export default function ClozrLogo({
   }
 
   return (
-    <div
+    <img
+      src="/clozr-logo.svg"
+      alt="Clozr"
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        flexShrink: 0,
+        height: height,
+        width: 'auto',
+        display: 'block',
       }}
       className={className}
-    >
-      <img
-        src="/clozr-icon.png"
-        alt=""
-        style={{
-          height: height,
-          width: Math.round(height * 1.5),
-          objectFit: 'contain',
-          display: 'block',
-          flexShrink: 0,
-        }}
-      />
-      <span style={{
-        fontSize: Math.round(height * 0.75),
-        fontWeight: 800,
-        color: 'white',
-        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-        letterSpacing: '-0.02em',
-        lineHeight: 1,
-        flexShrink: 0,
-      }}>Clozr</span>
-    </div>
+    />
   )
 }
