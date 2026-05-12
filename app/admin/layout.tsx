@@ -1,6 +1,7 @@
 import { requireAdmin } from '@/lib/admin-auth'
 import Link from 'next/link'
 import ClozrLogo from '@/components/ui/clozr-logo'
+import { AdminCookieFixer, AdminLogout } from '@/components/admin/admin-client-init'
 
 const NAV_ITEMS = [
   { href: '/admin', label: 'Overview', icon: '📊' },
@@ -15,6 +16,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   await requireAdmin()
   return (
     <div style={{ minHeight: '100vh', background: '#0A0F1E', display: 'flex' }}>
+      <AdminCookieFixer />
+
       {/* Sidebar - desktop */}
       <div className="hidden md:flex flex-col" style={{ width: '240px', background: '#0D1117', borderRight: '1px solid rgba(255,255,255,0.06)', position: 'fixed', top: 0, bottom: 0, left: 0 }}>
         <div className="px-5 pt-6 pb-4">
@@ -31,10 +34,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </Link>
           ))}
         </nav>
-        <div className="px-5 pb-6">
-          <Link href="/dashboard" style={{ fontSize: '12px', color: '#4B5563' }}>← Back to App</Link>
+        <div className="px-5 pb-6 flex flex-col gap-3">
+          <Link
+            href="/leads"
+            style={{ fontSize: '12px', color: '#4B5563', display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            ← Back to App
+          </Link>
+          <AdminLogout />
         </div>
       </div>
+
       {/* Mobile tab bar */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex overflow-x-auto" style={{ background: '#0D1117', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         {NAV_ITEMS.map(item => (
@@ -44,6 +54,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </Link>
         ))}
       </div>
+
       {/* Main content */}
       <div className="flex-1 md:ml-[240px] pb-20 md:pb-0">
         {children}
