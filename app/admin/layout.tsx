@@ -36,7 +36,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </nav>
         <div className="px-5 pb-6 flex flex-col gap-3">
           <Link
-            href="/leads"
+            href="/dashboard"
             style={{ fontSize: '12px', color: '#4B5563', display: 'flex', alignItems: 'center', gap: 6 }}
           >
             ← Back to App

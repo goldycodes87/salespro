@@ -83,13 +83,6 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Admin redirect: ONLY from /dashboard, nowhere else
-  if (user && isAdmin && pathname === '/dashboard') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/admin'
-    return NextResponse.redirect(url)
-  }
-
   return supabaseResponse
 }
 
