@@ -3,1183 +3,993 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import AnimatedGradientBackground from '@/components/ui/animated-gradient-background'
+import confetti from 'canvas-confetti'
 import ClozrLogo from '@/components/ui/clozr-logo'
-import { PERSONAS } from '@/lib/coach-personas'
+import AnimatedGradientBackground from '@/components/ui/animated-gradient-background'
 
-// ─── Data ────────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const TOTAL_STEPS = 7
 
 const INDUSTRIES = [
-  { key: 'windows_siding', name: 'Windows & Doors', emoji: '🪟', desc: 'Replacement windows, doors & siding' },
-  { key: 'roofing', name: 'Roofing', emoji: '🏠', desc: 'Residential & commercial roofing' },
-  { key: 'solar', name: 'Solar', emoji: '☀️', desc: 'Solar panels & energy systems' },
-  { key: 'hvac', name: 'HVAC', emoji: '❄️', desc: 'Heating, cooling & ventilation' },
-  { key: 'insurance', name: 'Insurance', emoji: '🛡️', desc: 'All lines of insurance' },
-  { key: 'real_estate', name: 'Real Estate', emoji: '🏡', desc: 'Residential & commercial property' },
-  { key: 'saas', name: 'Software / SaaS', emoji: '💻', desc: 'B2B software & technology' },
-  { key: 'financial', name: 'Financial Services', emoji: '💰', desc: 'Investments, lending & planning' },
-  { key: 'other', name: 'Other', emoji: '💼', desc: 'Custom for your industry' },
+  { id: 'windows_doors', icon: '🪟', name: 'Windows & Doors' },
+  { id: 'roofing',       icon: '🏠', name: 'Roofing' },
+  { id: 'solar',         icon: '☀️', name: 'Solar' },
+  { id: 'hvac',          icon: '❄️', name: 'HVAC' },
+  { id: 'insurance',     icon: '🛡️', name: 'Insurance' },
+  { id: 'real_estate',   icon: '🏡', name: 'Real Estate' },
+  { id: 'saas',          icon: '💻', name: 'Software / SaaS' },
+  { id: 'financial',     icon: '💰', name: 'Financial Services' },
+  { id: 'other',         icon: '💼', name: 'Other' },
 ]
 
-type PlatformStatus = 'active' | 'coming_soon'
-interface Platform {
-  id: string
-  name: string
-  status: PlatformStatus
+const COACHES = [
+  {
+    id: 'jordan',
+    name: 'Jordan',
+    title: 'The Wise Closer',
+    color: '#1D4ED8',
+    photo: '/coaches/jordan.png',
+    desc: 'Calm, wise, 25 years in sales. Asks the right questions. Believes in you.',
+    intro: (n: string) => `Hey ${n}. I'm Jordan. 25 years closing deals — and I'm here to help you close more. What's on your mind?`,
+  },
+  {
+    id: 'victoria',
+    name: 'Victoria',
+    title: 'The High-Standard Driver',
+    color: '#7C3AED',
+    photo: '/coaches/victoria.png',
+    desc: 'Direct, high expectations. Celebrates hard wins. No excuses.',
+    intro: (n: string) => `Let's get straight to it, ${n}. I've seen your industry. There's real money to be made. Let's go get it.`,
+  },
+  {
+    id: 'coach_ray',
+    name: 'Coach Ray',
+    title: 'The Sports Coach',
+    color: '#DC2626',
+    photo: '/coaches/coach-ray.png',
+    desc: 'Pure sports coach energy. Every deal is a game. Let\'s win.',
+    intro: (n: string) => `LET'S GO ${n}! Coach Ray here. Every appointment is a game and I am YOUR coach. Ready to WIN?`,
+  },
+  {
+    id: 'noel',
+    name: 'Noel',
+    title: 'The Data Strategist',
+    color: '#0F766E',
+    photo: '/coaches/noel.png',
+    desc: 'Data-driven, analytical. Finds patterns. Builds systems.',
+    intro: (n: string) => `Hello ${n}. The data on your industry is fascinating. With the right system, your close rate can improve 40%. Let's build that system.`,
+  },
+]
+
+const VOICE_OPTIONS = {
+  female: [
+    { name: 'Rachel', voice_id: '21m00Tcm4TlvDq8ikWAM' },
+    { name: 'Bella',  voice_id: 'EXAVITQu4vr4xnSDxMaL' },
+    { name: 'Elli',   voice_id: 'MF3mGyEYCl7XYWbV9V6O' },
+  ],
+  male: [
+    { name: 'Adam', voice_id: 'pNInz6obpgDQGcFmaJgB' },
+    { name: 'Josh', voice_id: 'TxGEqnHWrfWFTfGW9XjX' },
+    { name: 'Sam',  voice_id: 'yoZ06aMxZJJ28mfd3POQ' },
+  ],
 }
 
-const PLATFORM_REGISTRY: Record<string, Platform[]> = {
-  windows_siding: [
-    { id: 'vendo', name: 'Vendo', status: 'active' },
-    { id: 'hover', name: 'Hover', status: 'coming_soon' },
-  ],
-  roofing: [
-    { id: 'eagleview', name: 'EagleView', status: 'coming_soon' },
-    { id: 'hover', name: 'Hover', status: 'coming_soon' },
-  ],
-  solar: [
-    { id: 'aurora', name: 'Aurora Solar', status: 'coming_soon' },
-  ],
-  hvac: [
-    { id: 'servicetitan', name: 'ServiceTitan', status: 'coming_soon' },
-  ],
-  insurance: [
-    { id: 'salesforce', name: 'Salesforce', status: 'coming_soon' },
-  ],
-  real_estate: [],
-  saas: [
-    { id: 'salesforce', name: 'Salesforce', status: 'coming_soon' },
-    { id: 'hubspot', name: 'HubSpot', status: 'coming_soon' },
-  ],
-  financial: [
-    { id: 'salesforce', name: 'Salesforce', status: 'coming_soon' },
-  ],
-  other: [],
+const CAPABILITIES = [
+  { id: 'answer_all',    icon: '📞', label: 'Answer all calls' },
+  { id: 'answer_dnd',   icon: '🔕', label: 'Answer calls on DND only' },
+  { id: 'schedule',     icon: '📅', label: 'Schedule appointments' },
+  { id: 'qualify',      icon: '👤', label: 'Qualify leads' },
+  { id: 'email_summary',icon: '📧', label: 'Send call summary emails' },
+  { id: 'outbound',     icon: '📱', label: 'Make outbound calls' },
+]
+
+// ─── Step animation variants ──────────────────────────────────────────────────
+
+const stepVariants = {
+  enter:  { x: 60,  opacity: 0 },
+  center: { x: 0,   opacity: 1 },
+  exit:   { x: -60, opacity: 0 },
 }
 
-const ONBOARDING_WELCOME: Record<string, string> = {
-  jordan: "Hey {name}. I'm Jordan. I've been watching sales reps like you for 25 years. I already know you're capable of more. Let's prove it.",
-  victoria: "Let's be direct, {name}. I don't do average and neither should you. I'm here to make you the top closer on your team. Ready?",
-  ray: "LET'S GO {name}! Coach Ray here and I am FIRED UP to work with you. Every appointment is a game. I'm your coach. Let's WIN some games!",
-  noel: "Hello {name}. I've already been thinking about your strategy. The data doesn't lie and neither do I. Let's build a system that closes.",
-}
+const stepTransition = { duration: 0.35, ease: [0.4, 0, 0.2, 1] as [number, number, number, number] }
 
-// ─── Shared styles ───────────────────────────────────────────────────────────
+// ─── Shared input style ───────────────────────────────────────────────────────
 
-const INPUT_BASE: React.CSSProperties = {
+const fieldStyle: React.CSSProperties = {
+  width: '100%',
+  height: 56,
+  borderRadius: 12,
   background: 'rgba(255,255,255,0.06)',
   border: '1px solid rgba(255,255,255,0.12)',
-  borderRadius: '14px',
   color: '#F9FAFB',
-  width: '100%',
-  height: '56px',
-  padding: '0 18px',
-  fontSize: '20px',
+  fontSize: 16,
+  padding: '0 16px',
   outline: 'none',
-  textAlign: 'center',
+  boxSizing: 'border-box',
+  WebkitAppearance: 'none',
 }
 
-const INPUT_FOCUS: React.CSSProperties = {
-  background: 'rgba(29,78,216,0.08)',
-  border: '1px solid rgba(29,78,216,0.5)',
+function onFocusField(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) {
+  e.target.style.borderColor = '#06B6D4'
+  e.target.style.background = 'rgba(6,182,212,0.08)'
+}
+function onBlurField(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) {
+  e.target.style.borderColor = 'rgba(255,255,255,0.12)'
+  e.target.style.background = 'rgba(255,255,255,0.06)'
 }
 
-const PRIMARY_BTN: React.CSSProperties = {
-  background: 'linear-gradient(135deg, #1D4ED8, #06B6D4)',
-  color: '#fff',
-  height: '56px',
-  borderRadius: '16px',
-  fontSize: '18px',
-  fontWeight: 700,
-  width: '100%',
-  maxWidth: '320px',
-  cursor: 'pointer',
-  border: 'none',
-}
+// ─── Gradient button ──────────────────────────────────────────────────────────
 
-// ─── Progress dots ────────────────────────────────────────────────────────────
-
-function ProgressDots({ current }: { current: number }) {
+function GradientBtn({ children, onClick, disabled = false, fullWidth = false, style = {} }: {
+  children: React.ReactNode
+  onClick?: () => void
+  disabled?: boolean
+  fullWidth?: boolean
+  style?: React.CSSProperties
+}) {
   return (
-    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '32px' }}>
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div
-          key={i}
-          style={{
-            width: i === current ? '24px' : '8px',
-            height: '8px',
-            borderRadius: '4px',
-            background:
-              i === current
-                ? '#1D4ED8'
-                : i < current
-                ? '#06B6D4'
-                : 'rgba(255,255,255,0.15)',
-            transition: 'all 0.3s ease',
-          }}
-        />
-      ))}
-    </div>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        height: 56,
+        width: fullWidth ? '100%' : 'auto',
+        padding: fullWidth ? undefined : '0 32px',
+        borderRadius: 16,
+        background: disabled
+          ? 'rgba(255,255,255,0.1)'
+          : 'linear-gradient(135deg, #1D4ED8, #06B6D4)',
+        color: disabled ? 'rgba(255,255,255,0.3)' : '#FFFFFF',
+        fontWeight: 700,
+        fontSize: 16,
+        border: 'none',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        boxShadow: disabled ? 'none' : '0 4px 24px rgba(29,78,216,0.3)',
+        transition: 'background 0.2s, opacity 0.2s',
+        ...style,
+      }}
+    >
+      {children}
+    </button>
   )
 }
 
-// ─── Animated field wrapper ───────────────────────────────────────────────────
+// ─── Typewriter component ─────────────────────────────────────────────────────
 
-function AnimatedField({ visible, children }: { visible: boolean; children: React.ReactNode }) {
-  return (
-    <AnimatePresence>
-      {visible && (
-        <motion.div
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        >
-          {children}
-        </motion.div>
-      )}
-    </AnimatePresence>
-  )
-}
-
-// ─── Typewriter hook ──────────────────────────────────────────────────────────
-
-function useTypewriter(text: string, active: boolean, msPerWord = 50) {
+function Typewriter({ text, delay = 0 }: { text: string; delay?: number }) {
   const [displayed, setDisplayed] = useState('')
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const words = text.split(' ')
 
   useEffect(() => {
-    if (!active) {
-      setDisplayed('')
-      return
-    }
     setDisplayed('')
-    const words = text.split(' ')
-    let idx = 0
-    const tick = () => {
-      idx++
-      setDisplayed(words.slice(0, idx).join(' '))
-      if (idx < words.length) {
-        timerRef.current = setTimeout(tick, msPerWord)
-      }
-    }
-    timerRef.current = setTimeout(tick, msPerWord)
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
-  }, [text, active, msPerWord])
+    let i = 0
+    const start = setTimeout(() => {
+      const interval = setInterval(() => {
+        if (i >= words.length) { clearInterval(interval); return }
+        setDisplayed(words.slice(0, i + 1).join(' '))
+        i++
+      }, 40)
+      return () => clearInterval(interval)
+    }, delay)
+    return () => clearTimeout(start)
+  }, [text, delay]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return displayed
+  return <span>{displayed}</span>
 }
 
-// ─── Screen variants ──────────────────────────────────────────────────────────
-
-const screenVariants = {
-  enter: { opacity: 0, x: 40 },
-  center: { opacity: 1, x: 0 },
-  exit: { opacity: 0, x: -40 },
-}
-
-const screenTransition = { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number] }
-
-// ─── Screen 0 — Exclusive Welcome ────────────────────────────────────────────
-
-function Screen0({ onNext }: { onNext: () => void }) {
-  return (
-    <motion.div
-      key="screen0"
-      variants={screenVariants}
-      initial="enter"
-      animate="center"
-      exit="exit"
-      transition={screenTransition}
-      style={{
-        minHeight: '100dvh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        position: 'relative',
-        overflow: 'hidden',
-        padding: '40px 24px',
-      }}
-    >
-      <AnimatedGradientBackground
-        gradientColors={['#000000', '#0A0F1E', '#0A1628', '#0F2044', '#0A0F1E']}
-        Breathing={true}
-        animationSpeed={0.008}
-      />
-
-      <div
-        style={{
-          position: 'relative',
-          zIndex: 10,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          maxWidth: '320px',
-          width: '100%',
-          textAlign: 'center',
-        }}
-      >
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1 }}
-        >
-          <ClozrLogo variant="icon" height={64} />
-        </motion.div>
-
-        <motion.h1
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8, duration: 0.6 }}
-          style={{
-            fontSize: '48px',
-            fontWeight: 800,
-            color: '#fff',
-            marginTop: '32px',
-            marginBottom: '0',
-            lineHeight: 1.1,
-          }}
-        >
-          You&apos;ve been invited.
-        </motion.h1>
-
-        <motion.p
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.8, duration: 0.5 }}
-          style={{
-            fontSize: '16px',
-            color: 'rgba(255,255,255,0.6)',
-            maxWidth: '320px',
-            marginTop: '20px',
-            lineHeight: 1.6,
-          }}
-        >
-          Clozr is the unfair advantage top closers don&apos;t talk about.
-        </motion.p>
-
-        <motion.p
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 2.8, duration: 0.5 }}
-          style={{
-            fontSize: '18px',
-            color: '#06B6D4',
-            marginTop: '12px',
-            fontWeight: 600,
-          }}
-        >
-          Let&apos;s build yours.
-        </motion.p>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 3.5, duration: 0.5 }}
-          style={{ width: '100%', maxWidth: '320px', marginTop: '40px' }}
-        >
-          <button onClick={onNext} style={PRIMARY_BTN}>
-            Get Started →
-          </button>
-        </motion.div>
-      </div>
-    </motion.div>
-  )
-}
-
-// ─── Screen 1 — Who You Are ───────────────────────────────────────────────────
-
-interface Screen1Props {
-  firstName: string
-  setFirstName: (v: string) => void
-  lastName: string
-  setLastName: (v: string) => void
-  company: string
-  setCompany: (v: string) => void
-  position: string
-  setPosition: (v: string) => void
-  territory: string
-  setTerritory: (v: string) => void
-  onNext: () => void
-}
-
-function FocusableInput({
-  placeholder,
-  value,
-  onChange,
-  helper,
-  autoFocus,
-}: {
-  placeholder: string
-  value: string
-  onChange: (v: string) => void
-  helper?: string
-  autoFocus?: boolean
-}) {
-  const [focused, setFocused] = useState(false)
-
-  return (
-    <div style={{ marginBottom: '12px' }}>
-      <input
-        type="text"
-        placeholder={placeholder}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        autoFocus={autoFocus}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        style={{
-          ...INPUT_BASE,
-          ...(focused ? INPUT_FOCUS : {}),
-        }}
-      />
-      {helper && (
-        <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginTop: '4px', textAlign: 'center' }}>
-          {helper}
-        </p>
-      )}
-    </div>
-  )
-}
-
-function Screen1(props: Screen1Props) {
-  const { firstName, setFirstName, lastName, setLastName, company, setCompany, position, setPosition, territory, setTerritory, onNext } = props
-
-  const allFilled =
-    firstName.trim() !== '' &&
-    lastName.trim() !== '' &&
-    company.trim() !== '' &&
-    position.trim() !== '' &&
-    territory.trim() !== ''
-
-  return (
-    <motion.div
-      key="screen1"
-      variants={screenVariants}
-      initial="enter"
-      animate="center"
-      exit="exit"
-      transition={screenTransition}
-      style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', padding: '48px 24px 120px' }}
-    >
-      <ProgressDots current={1} />
-
-      <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#fff', textAlign: 'center', marginBottom: '32px' }}>
-        Tell us about yourself.
-      </h2>
-
-      <div style={{ maxWidth: '320px', width: '100%', margin: '0 auto' }}>
-        <FocusableInput
-          placeholder="First Name"
-          value={firstName}
-          onChange={setFirstName}
-          autoFocus
-        />
-
-        <AnimatedField visible={firstName.trim() !== ''}>
-          <FocusableInput
-            placeholder="Last Name"
-            value={lastName}
-            onChange={setLastName}
-          />
-        </AnimatedField>
-
-        <AnimatedField visible={lastName.trim() !== ''}>
-          <FocusableInput
-            placeholder="Company"
-            value={company}
-            onChange={setCompany}
-            helper="Who do you work for?"
-          />
-        </AnimatedField>
-
-        <AnimatedField visible={company.trim() !== ''}>
-          <FocusableInput
-            placeholder="Your Role"
-            value={position}
-            onChange={setPosition}
-            helper="e.g. Sales Rep, Account Executive"
-          />
-        </AnimatedField>
-
-        <AnimatedField visible={position.trim() !== ''}>
-          <FocusableInput
-            placeholder="Your Territory"
-            value={territory}
-            onChange={setTerritory}
-            helper="Where do you sell? e.g. Colorado Springs"
-          />
-        </AnimatedField>
-      </div>
-
-      <AnimatePresence>
-        {allFilled && (
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-            style={{
-              position: 'fixed',
-              bottom: '32px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: 'calc(100% - 48px)',
-              maxWidth: '320px',
-              zIndex: 50,
-            }}
-          >
-            <button onClick={onNext} style={PRIMARY_BTN}>
-              Continue →
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  )
-}
-
-// ─── Screen 2 — What You Sell ─────────────────────────────────────────────────
-
-interface Screen2Props {
-  selectedIndustry: string
-  setSelectedIndustry: (k: string) => void
-  onNext: () => void
-}
-
-function Screen2({ selectedIndustry, setSelectedIndustry, onNext }: Screen2Props) {
-  return (
-    <motion.div
-      key="screen2"
-      variants={screenVariants}
-      initial="enter"
-      animate="center"
-      exit="exit"
-      transition={screenTransition}
-      style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', padding: '48px 24px 120px' }}
-    >
-      <ProgressDots current={2} />
-
-      <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#fff', marginBottom: '8px' }}>
-          What do you sell?
-        </h2>
-        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>
-          We&apos;ll customize Clozr for your industry.
-        </p>
-      </div>
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '12px',
-          maxWidth: '360px',
-          width: '100%',
-          margin: '0 auto',
-        }}
-      >
-        {INDUSTRIES.map(ind => {
-          const isSelected = selectedIndustry === ind.key
-          return (
-            <motion.button
-              key={ind.key}
-              onClick={() => setSelectedIndustry(ind.key)}
-              whileTap={{ scale: 0.97 }}
-              animate={isSelected ? { scale: 1.03 } : { scale: 1 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              style={{
-                background: isSelected ? 'rgba(6,182,212,0.1)' : 'rgba(255,255,255,0.04)',
-                border: isSelected ? '1px solid #06B6D4' : '1px solid rgba(255,255,255,0.08)',
-                borderRadius: '16px',
-                padding: '20px 16px',
-                textAlign: 'center',
-                cursor: 'pointer',
-                boxShadow: isSelected ? '0 0 18px rgba(6,182,212,0.2)' : 'none',
-              }}
-            >
-              <div style={{ fontSize: '32px', marginBottom: '8px' }}>{ind.emoji}</div>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
-                {ind.name}
-              </div>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{ind.desc}</div>
-            </motion.button>
-          )
-        })}
-      </div>
-
-      <AnimatePresence>
-        {selectedIndustry && (
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-            style={{
-              position: 'fixed',
-              bottom: '32px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: 'calc(100% - 48px)',
-              maxWidth: '320px',
-              zIndex: 50,
-            }}
-          >
-            <button onClick={onNext} style={PRIMARY_BTN}>
-              Continue →
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  )
-}
-
-// ─── Screen 3 — Connect Your Tools ───────────────────────────────────────────
-
-interface Screen3Props {
-  selectedIndustry: string
-  onNext: () => void
-}
-
-function Screen3({ selectedIndustry, onNext }: Screen3Props) {
-  const [vendoExpanded, setVendoExpanded] = useState(false)
-  const platforms = PLATFORM_REGISTRY[selectedIndustry] ?? []
-  const hasPlatforms = platforms.length > 0
-
-  return (
-    <motion.div
-      key="screen3"
-      variants={screenVariants}
-      initial="enter"
-      animate="center"
-      exit="exit"
-      transition={screenTransition}
-      style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', padding: '48px 24px 40px' }}
-    >
-      <ProgressDots current={3} />
-
-      <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#fff', marginBottom: '8px' }}>
-          Connect your sales platform.
-        </h2>
-        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>
-          Import proposals and sync data automatically.
-        </p>
-      </div>
-
-      <div style={{ maxWidth: '360px', width: '100%', margin: '0 auto', flex: 1 }}>
-        {!hasPlatforms && (
-          <div
-            style={{
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: '16px',
-              padding: '32px 20px',
-              textAlign: 'center',
-              color: 'rgba(255,255,255,0.4)',
-              fontSize: '14px',
-            }}
-          >
-            No platform integrations available for your industry yet.
-          </div>
-        )}
-
-        {hasPlatforms && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {platforms.map(platform => (
-              <div key={platform.id}>
-                <div
-                  style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: '16px',
-                    padding: '16px 20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    opacity: platform.status === 'coming_soon' ? 0.6 : 1,
-                  }}
-                >
-                  <span style={{ fontSize: '16px', fontWeight: 600, color: '#fff' }}>
-                    {platform.name}
-                  </span>
-
-                  {platform.status === 'coming_soon' && (
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: 'rgba(255,255,255,0.5)',
-                        background: 'rgba(255,255,255,0.08)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        borderRadius: '20px',
-                        padding: '3px 10px',
-                      }}
-                    >
-                      Coming Soon
-                    </span>
-                  )}
-
-                  {platform.status === 'active' && (
-                    <button
-                      onClick={() => {
-                        if (platform.id === 'vendo') setVendoExpanded(v => !v)
-                      }}
-                      style={{
-                        background: 'linear-gradient(135deg, #1D4ED8, #06B6D4)',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '10px',
-                        padding: '8px 16px',
-                        fontSize: '13px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {vendoExpanded && platform.id === 'vendo' ? 'Connected ✓' : 'Connect'}
-                    </button>
-                  )}
-                </div>
-
-                {platform.id === 'vendo' && vendoExpanded && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.25 }}
-                    style={{
-                      background: 'rgba(6,182,212,0.06)',
-                      border: '1px solid rgba(6,182,212,0.2)',
-                      borderRadius: '12px',
-                      padding: '16px 18px',
-                      marginTop: '8px',
-                    }}
-                  >
-                    <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.6, marginBottom: '14px' }}>
-                      Forward your Vendo proposal emails to{' '}
-                      <span style={{ color: '#06B6D4', fontWeight: 600 }}>vendo@clozrhq.com</span>{' '}
-                      and we&apos;ll import them automatically.
-                    </p>
-                    <button
-                      onClick={onNext}
-                      style={{
-                        background: 'linear-gradient(135deg, #1D4ED8, #06B6D4)',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '10px',
-                        padding: '10px 20px',
-                        fontSize: '14px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        width: '100%',
-                      }}
-                    >
-                      Got it, continue →
-                    </button>
-                  </motion.div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div style={{ textAlign: 'center', marginTop: '32px', paddingBottom: '24px' }}>
-        <button
-          onClick={onNext}
-          style={{
-            background: 'transparent',
-            border: '1px solid rgba(255,255,255,0.2)',
-            borderRadius: '12px',
-            color: 'rgba(255,255,255,0.6)',
-            fontSize: '15px',
-            padding: '10px 28px',
-            cursor: 'pointer',
-          }}
-        >
-          Skip for now →
-        </button>
-      </div>
-    </motion.div>
-  )
-}
-
-// ─── Screen 4 — Pick Your Coach ───────────────────────────────────────────────
-
-interface Screen4Props {
-  firstName: string
-  selectedCoach: string
-  setSelectedCoach: (id: string) => void
-  onNext: () => void
-}
-
-function CoachCard({
-  persona,
-  selected,
-  dimmed,
-  onSelect,
-  firstName,
-}: {
-  persona: (typeof PERSONAS)[0]
-  selected: boolean
-  dimmed: boolean
-  onSelect: () => void
-  firstName: string
-}) {
-  const [imgError, setImgError] = useState(false)
-  const rawMessage = ONBOARDING_WELCOME[persona.id] ?? ''
-  const message = rawMessage.replace('{name}', firstName || 'there')
-  const typewriterText = useTypewriter(message, selected)
-
-  return (
-    <motion.div
-      animate={{
-        scale: selected ? 1.05 : 1,
-        opacity: dimmed ? 0.5 : 1,
-      }}
-      transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-    >
-      <button
-        type="button"
-        onClick={onSelect}
-        style={{
-          width: '100%',
-          textAlign: 'left',
-          background: selected ? 'rgba(29,78,216,0.12)' : 'rgba(255,255,255,0.04)',
-          border: selected ? '1.5px solid rgba(29,78,216,0.6)' : '1.5px solid rgba(255,255,255,0.08)',
-          borderRadius: '18px',
-          padding: '16px',
-          cursor: 'pointer',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          {imgError ? (
-            <div
-              style={{
-                width: '80px',
-                height: '80px',
-                borderRadius: '50%',
-                background: persona.color,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '28px',
-                flexShrink: 0,
-              }}
-            >
-              {persona.avatar}
-            </div>
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={`/coaches/${persona.photoFile}.png`}
-              alt={persona.name}
-              className="w-20 h-20 rounded-full object-cover object-top"
-              style={{ flexShrink: 0 }}
-              onError={() => setImgError(true)}
-            />
-          )}
-
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <span style={{ fontSize: '18px', fontWeight: 700, color: '#F9FAFB' }}>
-                {persona.name}
-              </span>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  padding: '2px 10px',
-                  borderRadius: '20px',
-                  background: persona.color,
-                  color: '#fff',
-                }}
-              >
-                {persona.tagline}
-              </span>
-            </div>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.5, margin: 0 }}>
-              {persona.systemPrompt.split('.')[0]}.
-            </p>
-          </div>
-        </div>
-      </button>
-
-      <AnimatePresence>
-        {selected && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            style={{
-              background: 'rgba(255,255,255,0.06)',
-              borderRadius: '18px 18px 18px 4px',
-              padding: '16px',
-              marginTop: '8px',
-              maxWidth: '320px',
-            }}
-          >
-            <p style={{ fontSize: '14px', color: '#fff', lineHeight: 1.6, margin: 0, minHeight: '20px' }}>
-              {typewriterText}
-              <span style={{ opacity: 0.4 }}>▋</span>
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  )
-}
-
-function Screen4({ firstName, selectedCoach, setSelectedCoach, onNext }: Screen4Props) {
-  const selectedPersona = PERSONAS.find(p => p.id === selectedCoach)
-
-  return (
-    <motion.div
-      key="screen4"
-      variants={screenVariants}
-      initial="enter"
-      animate="center"
-      exit="exit"
-      transition={screenTransition}
-      style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', padding: '48px 24px 120px' }}
-    >
-      <ProgressDots current={4} />
-
-      <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#fff', marginBottom: '8px' }}>
-          Meet your coaching team.
-        </h2>
-        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>
-          Pick the coach who will push you to close more.
-        </p>
-      </div>
-
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px',
-          maxWidth: '360px',
-          width: '100%',
-          margin: '0 auto',
-        }}
-      >
-        {PERSONAS.map((persona, i) => (
-          <motion.div
-            key={persona.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1, type: 'spring', stiffness: 260, damping: 24 }}
-          >
-            <CoachCard
-              persona={persona}
-              selected={selectedCoach === persona.id}
-              dimmed={selectedCoach !== '' && selectedCoach !== persona.id}
-              onSelect={() => setSelectedCoach(persona.id)}
-              firstName={firstName}
-            />
-          </motion.div>
-        ))}
-      </div>
-
-      <AnimatePresence>
-        {selectedCoach && (
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-            style={{
-              position: 'fixed',
-              bottom: '32px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: 'calc(100% - 48px)',
-              maxWidth: '320px',
-              zIndex: 50,
-            }}
-          >
-            <button onClick={onNext} style={PRIMARY_BTN}>
-              Choose {selectedPersona?.name} →
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  )
-}
-
-// ─── Screen 5 — Launch ────────────────────────────────────────────────────────
-
-interface Screen5Props {
-  firstName: string
-  selectedCoach: string
-  onComplete: () => void
-  saving: boolean
-  error: string | null
-}
-
-function Screen5({ firstName, selectedCoach, onComplete, saving, error }: Screen5Props) {
-  const coach = PERSONAS.find(p => p.id === selectedCoach)
-
-  useEffect(() => {
-    import('canvas-confetti').then(mod =>
-      mod.default({
-        particleCount: 150,
-        spread: 80,
-        origin: { y: 0.4 },
-        colors: ['#1D4ED8', '#06B6D4', '#ffffff', '#10B981'],
-      })
-    )
-  }, [])
-
-  return (
-    <motion.div
-      key="screen5"
-      variants={screenVariants}
-      initial="enter"
-      animate="center"
-      exit="exit"
-      transition={screenTransition}
-      style={{
-        minHeight: '100dvh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '48px 24px',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      <AnimatedGradientBackground
-        gradientColors={['#000000', '#0A0F1E', '#0A1628', '#0F2044', '#0A0F1E']}
-        Breathing={true}
-        animationSpeed={0.008}
-      />
-
-      <div style={{ position: 'relative', zIndex: 10, width: '100%' }}>
-        <ProgressDots current={5} />
-      </div>
-
-      <div
-        style={{
-          position: 'relative',
-          zIndex: 10,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          maxWidth: '320px',
-          width: '100%',
-          textAlign: 'center',
-        }}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6 }}
-          style={{ marginBottom: '28px' }}
-        >
-          <ClozrLogo variant="full" height={48} />
-        </motion.div>
-
-        <motion.h1
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-          style={{ fontSize: '36px', fontWeight: 800, color: '#fff', lineHeight: 1.2, marginBottom: '8px' }}
-        >
-          Welcome to Clozr,{' '}
-          <span
-            style={{
-              background: 'linear-gradient(135deg, #1D4ED8, #06B6D4)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-          >
-            {firstName}
-          </span>
-        </motion.h1>
-
-        <motion.p
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5, duration: 0.4 }}
-          style={{ fontSize: '16px', color: '#06B6D4', marginBottom: '12px', fontWeight: 600 }}
-        >
-          Your coach {coach?.name} is ready.
-        </motion.p>
-
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.7, duration: 0.4 }}
-          style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', marginBottom: '4px' }}
-        >
-          Your customers are waiting.
-        </motion.p>
-
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.9, duration: 0.4 }}
-          style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', marginBottom: '40px' }}
-        >
-          Your first proposal starts now.
-        </motion.p>
-
-        {error && (
-          <div
-            style={{
-              background: 'rgba(239,68,68,0.1)',
-              border: '1px solid rgba(239,68,68,0.25)',
-              borderRadius: '12px',
-              padding: '12px 16px',
-              color: '#EF4444',
-              fontSize: '14px',
-              marginBottom: '16px',
-              width: '100%',
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.1, duration: 0.5 }}
-          style={{ width: '100%' }}
-        >
-          <motion.button
-            onClick={onComplete}
-            disabled={saving}
-            animate={saving ? {} : { scale: [1, 1.02, 1] }}
-            transition={
-              saving
-                ? {}
-                : { duration: 2, repeat: Infinity, ease: 'easeInOut' }
-            }
-            style={{
-              ...PRIMARY_BTN,
-              opacity: saving ? 0.7 : 1,
-              maxWidth: '100%',
-            }}
-          >
-            {saving ? 'Setting up your account…' : 'Enter Clozr →'}
-          </motion.button>
-        </motion.div>
-      </div>
-    </motion.div>
-  )
-}
-
-// ─── Root Page ────────────────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
   const router = useRouter()
+  const [step, setStep] = useState(1)
+  const [direction, setDirection] = useState(1)
 
-  const [screen, setScreen] = useState(0)
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [company, setCompany] = useState('')
-  const [position, setPosition] = useState('')
-  const [territory, setTerritory] = useState('')
-  const [selectedIndustry, setSelectedIndustry] = useState('')
-  const [selectedCoach, setSelectedCoach] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Step 1 — animation states
+  const [s1Phase, setS1Phase] = useState(0)
 
-  const handleComplete = async () => {
-    setSaving(true)
-    setError(null)
+  // Step 2 — profile
+  const [firstName, setFirstName]   = useState('')
+  const [lastName, setLastName]     = useState('')
+  const [phone, setPhone]           = useState('')
+  const [company, setCompany]       = useState('')
+  const [role, setRole]             = useState('')
+  const [territory, setTerritory]   = useState('')
+
+  // Step 3 — industry
+  const [industry, setIndustry] = useState('')
+
+  // Step 4 — coach
+  const [coach, setCoach] = useState('')
+  const [coachBubble, setCoachBubble] = useState(false)
+
+  // Step 5 — assistant
+  const [assistantEnabled, setAssistantEnabled]     = useState(true)
+  const [phoneType, setPhoneType]                   = useState<'business' | 'cell' | ''>('')
+  const [areaCode, setAreaCode]                     = useState('')
+  const [availableNumbers, setAvailableNumbers]     = useState<{phoneNumber:string;friendlyName:string}[]>([])
+  const [searchingNumbers, setSearchingNumbers]     = useState(false)
+  const [selectedNumber, setSelectedNumber]         = useState('')
+  const [assistantName, setAssistantName]           = useState('Alex')
+  const [voiceTab, setVoiceTab]                     = useState<'female'|'male'>('female')
+  const [selectedVoice, setSelectedVoice]           = useState('')
+  const [previewingVoice, setPreviewingVoice]       = useState('')
+  const [capabilities, setCapabilities]             = useState<string[]>([])
+  const [qualifyCriteria, setQualifyCriteria]       = useState('')
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Step 6 — plan
+  const [plan, setPlan] = useState<'payg' | 'unlimited' | ''>('')
+
+  // Step 7 — submitting
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted]   = useState(false)
+  const confettiFired = useRef(false)
+
+  // ── Step 1 auto-sequence ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (step !== 1) return
+    const timers = [
+      setTimeout(() => setS1Phase(1), 300),
+      setTimeout(() => setS1Phase(2), 1000),
+      setTimeout(() => setS1Phase(3), 1200),
+      setTimeout(() => setS1Phase(4), 1800),
+      setTimeout(() => setS1Phase(5), 2600),
+    ]
+    return () => timers.forEach(clearTimeout)
+  }, [step])
+
+  // ── Step 4 — show bubble after coach selected ─────────────────────────────
+  useEffect(() => {
+    if (!coach) { setCoachBubble(false); return }
+    const t = setTimeout(() => setCoachBubble(true), 100)
+    return () => clearTimeout(t)
+  }, [coach])
+
+  // ── Step 7 confetti + submit ───────────────────────────────────────────────
+  useEffect(() => {
+    if (step !== 7 || confettiFired.current) return
+    confettiFired.current = true
+    confetti({
+      particleCount: 200,
+      spread: 100,
+      origin: { y: 0.5 },
+      colors: ['#1D4ED8', '#06B6D4', '#ffffff', '#10B981', '#7C3AED'],
+      startVelocity: 45,
+      gravity: 0.8,
+    })
+  }, [step])
+
+  // ── Navigation helpers ─────────────────────────────────────────────────────
+  const goNext = () => { setDirection(1); setStep(s => s + 1) }
+  const goBack = () => { setDirection(-1); setStep(s => s - 1) }
+
+  // ── Phone formatting ───────────────────────────────────────────────────────
+  const formatPhone = (val: string) => {
+    const digits = val.replace(/\D/g, '').slice(0, 10)
+    if (digits.length <= 3) return digits
+    if (digits.length <= 6) return `${digits.slice(0,3)}-${digits.slice(3)}`
+    return `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6)}`
+  }
+
+  // ── Voice preview ──────────────────────────────────────────────────────────
+  const previewVoice = async (voice_id: string) => {
+    if (previewingVoice === voice_id) return
+    setPreviewingVoice(voice_id)
+    try {
+      const res = await fetch('/api/voice/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voice_id }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null }
+      const audio = new Audio(url)
+      audioRef.current = audio
+      audio.play()
+      audio.onended = () => setPreviewingVoice('')
+    } catch {
+      setPreviewingVoice('')
+    }
+  }
+
+  // ── Twilio number search ───────────────────────────────────────────────────
+  const searchNumbers = async () => {
+    if (areaCode.length !== 3) return
+    setSearchingNumbers(true)
+    try {
+      const res = await fetch('/api/twilio/search-numbers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ areaCode }),
+      })
+      const data = await res.json()
+      setAvailableNumbers(data.numbers ?? [])
+    } catch {
+      setAvailableNumbers([])
+    } finally {
+      setSearchingNumbers(false)
+    }
+  }
+
+  // ── Toggle capability ──────────────────────────────────────────────────────
+  const toggleCap = (id: string) => {
+    setCapabilities(prev =>
+      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+    )
+  }
+
+  // ── Final submit ───────────────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    if (submitting || submitted) return
+    setSubmitting(true)
     try {
       const res = await fetch('/api/onboarding/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          firstName,
-          lastName,
-          company,
-          position,
-          territory,
-          industry: selectedIndustry,
-          coachPersona: selectedCoach,
+          firstName, lastName, phone, company,
+          position: role, territory, industry,
+          coachPersona: coach,
+          assistantEnabled,
+          assistantName,
+          assistantVoiceId: selectedVoice,
+          assistantCapabilities: capabilities,
+          assistantQualifyingCriteria: qualifyCriteria,
+          phoneNumberType: phoneType,
+          selectedPhoneNumber: selectedNumber,
+          subscriptionTier: plan,
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Setup failed')
-      document.cookie = 'clozr_onboarded=true; path=/; max-age=31536000; samesite=lax'
-      router.push('/dashboard')
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Something went wrong'
-      setError(message)
-      setSaving(false)
+      if (res.ok) {
+        setSubmitted(true)
+        document.cookie = 'clozr_onboarded=true; path=/; max-age=31536000; samesite=lax'
+        setTimeout(() => router.push('/dashboard'), 600)
+      }
+    } catch {
+      setSubmitting(false)
     }
   }
 
+  // ── Derived ────────────────────────────────────────────────────────────────
+  const selectedCoach = COACHES.find(c => c.id === coach)
+  const profileComplete = firstName.trim() && lastName.trim() && phone.trim() && company.trim() && role.trim() && territory.trim()
+
+  const progress = ((step - 1) / (TOTAL_STEPS - 1)) * 100
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────────────
+
   return (
-    <div style={{ background: '#0A0F1E', minHeight: '100dvh' }}>
-      <AnimatePresence mode="wait">
-        {screen === 0 && (
-          <Screen0 key="s0" onNext={() => setScreen(1)} />
-        )}
-        {screen === 1 && (
-          <Screen1
-            key="s1"
-            firstName={firstName}
-            setFirstName={setFirstName}
-            lastName={lastName}
-            setLastName={setLastName}
-            company={company}
-            setCompany={setCompany}
-            position={position}
-            setPosition={setPosition}
-            territory={territory}
-            setTerritory={setTerritory}
-            onNext={() => setScreen(2)}
+    <div className="relative min-h-screen overflow-hidden" style={{ backgroundColor: '#0A0F1E' }}>
+      <AnimatedGradientBackground />
+
+      {/* Progress bar */}
+      {step > 1 && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 3, background: 'rgba(255,255,255,0.1)', zIndex: 50 }}>
+          <motion.div
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+            style={{ height: '100%', background: 'linear-gradient(90deg, #1D4ED8, #06B6D4)', borderRadius: '0 2px 2px 0' }}
           />
-        )}
-        {screen === 2 && (
-          <Screen2
-            key="s2"
-            selectedIndustry={selectedIndustry}
-            setSelectedIndustry={setSelectedIndustry}
-            onNext={() => setScreen(3)}
-          />
-        )}
-        {screen === 3 && (
-          <Screen3
-            key="s3"
-            selectedIndustry={selectedIndustry}
-            onNext={() => setScreen(4)}
-          />
-        )}
-        {screen === 4 && (
-          <Screen4
-            key="s4"
-            firstName={firstName}
-            selectedCoach={selectedCoach}
-            setSelectedCoach={setSelectedCoach}
-            onNext={() => setScreen(5)}
-          />
-        )}
-        {screen === 5 && (
-          <Screen5
-            key="s5"
-            firstName={firstName}
-            selectedCoach={selectedCoach}
-            onComplete={handleComplete}
-            saving={saving}
-            error={error}
-          />
-        )}
+        </div>
+      )}
+
+      {/* Back button */}
+      {step > 1 && step < 7 && (
+        <button
+          onClick={goBack}
+          style={{
+            position: 'fixed', top: 20, left: 20, zIndex: 50,
+            background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 10, padding: '8px 14px', color: 'rgba(255,255,255,0.6)',
+            fontSize: 14, cursor: 'pointer',
+          }}
+        >
+          ← Back
+        </button>
+      )}
+
+      {/* Step content */}
+      <AnimatePresence mode="wait" custom={direction}>
+        <motion.div
+          key={step}
+          custom={direction}
+          variants={stepVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={stepTransition}
+          className="relative z-10 min-h-screen flex flex-col"
+          style={{ paddingTop: step === 1 ? 0 : 60 }}
+        >
+
+          {/* ── STEP 1: WELCOME SPLASH ─────────────────────────────────── */}
+          {step === 1 && (
+            <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+              <motion.div
+                animate={{ opacity: s1Phase >= 1 ? 1 : 0, y: s1Phase >= 2 ? -40 : 0 }}
+                transition={{ duration: 0.6 }}
+                style={{ marginBottom: 32 }}
+              >
+                <ClozrLogo variant="full" height={64} />
+              </motion.div>
+
+              <motion.h1
+                animate={{ opacity: s1Phase >= 3 ? 1 : 0, y: s1Phase >= 3 ? 0 : 20 }}
+                transition={{ duration: 0.5 }}
+                style={{ fontSize: 32, fontWeight: 800, color: '#F9FAFB', marginBottom: 12 }}
+              >
+                Welcome to Clozr.
+              </motion.h1>
+
+              <motion.p
+                animate={{ opacity: s1Phase >= 4 ? 1 : 0, y: s1Phase >= 4 ? 0 : 10 }}
+                transition={{ duration: 0.5 }}
+                style={{ fontSize: 16, color: 'rgba(255,255,255,0.5)', marginBottom: 48 }}
+              >
+                Let&apos;s set up your command center.
+              </motion.p>
+
+              <motion.div
+                animate={{ opacity: s1Phase >= 5 ? 1 : 0, y: s1Phase >= 5 ? 0 : 20 }}
+                transition={{ duration: 0.5 }}
+              >
+                <GradientBtn onClick={goNext} style={{ width: 240 }}>
+                  Let&apos;s go →
+                </GradientBtn>
+              </motion.div>
+            </div>
+          )}
+
+          {/* ── STEP 2: PROFILE ────────────────────────────────────────── */}
+          {step === 2 && (
+            <div className="px-5 pb-32 max-w-lg mx-auto w-full">
+              <h2 style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginBottom: 8 }}>
+                Tell us about yourself.
+              </h2>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', marginBottom: 32 }}>
+                This personalizes your entire Clozr experience.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: 12, color: '#9CA3AF', marginBottom: 6, fontWeight: 500 }}>First Name *</label>
+                    <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="First" style={fieldStyle} onFocus={onFocusField} onBlur={onBlurField} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: 12, color: '#9CA3AF', marginBottom: 6, fontWeight: 500 }}>Last Name *</label>
+                    <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Last" style={fieldStyle} onFocus={onFocusField} onBlur={onBlurField} />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9CA3AF', marginBottom: 6, fontWeight: 500 }}>Phone *</label>
+                  <input value={phone} onChange={e => setPhone(formatPhone(e.target.value))} placeholder="123-456-7890" type="tel" style={fieldStyle} onFocus={onFocusField} onBlur={onBlurField} />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9CA3AF', marginBottom: 6, fontWeight: 500 }}>Company *</label>
+                  <input value={company} onChange={e => setCompany(e.target.value)} placeholder="Who do you work for?" style={fieldStyle} onFocus={onFocusField} onBlur={onBlurField} />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9CA3AF', marginBottom: 6, fontWeight: 500 }}>Your Role *</label>
+                  <input value={role} onChange={e => setRole(e.target.value)} placeholder="Sales Rep, Account Exec..." style={fieldStyle} onFocus={onFocusField} onBlur={onBlurField} />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9CA3AF', marginBottom: 6, fontWeight: 500 }}>Territory *</label>
+                  <input value={territory} onChange={e => setTerritory(e.target.value)} placeholder="e.g. Colorado Springs, Denver Metro" style={fieldStyle} onFocus={onFocusField} onBlur={onBlurField} />
+                </div>
+              </div>
+
+              <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 20px', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))', background: 'linear-gradient(to top, #0A0F1E 60%, transparent)', zIndex: 40 }}>
+                <div style={{ maxWidth: 480, margin: '0 auto' }}>
+                  <GradientBtn onClick={goNext} disabled={!profileComplete} fullWidth>
+                    Continue →
+                  </GradientBtn>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 3: INDUSTRY ───────────────────────────────────────── */}
+          {step === 3 && (
+            <div className="px-5 pb-32 max-w-lg mx-auto w-full">
+              <h2 style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginBottom: 8 }}>
+                What do you sell?
+              </h2>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', marginBottom: 32 }}>
+                We&apos;ll customize Clozr for your industry.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {INDUSTRIES.map(ind => (
+                  <motion.button
+                    key={ind.id}
+                    onClick={() => setIndustry(ind.id)}
+                    whileTap={{ scale: 0.97 }}
+                    animate={{ scale: industry === ind.id ? 1.03 : 1 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                    style={{
+                      background: industry === ind.id ? 'rgba(6,182,212,0.1)' : 'rgba(255,255,255,0.04)',
+                      border: industry === ind.id
+                        ? '1px solid #06B6D4'
+                        : '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: 16,
+                      padding: '20px 16px',
+                      textAlign: 'center',
+                      minHeight: 100,
+                      cursor: 'pointer',
+                      boxShadow: industry === ind.id
+                        ? '0 0 0 1px #06B6D4, 0 0 20px rgba(6,182,212,0.15)'
+                        : 'none',
+                    }}
+                  >
+                    <div style={{ fontSize: 28 }}>{ind.icon}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#F9FAFB', marginTop: 8 }}>
+                      {ind.name}
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+
+              {industry && (
+                <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 20px', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))', background: 'linear-gradient(to top, #0A0F1E 60%, transparent)', zIndex: 40 }}>
+                  <div style={{ maxWidth: 480, margin: '0 auto' }}>
+                    <GradientBtn onClick={goNext} fullWidth>Continue →</GradientBtn>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── STEP 4: COACH ──────────────────────────────────────────── */}
+          {step === 4 && (
+            <div className="px-5 pb-40 max-w-lg mx-auto w-full">
+              <h2 style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginBottom: 8 }}>
+                Meet your coaches.
+              </h2>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', marginBottom: 24 }}>
+                Pick the one who will push you to close more deals.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {COACHES.map(c => (
+                  <motion.button
+                    key={c.id}
+                    onClick={() => setCoach(c.id)}
+                    whileTap={{ scale: 0.97 }}
+                    style={{
+                      background: 'rgba(255,255,255,0.04)',
+                      border: coach === c.id
+                        ? `2px solid ${c.color}`
+                        : '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: 20,
+                      padding: 20,
+                      cursor: 'pointer',
+                      minHeight: 160,
+                      textAlign: 'left',
+                      boxShadow: coach === c.id
+                        ? `0 0 0 1px ${c.color}, 0 0 24px ${c.color}30`
+                        : 'none',
+                      transition: 'border 0.15s, box-shadow 0.15s',
+                    }}
+                  >
+                    <img
+                      src={c.photo}
+                      alt={c.name}
+                      style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', objectPosition: 'top', display: 'block' }}
+                    />
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#F9FAFB', marginTop: 12 }}>{c.name}</div>
+                    <div style={{ fontSize: 12, color: c.color, marginTop: 2 }}>{c.title}</div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 6, lineHeight: 1.5 }}>{c.desc}</div>
+                  </motion.button>
+                ))}
+              </div>
+
+              {/* Coach bubble */}
+              <AnimatePresence>
+                {coachBubble && selectedCoach && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={{ duration: 0.3 }}
+                    style={{
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '18px 18px 18px 4px',
+                      padding: '16px 20px',
+                      maxWidth: 320,
+                      margin: '20px auto 0',
+                      fontSize: 14,
+                      color: 'rgba(255,255,255,0.85)',
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    <Typewriter text={selectedCoach.intro(firstName || 'there')} delay={200} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {coach && (
+                <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 20px', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))', background: 'linear-gradient(to top, #0A0F1E 60%, transparent)', zIndex: 40 }}>
+                  <div style={{ maxWidth: 480, margin: '0 auto' }}>
+                    <GradientBtn onClick={goNext} fullWidth>
+                      Choose {selectedCoach?.name} →
+                    </GradientBtn>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── STEP 5: AI ASSISTANT ───────────────────────────────────── */}
+          {step === 5 && (
+            <div className="px-5 pb-32 max-w-lg mx-auto w-full">
+              <h2 style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginBottom: 8 }}>
+                Your AI assistant.
+              </h2>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', marginBottom: 28 }}>
+                Set up your personal sales assistant.
+              </p>
+
+              {/* Enable toggle */}
+              <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 16, fontWeight: 600, color: '#F9FAFB' }}>Enable AI Assistant</span>
+                <button
+                  onClick={() => setAssistantEnabled(v => !v)}
+                  style={{
+                    width: 52, height: 28, borderRadius: 14,
+                    background: assistantEnabled ? 'linear-gradient(135deg, #1D4ED8, #06B6D4)' : 'rgba(255,255,255,0.15)',
+                    border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s',
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute', top: 3,
+                    left: assistantEnabled ? 26 : 3,
+                    width: 22, height: 22, borderRadius: '50%',
+                    background: '#fff', transition: 'left 0.2s',
+                  }} />
+                </button>
+              </div>
+
+              <div style={{ opacity: assistantEnabled ? 1 : 0.35, pointerEvents: assistantEnabled ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
+                {/* Phone type */}
+                <p style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: 12 }}>How should your assistant handle calls?</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+                  {[
+                    { id: 'business' as const, label: 'Give me a business number', sub: 'Get a dedicated Clozr number. Calls forward to your cell.' },
+                    { id: 'cell'     as const, label: 'Use my cell number',        sub: 'Your assistant activates when you\'re in DND mode.' },
+                  ].map(opt => (
+                    <button key={opt.id} onClick={() => setPhoneType(opt.id)}
+                      style={{
+                        background: phoneType === opt.id ? 'rgba(6,182,212,0.1)' : 'rgba(255,255,255,0.04)',
+                        border: phoneType === opt.id ? '1px solid #06B6D4' : '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 14, padding: '14px 18px', textAlign: 'left', cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ fontSize: 15, fontWeight: 600, color: '#F9FAFB' }}>{opt.label}</div>
+                      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', marginTop: 4 }}>{opt.sub}</div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Number search */}
+                {phoneType === 'business' && (
+                  <div style={{ marginBottom: 24 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: 10 }}>Enter your area code</p>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <input
+                        value={areaCode}
+                        onChange={e => setAreaCode(e.target.value.replace(/\D/g,'').slice(0,3))}
+                        placeholder="719"
+                        type="tel"
+                        style={{ ...fieldStyle, width: 100 }}
+                        onFocus={onFocusField} onBlur={onBlurField}
+                      />
+                      <GradientBtn onClick={searchNumbers} disabled={areaCode.length !== 3 || searchingNumbers}>
+                        {searchingNumbers ? 'Searching…' : 'Search Numbers'}
+                      </GradientBtn>
+                    </div>
+                    {availableNumbers.length > 0 && (
+                      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {availableNumbers.map(n => (
+                          <button key={n.phoneNumber} onClick={() => setSelectedNumber(n.phoneNumber)}
+                            style={{
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              background: selectedNumber === n.phoneNumber ? 'rgba(6,182,212,0.1)' : 'rgba(255,255,255,0.04)',
+                              border: selectedNumber === n.phoneNumber ? '1px solid #06B6D4' : '1px solid rgba(255,255,255,0.08)',
+                              borderRadius: 10, padding: '10px 14px', cursor: 'pointer',
+                            }}
+                          >
+                            <span style={{ fontSize: 15, color: '#F9FAFB', fontWeight: 500 }}>{n.friendlyName}</span>
+                            <span style={{ fontSize: 12, color: selectedNumber === n.phoneNumber ? '#06B6D4' : 'rgba(255,255,255,0.4)' }}>
+                              {selectedNumber === n.phoneNumber ? 'Selected ✓' : 'Select'}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Assistant name */}
+                <div style={{ marginBottom: 24 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9CA3AF', marginBottom: 6, fontWeight: 500 }}>What should your assistant be called?</label>
+                  <input
+                    value={assistantName}
+                    onChange={e => setAssistantName(e.target.value.slice(0, 20))}
+                    placeholder="Alex"
+                    style={fieldStyle}
+                    onFocus={onFocusField} onBlur={onBlurField}
+                  />
+                </div>
+
+                {/* Voice */}
+                <div style={{ marginBottom: 24 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: 12 }}>Choose a voice</p>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                    {(['female', 'male'] as const).map(tab => (
+                      <button key={tab} onClick={() => setVoiceTab(tab)}
+                        style={{
+                          padding: '8px 20px', borderRadius: 10,
+                          background: voiceTab === tab ? 'linear-gradient(135deg, #1D4ED8, #06B6D4)' : 'rgba(255,255,255,0.06)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color: voiceTab === tab ? '#fff' : 'rgba(255,255,255,0.6)',
+                          fontWeight: 600, fontSize: 14, cursor: 'pointer',
+                        }}
+                      >
+                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {VOICE_OPTIONS[voiceTab].map(v => (
+                      <div key={v.voice_id}
+                        onClick={() => setSelectedVoice(v.voice_id)}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          background: selectedVoice === v.voice_id ? 'rgba(6,182,212,0.1)' : 'rgba(255,255,255,0.04)',
+                          border: selectedVoice === v.voice_id ? '1px solid #06B6D4' : '1px solid rgba(255,255,255,0.08)',
+                          borderRadius: 12, padding: '12px 16px', cursor: 'pointer',
+                        }}
+                      >
+                        <span style={{ fontSize: 15, fontWeight: 600, color: '#F9FAFB' }}>{v.name}</span>
+                        <button
+                          onClick={e => { e.stopPropagation(); previewVoice(v.voice_id) }}
+                          style={{
+                            background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
+                            borderRadius: 8, padding: '6px 12px', cursor: 'pointer',
+                            color: previewingVoice === v.voice_id ? '#06B6D4' : 'rgba(255,255,255,0.7)',
+                            fontSize: 12, fontWeight: 600,
+                          }}
+                        >
+                          {previewingVoice === v.voice_id ? '▶ Playing…' : '▶ Preview'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Capabilities */}
+                <div style={{ marginBottom: 8 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: 12 }}>What can your assistant do?</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {CAPABILITIES.map(cap => (
+                      <div key={cap.id}>
+                        <button
+                          onClick={() => toggleCap(cap.id)}
+                          style={{
+                            width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                            background: capabilities.includes(cap.id) ? 'rgba(29,78,216,0.12)' : 'rgba(255,255,255,0.04)',
+                            border: capabilities.includes(cap.id) ? '1px solid #1D4ED8' : '1px solid rgba(255,255,255,0.08)',
+                            borderRadius: 12, padding: '12px 16px', cursor: 'pointer', textAlign: 'left',
+                          }}
+                        >
+                          <span style={{ fontSize: 20 }}>{cap.icon}</span>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: '#F9FAFB' }}>{cap.label}</span>
+                          {capabilities.includes(cap.id) && (
+                            <span style={{ marginLeft: 'auto', color: '#06B6D4', fontSize: 16 }}>✓</span>
+                          )}
+                        </button>
+                        {cap.id === 'qualify' && capabilities.includes('qualify') && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            style={{ marginTop: 8 }}
+                          >
+                            <textarea
+                              value={qualifyCriteria}
+                              onChange={e => setQualifyCriteria(e.target.value)}
+                              placeholder="e.g. Homeowner, project over $5,000, within my territory"
+                              rows={3}
+                              style={{
+                                ...fieldStyle,
+                                height: 'auto',
+                                padding: '12px 16px',
+                                resize: 'none',
+                                lineHeight: 1.5,
+                              } as React.CSSProperties}
+                              onFocus={onFocusField} onBlur={onBlurField}
+                            />
+                          </motion.div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 20px', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))', background: 'linear-gradient(to top, #0A0F1E 60%, transparent)', zIndex: 40 }}>
+                <div style={{ maxWidth: 480, margin: '0 auto' }}>
+                  <GradientBtn onClick={goNext} fullWidth>Continue →</GradientBtn>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 6: SUBSCRIPTION ───────────────────────────────────── */}
+          {step === 6 && (
+            <div className="px-5 pb-32 max-w-lg mx-auto w-full">
+              <h2 style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginBottom: 8 }}>
+                Choose your plan.
+              </h2>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', marginBottom: 28 }}>
+                Start free. Upgrade anytime.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* PAYG */}
+                <button
+                  onClick={() => setPlan('payg')}
+                  style={{
+                    background: plan === 'payg' ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.04)',
+                    border: plan === 'payg' ? '2px solid #06B6D4' : '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 20, padding: 24, textAlign: 'left', cursor: 'pointer',
+                    boxShadow: plan === 'payg' ? '0 0 24px rgba(6,182,212,0.15)' : 'none',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#F9FAFB', marginBottom: 8 }}>Pay As You Go</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 16 }}>
+                    <span style={{ fontSize: 36, fontWeight: 800, color: '#1D4ED8' }}>$50</span>
+                    <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>/mo + usage</span>
+                  </div>
+                  {['All core features', 'AI coach (text)', 'Lead management', 'Proposals & presentations'].map(f => (
+                    <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span style={{ color: '#10B981', fontSize: 14 }}>✓</span>
+                      <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>{f}</span>
+                    </div>
+                  ))}
+                  {['API calls billed at cost + 20%', 'Voice coach extra', 'AI assistant extra'].map(f => (
+                    <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>○</span>
+                      <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)' }}>{f}</span>
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 16, display: 'inline-block', background: 'rgba(6,182,212,0.15)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: 20, padding: '3px 12px', fontSize: 12, fontWeight: 700, color: '#06B6D4' }}>
+                    1 month free trial
+                  </div>
+                </button>
+
+                {/* Unlimited */}
+                <button
+                  onClick={() => setPlan('unlimited')}
+                  style={{
+                    background: 'rgba(29,78,216,0.15)',
+                    border: plan === 'unlimited' ? '2px solid #06B6D4' : '2px solid #1D4ED8',
+                    borderRadius: 20, padding: 24, textAlign: 'left', cursor: 'pointer',
+                    position: 'relative',
+                    boxShadow: plan === 'unlimited' ? '0 0 32px rgba(6,182,212,0.2)' : 'none',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <div style={{ position: 'absolute', top: -12, left: 20, background: 'linear-gradient(135deg, #1D4ED8, #06B6D4)', borderRadius: 20, padding: '4px 12px', fontSize: 11, fontWeight: 700, color: '#fff' }}>
+                    MOST POPULAR
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#F9FAFB', marginBottom: 8 }}>Unlimited</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 16 }}>
+                    <span style={{ fontSize: 36, fontWeight: 800, background: 'linear-gradient(135deg, #1D4ED8, #06B6D4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>$150</span>
+                    <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>/mo</span>
+                  </div>
+                  {['Everything in Pay As You Go', 'Unlimited API usage', 'Voice coach (11Labs)', 'AI assistant (Vapi)', 'Twilio business number included', 'Priority support'].map(f => (
+                    <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span style={{ color: '#10B981', fontSize: 14 }}>✓</span>
+                      <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>{f}</span>
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 16, display: 'inline-block', background: 'rgba(6,182,212,0.15)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: 20, padding: '3px 12px', fontSize: 12, fontWeight: 700, color: '#06B6D4' }}>
+                    2 months free trial
+                  </div>
+                </button>
+              </div>
+
+              <p style={{ textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 16 }}>
+                No credit card required for trial.
+              </p>
+
+              {plan && (
+                <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 20px', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))', background: 'linear-gradient(to top, #0A0F1E 60%, transparent)', zIndex: 40 }}>
+                  <div style={{ maxWidth: 480, margin: '0 auto' }}>
+                    <GradientBtn onClick={goNext} fullWidth>Start Free Trial →</GradientBtn>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── STEP 7: LAUNCH ─────────────────────────────────────────── */}
+          {step === 7 && (
+            <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }} style={{ marginBottom: 24 }}>
+                <ClozrLogo variant="full" height={52} />
+              </motion.div>
+
+              <motion.h1
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5, duration: 0.5 }}
+                style={{ fontSize: 36, fontWeight: 800, color: '#F9FAFB', marginBottom: 12 }}
+              >
+                You&apos;re in,{' '}
+                <span style={{ background: 'linear-gradient(90deg, #1D4ED8, #06B6D4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                  {firstName}
+                </span>
+                .
+              </motion.h1>
+
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.8, duration: 0.5 }}
+                style={{ fontSize: 16, color: '#06B6D4', marginBottom: 8 }}
+              >
+                Your coach {selectedCoach?.name} is ready.
+              </motion.p>
+
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1.1, duration: 0.5 }}
+                style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', marginBottom: 48 }}
+              >
+                {plan === 'unlimited' ? 'Unlimited plan' : 'Pay As You Go plan'} — {plan === 'unlimited' ? '2' : '1'} month{plan === 'unlimited' ? 's' : ''} free.
+              </motion.p>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.5, duration: 0.5 }}
+              >
+                <motion.div
+                  animate={{ scale: [1, 1.02, 1] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                >
+                  <GradientBtn
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                    style={{ width: 240, fontSize: 18 }}
+                  >
+                    {submitting ? (
+                      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" style={{ display: 'inline-block' }} />
+                        Setting up…
+                      </span>
+                    ) : 'Enter Clozr →'}
+                  </GradientBtn>
+                </motion.div>
+              </motion.div>
+            </div>
+          )}
+
+        </motion.div>
       </AnimatePresence>
     </div>
   )
