@@ -16,7 +16,7 @@ export default function ClozrLogo({
         alt="Clozr"
         style={{
           height: height,
-          width: height * 1.2,
+          width: height * 1.5,
           objectFit: 'contain',
           objectPosition: 'left center',
           display: 'block',
@@ -41,7 +41,7 @@ export default function ClozrLogo({
         alt="Clozr"
         style={{
           height: height,
-          width: height * 1.2,
+          width: height * 1.5,
           objectFit: 'contain',
           objectPosition: 'left center',
           display: 'block',
