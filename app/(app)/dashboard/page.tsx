@@ -187,7 +187,7 @@ export default async function DashboardPage() {
         transform: 'translate(-50%, -50%)',
         height: 500,
         width: 'auto',
-        opacity: 0.04,
+        opacity: 0.30,
         pointerEvents: 'none',
         zIndex: 0,
       }}
