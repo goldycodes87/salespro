@@ -79,12 +79,12 @@ export async function POST(request: NextRequest) {
       await resend.emails.send({
         from: 'onboarding@resend.dev',
         to: 'grant@goldberglawcenter.com',
-        subject: `New rep joined SalesPro: ${fullName}`,
+        subject: `New rep joined Clozr: ${fullName}`,
         html: `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:24px;background:#0A0F1E;font-family:-apple-system,sans-serif;color:#F9FAFB;">
   <div style="max-width:480px;margin:0 auto;">
-    <h2 style="color:#60A5FA;margin:0 0 16px;">New Rep Joined SalesPro</h2>
+    <h2 style="color:#60A5FA;margin:0 0 16px;">New Rep Joined Clozr</h2>
     <table style="width:100%;border-collapse:collapse;">
       <tr><td style="padding:8px 0;color:#9CA3AF;width:120px;">Name</td><td style="padding:8px 0;font-weight:600;">${fullName}</td></tr>
       <tr><td style="padding:8px 0;color:#9CA3AF;">Company</td><td style="padding:8px 0;">${company || '—'}</td></tr>
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       <tr><td style="padding:8px 0;color:#9CA3AF;">Coach</td><td style="padding:8px 0;">${persona}</td></tr>
     </table>
     <div style="margin-top:24px;">
-      <a href="${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://salespro-lake.vercel.app'}/admin/reps"
+      <a href="${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://clozrhq.com'}/admin/reps"
          style="display:inline-block;background:linear-gradient(135deg,#1D4ED8,#06B6D4);color:#fff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:600;font-size:14px;">
         View in Admin →
       </a>
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
   })()
 
   const res = NextResponse.json({ success: true })
-  res.cookies.set('sp_onboarded', 'true', {
+  res.cookies.set('clozr_onboarded', 'true', {
     path: '/',
     maxAge: 60 * 60 * 24 * 365,
     httpOnly: false,

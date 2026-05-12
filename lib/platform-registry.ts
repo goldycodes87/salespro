@@ -20,7 +20,7 @@ export const PLATFORM_REGISTRY: Record<string, Platform> = {
     icon: '📋',
     industries: ['windows_siding'],
     setup_type: 'email_forward',
-    instructions: 'Forward Vendo proposal emails to vendo@salespro.app',
+    instructions: 'Forward Vendo proposal emails to vendo@clozrhq.com',
     status: 'active',
   },
   salesforce: {

@@ -72,21 +72,21 @@ export async function POST(request: NextRequest) {
   // Send welcome email
   if (sendWelcomeEmail && process.env.RESEND_API_KEY) {
     const resend = new Resend(process.env.RESEND_API_KEY)
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://salespro-lake.vercel.app'
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://clozrhq.com'
     await resend.emails.send({
-      from: 'SalesPro <noreply@salespro-lake.vercel.app>',
+      from: 'Clozr <noreply@clozrhq.com>',
       to: email,
-      subject: 'Welcome to SalesPro!',
+      subject: 'Welcome to Clozr!',
       html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0A0F1E;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 <div style="max-width:600px;margin:0 auto;padding:40px 20px;">
   <div style="text-align:center;margin-bottom:32px;">
     <div style="display:inline-block;background:linear-gradient(135deg,#1D4ED8,#06B6D4);border-radius:16px;padding:12px 24px;">
-      <span style="color:#fff;font-size:20px;font-weight:700;">SalesPro</span>
+      <span style="color:#fff;font-size:20px;font-weight:700;">Clozr</span>
     </div>
   </div>
   <div style="background:#111827;border-radius:24px;padding:32px;border:1px solid rgba(255,255,255,0.08);">
     <p style="color:#9CA3AF;font-size:15px;margin:0 0 8px;">Hi ${full_name},</p>
-    <p style="color:#F9FAFB;font-size:17px;font-weight:600;margin:0 0 24px;">Your SalesPro account is ready.</p>
+    <p style="color:#F9FAFB;font-size:17px;font-weight:600;margin:0 0 24px;">Your Clozr account is ready.</p>
     <div style="background:rgba(29,78,216,0.08);border:1px solid rgba(29,78,216,0.2);border-radius:12px;padding:20px;margin-bottom:24px;">
       <p style="color:#9CA3AF;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 12px;">Login Details</p>
       <p style="color:#D1D5DB;font-size:14px;margin:0 0 8px;">🌐 <strong>${siteUrl}</strong></p>
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     </div>
     <p style="color:#6B7280;font-size:13px;margin:0 0 24px;">Please change your password after first login.</p>
     <div style="text-align:center;">
-      <a href="${siteUrl}" style="display:inline-block;background:linear-gradient(135deg,#1D4ED8,#0F766E);color:#fff;text-decoration:none;padding:14px 32px;border-radius:14px;font-weight:600;font-size:15px;">Login to SalesPro →</a>
+      <a href="${siteUrl}" style="display:inline-block;background:linear-gradient(135deg,#1D4ED8,#0F766E);color:#fff;text-decoration:none;padding:14px 32px;border-radius:14px;font-weight:600;font-size:15px;">Login to Clozr →</a>
     </div>
   </div>
 </div></body></html>`,

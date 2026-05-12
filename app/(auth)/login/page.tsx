@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import AnimatedGradientBackground from '@/components/ui/animated-gradient-background'
-import SalesProLogo from '@/components/ui/salespro-logo'
+import ClozrLogo from '@/components/ui/clozr-logo'
 import { Spotlight } from '@/components/ui/spotlight'
 import { createClient } from '@/lib/supabase/client'
 
@@ -32,9 +32,9 @@ export default function LoginPage() {
       if (repRes.ok) {
         const rep = await repRes.json()
         if (rep?.full_name) {
-          document.cookie = 'sp_onboarded=true; path=/; max-age=31536000; samesite=lax'
+          document.cookie = 'clozr_onboarded=true; path=/; max-age=31536000; samesite=lax'
           if (rep?.is_admin) {
-            document.cookie = 'sp_admin=true; path=/; max-age=31536000; samesite=lax'
+            document.cookie = 'clozr_admin=true; path=/; max-age=31536000; samesite=lax'
             router.push('/admin')
           } else {
             router.push('/dashboard')
@@ -76,12 +76,12 @@ export default function LoginPage() {
           }}
         >
           {/* Logo */}
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-3">
-              <SalesProLogo variant="full" height={40} />
+          <div className="flex flex-col items-center" style={{ marginBottom: 32 }}>
+            <div className="flex justify-center" style={{ marginBottom: 8 }}>
+              <ClozrLogo variant="full" height={48} />
             </div>
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
-              Your sales command center.
+            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', margin: 0 }}>
+              Built for closers.
             </p>
           </div>
 

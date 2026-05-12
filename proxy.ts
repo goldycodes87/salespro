@@ -38,7 +38,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user && pathname === '/login') {
-    const isAdmin = request.cookies.get('sp_admin')?.value === 'true'
+    const isAdmin = request.cookies.get('clozr_admin')?.value === 'true'
     const url = request.nextUrl.clone()
     url.pathname = isAdmin ? '/admin' : '/dashboard'
     return NextResponse.redirect(url)
@@ -52,7 +52,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/coaches/')
 
   if (user && !onboardingExempt) {
-    const onboarded = request.cookies.get('sp_onboarded')?.value
+    const onboarded = request.cookies.get('clozr_onboarded')?.value
     if (!onboarded) {
       const url = request.nextUrl.clone()
       url.pathname = '/onboarding'

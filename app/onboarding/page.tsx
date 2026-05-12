@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import AnimatedGradientBackground from '@/components/ui/animated-gradient-background'
-import SalesProLogo from '@/components/ui/salespro-logo'
+import ClozrLogo from '@/components/ui/clozr-logo'
 import { PERSONAS } from '@/lib/coach-personas'
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -227,7 +227,7 @@ function Screen0({ onNext }: { onNext: () => void }) {
           animate={{ opacity: 1 }}
           transition={{ duration: 1 }}
         >
-          <SalesProLogo variant="icon" height={64} />
+          <ClozrLogo variant="icon" height={64} />
         </motion.div>
 
         <motion.h1
@@ -258,7 +258,7 @@ function Screen0({ onNext }: { onNext: () => void }) {
             lineHeight: 1.6,
           }}
         >
-          SalesPro is the unfair advantage top sales professionals don&apos;t talk about.
+          Clozr is the unfair advantage top closers don&apos;t talk about.
         </motion.p>
 
         <motion.p
@@ -468,7 +468,7 @@ function Screen2({ selectedIndustry, setSelectedIndustry, onNext }: Screen2Props
           What do you sell?
         </h2>
         <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>
-          We&apos;ll customize SalesPro for your industry.
+          We&apos;ll customize Clozr for your industry.
         </p>
       </div>
 
@@ -661,7 +661,7 @@ function Screen3({ selectedIndustry, onNext }: Screen3Props) {
                   >
                     <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.6, marginBottom: '14px' }}>
                       Forward your Vendo proposal emails to{' '}
-                      <span style={{ color: '#06B6D4', fontWeight: 600 }}>vendo@salespro.app</span>{' '}
+                      <span style={{ color: '#06B6D4', fontWeight: 600 }}>vendo@clozrhq.com</span>{' '}
                       and we&apos;ll import them automatically.
                     </p>
                     <button
@@ -985,7 +985,7 @@ function Screen5({ firstName, selectedCoach, onComplete, saving, error }: Screen
           transition={{ duration: 0.6 }}
           style={{ marginBottom: '28px' }}
         >
-          <SalesProLogo variant="full" height={48} />
+          <ClozrLogo variant="full" height={48} />
         </motion.div>
 
         <motion.h1
@@ -994,7 +994,7 @@ function Screen5({ firstName, selectedCoach, onComplete, saving, error }: Screen
           transition={{ delay: 0.3, duration: 0.5 }}
           style={{ fontSize: '36px', fontWeight: 800, color: '#fff', lineHeight: 1.2, marginBottom: '8px' }}
         >
-          Welcome to SalesPro,{' '}
+          Welcome to Clozr,{' '}
           <span
             style={{
               background: 'linear-gradient(135deg, #1D4ED8, #06B6D4)',
@@ -1072,7 +1072,7 @@ function Screen5({ firstName, selectedCoach, onComplete, saving, error }: Screen
               maxWidth: '100%',
             }}
           >
-            {saving ? 'Setting up your account…' : 'Enter SalesPro →'}
+            {saving ? 'Setting up your account…' : 'Enter Clozr →'}
           </motion.button>
         </motion.div>
       </div>
@@ -1115,7 +1115,7 @@ export default function OnboardingPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Setup failed')
-      document.cookie = 'sp_onboarded=true; path=/; max-age=31536000; samesite=lax'
+      document.cookie = 'clozr_onboarded=true; path=/; max-age=31536000; samesite=lax'
       router.push('/dashboard')
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Something went wrong'

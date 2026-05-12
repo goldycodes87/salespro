@@ -42,6 +42,7 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
   const [booking, setBooking] = useState(false)
   const [emailing, setEmailing] = useState(false)
   const [emailToast, setEmailToast] = useState<string | null>(null)
+  const [showSendModal, setShowSendModal] = useState(false)
   const [aiCallToast, setAiCallToast] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -68,6 +69,8 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
   const numDoors = pd.num_doors || proposal.num_doors || 0
   const vendoImported = pd.vendo_imported || false
   const vendoQuoteNumber = pd.vendo_quote_number || null
+  const vendoPdfStoragePath = pd.vendo_pdf_storage_path || null
+  const proposalNum = proposal.proposal_number ?? ('SP-' + (proposal.id ?? '').slice(-4).toUpperCase())
 
   const statusColors = STATUS_COLORS[proposal.status] ?? STATUS_COLORS.draft
 
@@ -237,12 +240,17 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
     }
   }
 
-  const handleEmail = async () => {
+  const handleSend = async (type: 'ours' | 'vendo' | 'both') => {
     if (!proposal.customer_email) { setError('No customer email on file'); return }
     setEmailing(true)
+    setShowSendModal(false)
     setError(null)
     try {
-      const res = await fetch(`/api/proposals/${proposal.id}/email`, { method: 'POST' })
+      const res = await fetch(`/api/proposals/${proposal.id}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type }),
+      })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error || 'Failed to send')
       setEmailToast(d.to)
@@ -608,6 +616,10 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
         <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6B7280' }}>Details</p>
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
+            <span style={{ color: '#6B7280' }}>Proposal #</span>
+            <span className="font-mono font-semibold" style={{ color: '#60A5FA' }}>{proposalNum}</span>
+          </div>
+          <div className="flex justify-between">
             <span style={{ color: '#6B7280' }}>Created</span>
             <span style={{ color: '#D1D5DB' }}>{createdAt}</span>
           </div>
@@ -694,11 +706,21 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
               style={{ border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.6)', background: 'transparent' }}>
               Follow Up
             </Link>
-            <button type="button" onClick={handleEmail} disabled={emailing || !proposal.customer_email}
-              className="flex-1 h-12 rounded-2xl text-sm font-semibold flex items-center justify-center"
-              style={{ border: '1px solid rgba(29,78,216,0.5)', color: emailing ? 'rgba(96,165,250,0.4)' : '#60A5FA', background: 'rgba(29,78,216,0.08)' }}>
-              {emailing ? 'Sending…' : 'Email'}
-            </button>
+            {vendoImported ? (
+              <button type="button"
+                onClick={() => proposal.customer_email ? setShowSendModal(true) : setError('No customer email on file')}
+                disabled={emailing}
+                className="flex-1 h-12 rounded-2xl text-sm font-semibold flex items-center justify-center gap-1"
+                style={{ border: '1px solid rgba(29,78,216,0.5)', color: emailing ? 'rgba(96,165,250,0.4)' : '#60A5FA', background: 'rgba(29,78,216,0.08)' }}>
+                {emailing ? 'Sending…' : <>Send <span style={{ fontSize: '10px' }}>▾</span></>}
+              </button>
+            ) : (
+              <button type="button" onClick={() => handleSend('ours')} disabled={emailing || !proposal.customer_email}
+                className="flex-1 h-12 rounded-2xl text-sm font-semibold flex items-center justify-center"
+                style={{ border: '1px solid rgba(29,78,216,0.5)', color: emailing ? 'rgba(96,165,250,0.4)' : '#60A5FA', background: 'rgba(29,78,216,0.08)' }}>
+                {emailing ? 'Sending…' : 'Email'}
+              </button>
+            )}
             <button type="button" onClick={handleBookedClick} disabled={booking}
               className="flex-1 h-12 rounded-2xl text-base font-bold transition-all"
               style={{ background: booking ? 'rgba(16,185,129,0.3)' : 'linear-gradient(135deg, #059669, #10B981)', color: '#fff', boxShadow: booking ? 'none' : '0 4px 20px rgba(16,185,129,0.3)' }}>
@@ -743,6 +765,55 @@ export default function ProposalDetail({ proposal: initial }: { proposal: Propos
                   {deleting ? 'Deleting…' : 'Delete'}
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Send Options Modal (Vendo) */}
+      <AnimatePresence>
+        {showSendModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-end justify-center px-4"
+            style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+            onClick={e => { if (e.target === e.currentTarget) setShowSendModal(false) }}>
+            <motion.div
+              initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="w-full max-w-sm rounded-3xl p-6 mb-8"
+              style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.12)' }}>
+              <p className="text-base font-bold mb-1 text-center" style={{ color: '#F9FAFB' }}>Send Proposal</p>
+              <p className="text-xs text-center mb-5" style={{ color: '#6B7280' }}>Choose what to send to {proposal.customer_email}</p>
+              <div className="space-y-3">
+                <button type="button" onClick={() => handleSend('ours')}
+                  className="w-full h-14 rounded-2xl text-sm font-semibold flex flex-col items-center justify-center gap-0.5"
+                  style={{ background: 'rgba(29,78,216,0.15)', border: '1px solid rgba(29,78,216,0.3)', color: '#60A5FA' }}>
+                  <span>Send Our Proposal</span>
+                  <span className="text-xs font-normal" style={{ color: '#4B8BF5' }}>PDF — {proposalNum}</span>
+                </button>
+                {vendoPdfStoragePath && (
+                  <button type="button" onClick={() => handleSend('vendo')}
+                    className="w-full h-14 rounded-2xl text-sm font-semibold flex flex-col items-center justify-center gap-0.5"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: '#D1D5DB' }}>
+                    <span>Send Vendo Report</span>
+                    <span className="text-xs font-normal" style={{ color: '#6B7280' }}>Original Vendo PDF</span>
+                  </button>
+                )}
+                {vendoPdfStoragePath && (
+                  <button type="button" onClick={() => handleSend('both')}
+                    className="w-full h-14 rounded-2xl text-sm font-semibold flex flex-col items-center justify-center gap-0.5"
+                    style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', color: '#34D399' }}>
+                    <span>Send Both</span>
+                    <span className="text-xs font-normal" style={{ color: '#059669' }}>Our Proposal + Vendo Report</span>
+                  </button>
+                )}
+              </div>
+              <button type="button" onClick={() => setShowSendModal(false)}
+                className="w-full mt-4 h-11 rounded-2xl text-sm font-medium"
+                style={{ color: '#6B7280', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)' }}>
+                Cancel
+              </button>
             </motion.div>
           </motion.div>
         )}

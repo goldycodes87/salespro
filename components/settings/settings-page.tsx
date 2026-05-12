@@ -837,7 +837,7 @@ export default function SettingsPage({
             ) : (
               <div>
                 <p className="text-xs mb-3" style={{ color: '#6B7280' }}>
-                  Sync your Google Calendar to see appointments in SalesPro.
+                  Sync your Google Calendar to see appointments in Clozr.
                 </p>
                 <a
                   href="/api/auth/google/calendar"
@@ -941,7 +941,7 @@ export default function SettingsPage({
             ) : (
               <div>
                 <p className="text-sm mb-3" style={{ color: '#6B7280' }}>
-                  Connect your Outlook calendar to see upcoming appointments in SalesPro.
+                  Connect your Outlook calendar to see upcoming appointments in Clozr.
                 </p>
                 <a href="/api/auth/microsoft/calendar"
                   className="flex items-center justify-center gap-2 w-full h-11 rounded-xl text-sm font-semibold"

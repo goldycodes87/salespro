@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const res = await fetch(icalUrl.trim(), {
-      headers: { 'User-Agent': 'SalesPro/1.0' },
+      headers: { 'User-Agent': 'Clozr/1.0' },
       signal: AbortSignal.timeout(10000),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)

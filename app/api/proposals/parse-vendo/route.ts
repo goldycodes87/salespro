@@ -223,7 +223,15 @@ CRITICAL RULES:
     return NextResponse.json({ error: insertError?.message ?? 'Failed to create proposal' }, { status: 500 })
   }
 
-  // Populate top-level numeric columns (fire and forget)
+  // Upload original Vendo PDF to storage
+  const storagePath = `${user.id}/vendo-pdfs/${proposal.id}.pdf`
+  const { error: uploadError } = await admin.storage
+    .from('lead-photos')
+    .upload(storagePath, Buffer.from(buffer), { contentType: 'application/pdf', upsert: true })
+
+  const vendoPdfStoragePath = uploadError ? null : storagePath
+
+  // Populate top-level numeric columns + vendo_pdf_storage_path
   void admin
     .from('proposals')
     .update({
@@ -232,6 +240,7 @@ CRITICAL RULES:
       windows_project_value: packagePrice || null,
       num_windows: parsed.num_windows ?? 0,
       num_doors: parsed.num_doors ?? 0,
+      pricing_data: { ...pricingData, vendo_pdf_storage_path: vendoPdfStoragePath },
     })
     .eq('id', proposal.id)
 

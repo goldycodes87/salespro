@@ -19,6 +19,19 @@ async function getUser() {
   return user
 }
 
+async function fetchHeadshotData(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const contentType = res.headers.get('content-type') ?? 'image/jpeg'
+    const buf = await res.arrayBuffer()
+    const b64 = Buffer.from(buf).toString('base64')
+    return `data:${contentType};base64,${b64}`
+  } catch {
+    return null
+  }
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -38,19 +51,29 @@ export async function GET(
 
   if (error || !proposal) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  const pd = proposal.pricing_data || {}
+  console.log('PDF PRICING DATA:', JSON.stringify(pd, null, 2))
+  console.log('TOGGLE STATE:', JSON.stringify(pd.toggle_state))
+  console.log('DISCOUNT AMOUNT:', pd.discount_amount)
+  console.log('YOUR PRICE:', proposal.your_price, pd.your_price)
+
   const { data: rep } = await admin
     .from('reps')
-    .select('full_name, name, company, phone, email, settings')
+    .select('full_name, name, company, phone, email, settings, headshot_url, industry')
     .eq('id', user.id)
     .single()
 
   const repName = rep?.full_name ?? rep?.name ?? ''
+  const headshotData = rep?.headshot_url ? await fetchHeadshotData(rep.headshot_url) : null
+
   const repSettings = {
     ...(rep?.settings ?? {}),
     rep_name: repName,
     company: rep?.company ?? '',
     phone: rep?.phone ?? '',
     email: rep?.email ?? '',
+    industry: rep?.industry ?? '',
+    headshot_data: headshotData ?? undefined,
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

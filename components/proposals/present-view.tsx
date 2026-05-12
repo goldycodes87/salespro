@@ -12,7 +12,7 @@ import {
 } from '@/lib/pricing'
 import Link from 'next/link'
 import AnimatedGradientBackground from '@/components/ui/animated-gradient-background'
-import SalesProLogo from '@/components/ui/salespro-logo'
+import ClozrLogo from '@/components/ui/clozr-logo'
 
 type Proposal = Record<string, any>
 
@@ -556,7 +556,7 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
           WebkitBackdropFilter: 'blur(20px)',
         }}>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.7 }} transition={{ duration: 0.8 }}>
-          <SalesProLogo variant="icon" height={28} />
+          <ClozrLogo variant="icon" height={28} />
         </motion.div>
         <div className="flex items-center gap-2">
           {downloadPdfUrl && (

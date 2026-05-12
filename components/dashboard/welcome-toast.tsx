@@ -16,8 +16,8 @@ export default function WelcomeToast() {
     if (firstName) {
       setMessage(
         coach
-          ? `Welcome to SalesPro, ${firstName}! Your coach ${coach} is ready.`
-          : `Welcome to SalesPro, ${firstName}!`,
+          ? `Welcome to Clozr, ${firstName}! Your coach ${coach} is ready.`
+          : `Welcome to Clozr, ${firstName}!`,
       )
       setVisible(true)
       // Clean up URL

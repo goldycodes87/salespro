@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import Image from 'next/image'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import DashboardHero from '@/components/dashboard/dashboard-hero'
@@ -179,7 +178,7 @@ export default async function DashboardPage() {
       overflow: 'hidden',
     }}>
     <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 0, pointerEvents: 'none', userSelect: 'none' }}>
-      <Image src="/SalesPro S.png" alt="" width={600} height={600} style={{ objectFit: 'contain', opacity: 0.04 }} />
+      <img src="/clozr-icon.png" alt="" style={{ width: 600, height: 600, objectFit: 'contain', opacity: 0.04, display: 'block' }} />
     </div>
     <div style={{ position: 'relative', zIndex: 1 }}>
     <CalendarSyncOnLoad />

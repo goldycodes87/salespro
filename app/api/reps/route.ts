@@ -37,7 +37,7 @@ export async function GET() {
 
   const res = NextResponse.json(data)
   if (data?.is_admin) {
-    res.cookies.set('sp_admin', 'true', {
+    res.cookies.set('clozr_admin', 'true', {
       httpOnly: false,
       path: '/',
       maxAge: 60 * 60 * 24 * 365,

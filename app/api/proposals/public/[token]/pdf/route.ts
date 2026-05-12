@@ -6,6 +6,19 @@ import { renderToStream } from '@react-pdf/renderer'
 import ProposalPDF from '@/components/pdf/ProposalPDF'
 import React from 'react'
 
+async function fetchHeadshotData(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const contentType = res.headers.get('content-type') ?? 'image/jpeg'
+    const buf = await res.arrayBuffer()
+    const b64 = Buffer.from(buf).toString('base64')
+    return `data:${contentType};base64,${b64}`
+  } catch {
+    return null
+  }
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ token: string }> },
@@ -23,17 +36,21 @@ export async function GET(
 
   const { data: rep } = await admin
     .from('reps')
-    .select('full_name, name, company, phone, email, settings')
+    .select('full_name, name, company, phone, email, settings, headshot_url, industry')
     .eq('id', proposal.rep_id)
     .single()
 
   const repName = rep?.full_name ?? rep?.name ?? ''
+  const headshotData = rep?.headshot_url ? await fetchHeadshotData(rep.headshot_url) : null
+
   const repSettings = {
     ...(rep?.settings ?? {}),
     rep_name: repName,
     company: rep?.company ?? '',
     phone: rep?.phone ?? '',
     email: rep?.email ?? '',
+    industry: rep?.industry ?? '',
+    headshot_data: headshotData ?? undefined,
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

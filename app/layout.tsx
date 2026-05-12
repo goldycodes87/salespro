@@ -9,12 +9,12 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "SalesPro",
-  description: "Premium sales tool for windows and siding",
+  title: "Clozr",
+  description: "Built for closers.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "SalesPro",
+    title: "Clozr",
   },
 };
 
@@ -43,7 +43,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
         />
       </head>
-      <body className="h-full antialiased">{children}</body>
+      <body className={`${inter.className} h-full antialiased`}>{children}</body>
     </html>
   );
 }

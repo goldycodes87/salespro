@@ -1,4 +1,4 @@
-import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, View, Text, StyleSheet, Image } from '@react-pdf/renderer'
 
 const BLUE = '#1D4ED8'
 const BLUE_LIGHT = '#EFF6FF'
@@ -7,111 +7,144 @@ const GRAY = '#6B7280'
 const LIGHT_GRAY = '#9CA3AF'
 const BORDER = '#E5E7EB'
 const BG_GRAY = '#F9FAFB'
+const TEAL = '#0F766E'
 
 const styles = StyleSheet.create({
-  // ── Cover page ──────────────────────────────────────────────────
+  // ─── Cover page ──────────────────────────────────────────────────────────────
   coverPage: {
     backgroundColor: '#FFFFFF',
     fontFamily: 'Helvetica',
-    flexDirection: 'column',
   },
-  coverTopBar: {
+  // Blue top bar (absolute)
+  topBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 6,
     backgroundColor: BLUE,
-    height: 8,
   },
+  // Header row
   coverHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingHorizontal: 48,
-    paddingTop: 30,
-    paddingBottom: 0,
+    paddingHorizontal: 40,
+    paddingTop: 28,
+    paddingBottom: 20,
   },
-  coverCompanyFirst: {
-    fontSize: 28,
+  companyFirstWord: {
+    fontSize: 22,
     fontFamily: 'Helvetica-Bold',
     color: BLUE,
     lineHeight: 1,
   },
-  coverCompanyRest: {
+  companyRest: {
     fontSize: 11,
     color: GRAY,
-    marginTop: 4,
+    marginTop: 3,
+  },
+  headshotWrapper: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  headshotImg: {
+    width: 50,
+    height: 50,
   },
   coverMeta: {
     alignItems: 'flex-end',
   },
   coverMetaLine: {
-    fontSize: 9,
+    fontSize: 10,
     color: GRAY,
     marginBottom: 3,
   },
+  // Hero section
   coverHero: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 60,
-    position: 'relative',
+    paddingTop: 80,
+    paddingBottom: 40,
   },
   coverCustomerName: {
-    fontSize: 36,
+    fontSize: 42,
     fontFamily: 'Helvetica-Bold',
     color: DARK,
     textAlign: 'center',
     lineHeight: 1.15,
-    marginBottom: 14,
+    marginBottom: 10,
   },
-  coverAddress: {
-    fontSize: 12,
+  coverCityState: {
+    fontSize: 16,
     color: GRAY,
     textAlign: 'center',
   },
-  coverDecorA: {
+  // Decorative wave layers (absolute)
+  waveBase: {
     position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: BLUE,
-    opacity: 0.06,
-    right: -20,
-    top: 40,
+    left: -100,
+    width: 850,
+    height: 500,
   },
-  coverDecorB: {
+  // Rep contact footer (absolute, above bottom bar)
+  repFooter: {
     position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: BLUE,
-    opacity: 0.08,
-    left: 10,
-    bottom: 30,
+    bottom: 52,
+    left: 40,
+    right: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  coverDecorC: {
-    position: 'absolute',
+  repPhotoWrapper: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#06B6D4',
-    opacity: 0.1,
-    right: 80,
-    bottom: 60,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: BLUE,
+    flexShrink: 0,
   },
-  coverBottomBar: {
+  repPhotoImg: {
+    width: 48,
+    height: 48,
+  },
+  repContactName: {
+    fontSize: 12,
+    fontFamily: 'Helvetica-Bold',
+    color: DARK,
+  },
+  repContactLine: {
+    fontSize: 9,
+    color: GRAY,
+    marginTop: 2,
+  },
+  // Bottom address bar (absolute)
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 45,
     backgroundColor: BLUE,
-    paddingHorizontal: 48,
-    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  coverBottomBarText: {
-    fontSize: 11,
+  bottomBarText: {
+    fontSize: 10,
     color: '#FFFFFF',
-    textAlign: 'center',
   },
-  // ── Page 2 ──────────────────────────────────────────────────────
+  // ─── Page 2 ──────────────────────────────────────────────────────────────────
   page2: {
     backgroundColor: '#FFFFFF',
     fontFamily: 'Helvetica',
     paddingHorizontal: 48,
-    paddingTop: 36,
+    paddingTop: 28,
     paddingBottom: 80,
     fontSize: 10,
     color: DARK,
@@ -119,88 +152,135 @@ const styles = StyleSheet.create({
   pageHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    paddingBottom: 12,
+    alignItems: 'center',
+    paddingBottom: 10,
+    marginBottom: 16,
     borderBottomWidth: 2,
     borderBottomColor: BLUE,
-    marginBottom: 16,
   },
-  logoText: {
-    fontSize: 20,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  headerCompanyFirst: {
+    fontSize: 14,
     fontFamily: 'Helvetica-Bold',
     color: BLUE,
   },
-  proposalTypeLabel: {
-    fontSize: 12,
-    fontFamily: 'Helvetica-Bold',
-    color: BLUE,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  headerCompanyRest: {
+    fontSize: 9,
+    color: GRAY,
   },
-  // Customer info box — gray bg, two columns
+  headerRight: {
+    alignItems: 'flex-end',
+  },
+  headerMeta: {
+    fontSize: 9,
+    color: GRAY,
+  },
+  // Customer info box
   infoBox: {
     backgroundColor: BG_GRAY,
-    borderRadius: 6,
-    padding: 14,
-    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 4,
+    padding: 12,
+    marginBottom: 16,
     flexDirection: 'row',
   },
   infoCol: {
     width: '50%',
   },
-  infoField: {
-    marginBottom: 7,
-  },
   infoLabel: {
     fontSize: 8,
-    color: GRAY,
-    marginBottom: 2,
+    fontFamily: 'Helvetica-Bold',
+    color: LIGHT_GRAY,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 3,
   },
   infoValue: {
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: 'Helvetica-Bold',
     color: DARK,
+    marginBottom: 2,
   },
-  // Section header
-  sectionTitle: {
+  infoSubValue: {
     fontSize: 10,
+    color: '#374151',
+    marginBottom: 2,
+  },
+  infoContactLabel: {
+    fontSize: 8,
+    fontFamily: 'Helvetica-Bold',
+    color: LIGHT_GRAY,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 3,
+    marginTop: 8,
+  },
+  infoField: {
+    marginBottom: 6,
+  },
+  infoFieldLabel: {
+    fontSize: 8,
+    color: GRAY,
+    marginBottom: 1,
+  },
+  infoFieldValue: {
+    fontSize: 10,
+    color: '#374151',
+  },
+  // Section
+  sectionTitle: {
+    fontSize: 9,
     fontFamily: 'Helvetica-Bold',
     color: BLUE,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 6,
-    marginTop: 10,
+    letterSpacing: 1.5,
+    paddingBottom: 6,
+    marginBottom: 8,
+    marginTop: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
   },
   scopeItem: {
     flexDirection: 'row',
-    marginBottom: 3,
+    alignItems: 'flex-start',
+    marginBottom: 4,
   },
-  bullet: {
-    width: 12,
-    fontSize: 9,
-    color: BLUE,
+  blueDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: BLUE,
+    marginTop: 3,
+    marginRight: 8,
+    flexShrink: 0,
   },
   scopeText: {
     flex: 1,
     fontSize: 9,
     color: '#374151',
+    lineHeight: 1.4,
   },
   // YOUR INVESTMENT box
   investmentBox: {
     backgroundColor: BLUE_LIGHT,
-    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#BFDBFE',
-    padding: 16,
+    borderRadius: 4,
+    padding: 14,
     marginBottom: 14,
     marginTop: 10,
   },
   investmentTitle: {
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: 'Helvetica-Bold',
     color: BLUE,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.5,
     marginBottom: 10,
   },
   priceRow: {
@@ -208,12 +288,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 5,
-    borderBottomWidth: 1,
-    borderBottomColor: '#DBEAFE',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E5E7EB',
   },
   priceLabel: {
     fontSize: 10,
-    color: '#4B5563',
+    color: '#374151',
   },
   priceValue: {
     fontSize: 10,
@@ -225,19 +305,21 @@ const styles = StyleSheet.create({
     color: LIGHT_GRAY,
     textDecoration: 'line-through',
   },
-  priceDiscount: {
+  priceSavings: {
     fontSize: 10,
     fontFamily: 'Helvetica-Bold',
-    color: '#059669',
+    color: TEAL,
+  },
+  priceDivider: {
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#BFDBFE',
+    marginVertical: 8,
   },
   yourPriceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#93C5FD',
+    marginTop: 4,
   },
   yourPriceLabel: {
     fontSize: 13,
@@ -249,62 +331,100 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
     color: BLUE,
   },
-  // Financing
-  financingBox: {
-    backgroundColor: '#F0F9FF',
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-    borderRadius: 6,
-    padding: 10,
-    marginBottom: 10,
+  financingNote: {
+    fontSize: 9,
+    color: GRAY,
+    fontStyle: 'italic',
+    marginTop: 6,
+  },
+  costcoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingVertical: 4,
   },
-  // Signature
-  signatureSection: {
-    marginTop: 14,
+  costcoLabel: {
+    fontSize: 10,
+    color: '#B45309',
+  },
+  costcoValue: {
+    fontSize: 10,
+    fontFamily: 'Helvetica-Bold',
+    color: '#B45309',
+  },
+  // Authorization
+  authSection: {
+    marginTop: 16,
     marginBottom: 10,
   },
-  signatureRow: {
+  sigRow: {
     flexDirection: 'row',
     gap: 24,
-    marginBottom: 18,
+    marginBottom: 16,
   },
-  signatureBlock: {
+  sigBlock: {
     flex: 1,
   },
-  signatureLine: {
+  sigLine: {
     borderBottomWidth: 1,
     borderBottomColor: DARK,
     height: 28,
     marginBottom: 4,
   },
-  signatureLabel: {
+  sigLabel: {
     fontSize: 8,
     color: GRAY,
   },
+  sigRepName: {
+    fontSize: 9,
+    color: GRAY,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
   dateLine: {
     width: 80,
+  },
+  dateSubLine: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#D1D5DB',
+    height: 22,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  dateLabel: {
+    fontSize: 8,
+    color: GRAY,
   },
   // Terms
   termsText: {
     fontSize: 7.5,
     color: LIGHT_GRAY,
-    lineHeight: 1.5,
+    lineHeight: 1.6,
     marginBottom: 3,
   },
   // Footer
   footer: {
     position: 'absolute',
-    bottom: 28,
+    bottom: 24,
     left: 48,
     right: 48,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-end',
     borderTopWidth: 1,
     borderTopColor: BORDER,
     paddingTop: 8,
+  },
+  footerCol: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  footerColCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  footerColRight: {
+    flex: 1,
+    alignItems: 'flex-end',
   },
   footerText: {
     fontSize: 8,
@@ -314,7 +434,7 @@ const styles = StyleSheet.create({
 })
 
 function fmtDollar(n: number | null | undefined): string {
-  if (n == null || isNaN(n)) return '—'
+  if (n == null || isNaN(n) || n === 0) return '—'
   return '$' + Math.round(n).toLocaleString()
 }
 
@@ -349,38 +469,49 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
   const customerName = proposal.customer_name
     ?? [customerFirstName, customerLastName].filter(Boolean).join(' ')
     ?? 'Customer'
-  const addressLine = [proposal.customer_address].filter(Boolean).join(', ')
+  const spouseFirst = proposal.spouse_first_name ?? ''
+  const spouseLast = proposal.spouse_last_name ?? customerLastName
+  const addressLine = proposal.customer_address ?? ''
   const cityStateZip = [proposal.customer_city, proposal.customer_state, proposal.customer_zip].filter(Boolean).join(', ')
+  const cityState = [proposal.customer_city, proposal.customer_state].filter(Boolean).join(', ')
   const fullAddress = [addressLine, cityStateZip].filter(Boolean).join(', ')
   const customerPhone = fmtPhone(proposal.customer_phone)
   const customerEmail = proposal.customer_email ?? ''
 
-  // Rep info — from rep columns (no hardcoded values)
+  // Rep info
   const repName = repSettings?.rep_name ?? ''
   const repPhone = fmtPhone(repSettings?.phone)
   const repEmail = repSettings?.email ?? ''
-  const companyName = repSettings?.company ?? ''
+  const companyName: string = repSettings?.company ?? ''
+  const industry: string = repSettings?.industry ?? 'windows_siding'
+  const headshotData: string | null = repSettings?.headshot_data ?? null
   const companyParts = companyName.trim().split(/\s+/)
   const companyFirst = companyParts[0] ?? ''
   const companyRest = companyParts.slice(1).join(' ')
 
-  // Dates & meta
+  // Quote number — use proposal_number if available, fall back to id
+  const quoteNumber: string = proposal.proposal_number
+    ?? ('SP-' + (proposal.id ?? '').slice(-4).toUpperCase())
   const createdDate = formatDate(proposal.created_at)
-  const quoteNumber = (proposal.id ?? '').slice(-6).toUpperCase()
 
   // Pricing — DISPLAY STORED VALUES ONLY. Never recalculate.
   const packagePrice: number | null = pricing.package_price ?? null
-  const discountName: string = pricing.discount_name ?? 'Promo Discount'
-  const discountAmount: number | null = pricing.discount_amount ?? null
-  const adminFee: number | null = pricing.admin_fee > 0 ? pricing.admin_fee : null
   const yourPrice: number = pricing.your_price ?? proposal.your_price ?? 0
-  const subtotal: number | null = pricing.subtotal ??
-    (packagePrice != null && discountAmount != null ? packagePrice - discountAmount : null)
-  const youSave: number | null = discountAmount
+  const adminFee: number | null = pricing.admin_fee > 0 ? pricing.admin_fee : null
+  const leadPaint: number | null = pricing.lead_paint > 0 ? pricing.lead_paint : null
   const monthlyPayment: number | null = pricing.monthly_payment > 0 ? pricing.monthly_payment : null
   const financingOption: string | null = pricing.financing_option ?? null
   const costcoMember: boolean = !!pricing.costco_member
   const costcoSavings: number | null = pricing.costco_savings > 0 ? pricing.costco_savings : null
+  const netAfterCostco: number | null = costcoMember && costcoSavings ? yourPrice - costcoSavings : null
+
+  // Discount lines
+  type DiscountLine = { label: string; amount: number }
+  const discountLines: DiscountLine[] = []
+  if (pricing.discount_amount > 0) {
+    discountLines.push({ label: pricing.discount_name || 'Promo Discount', amount: pricing.discount_amount })
+  }
+  const totalSavings = discountLines.reduce((s, d) => s + d.amount, 0)
 
   const proposalTypeLabel = proposalType === 'both'
     ? 'Windows & Siding Proposal'
@@ -409,89 +540,138 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
     if (s.trim_windows_doors) scopeItems.push(`Wrap/trim windows & doors${s.trim_windows_doors_type ? ` — ${s.trim_windows_doors_type}` : ''}`)
   }
 
+  // Warranty lines based on industry
+  const warrantyLines: string[] = []
+  if (industry === 'windows_siding' || industry === 'windows' || industry === 'siding') {
+    if (proposalType === 'windows' || proposalType === 'both') {
+      warrantyLines.push('Infinity by Marvin lifetime limited warranty')
+    }
+    if (proposalType === 'siding' || proposalType === 'both') {
+      warrantyLines.push('James Hardie HZ5 30-year limited product warranty')
+    }
+    if (companyName) {
+      warrantyLines.push(`${companyName} Lifetime Labor Warranty, transferable to next homeowner`)
+    }
+  } else {
+    if (companyName) {
+      warrantyLines.push(`${companyName} service warranty — see contract for full terms`)
+    }
+  }
+  warrantyLines.push('Estimated project completion: 4–6 weeks from signed agreement')
+  warrantyLines.push('This proposal is valid for 30 days from the date above')
+
   return (
     <Document>
       {/* ─── PAGE 1: COVER ─── */}
       <Page size="A4" style={styles.coverPage}>
         {/* Blue top bar */}
-        <View style={styles.coverTopBar} />
+        <View style={styles.topBar} />
 
-        {/* Header row: company name | meta */}
+        {/* Header */}
         <View style={styles.coverHeader}>
           <View>
             {companyFirst ? (
               <>
-                <Text style={styles.coverCompanyFirst}>{companyFirst}</Text>
-                {companyRest ? <Text style={styles.coverCompanyRest}>{companyRest}</Text> : null}
+                <Text style={styles.companyFirstWord}>{companyFirst}</Text>
+                {companyRest ? <Text style={styles.companyRest}>{companyRest}</Text> : null}
               </>
+            ) : null}
+            {headshotData ? (
+              <View style={styles.headshotWrapper}>
+                <Image src={headshotData} style={styles.headshotImg} />
+              </View>
             ) : null}
           </View>
           <View style={styles.coverMeta}>
-            <Text style={styles.coverMetaLine}>Date: {createdDate}</Text>
+            <Text style={styles.coverMetaLine}>{createdDate}</Text>
             <Text style={styles.coverMetaLine}>Quote #: {quoteNumber}</Text>
             {repName ? <Text style={styles.coverMetaLine}>Prepared by: {repName}</Text> : null}
           </View>
         </View>
 
-        {/* Hero — customer name + address */}
+        {/* Hero section */}
         <View style={styles.coverHero}>
-          {/* Decorative geometric shapes */}
-          <View style={styles.coverDecorA} />
-          <View style={styles.coverDecorB} />
-          <View style={styles.coverDecorC} />
-
           <Text style={styles.coverCustomerName}>{customerName}</Text>
-          {fullAddress ? <Text style={styles.coverAddress}>{fullAddress}</Text> : null}
+          {cityState ? <Text style={styles.coverCityState}>{cityState}</Text> : null}
+        </View>
+
+        {/* Decorative wave layers */}
+        <View style={{ ...styles.waveBase, top: 490, backgroundColor: 'rgba(29,78,216,0.06)', transform: 'rotate(-12deg)' }} />
+        <View style={{ ...styles.waveBase, top: 520, left: 0, backgroundColor: 'rgba(15,118,110,0.07)', transform: 'rotate(-12deg)' }} />
+        <View style={{ ...styles.waveBase, top: 550, left: 80, backgroundColor: 'rgba(6,182,212,0.06)', transform: 'rotate(-12deg)' }} />
+        <View style={{ ...styles.waveBase, top: 580, left: 160, backgroundColor: 'rgba(29,78,216,0.08)', transform: 'rotate(-12deg)' }} />
+
+        {/* Rep contact footer */}
+        <View style={styles.repFooter}>
+          {headshotData ? (
+            <View style={styles.repPhotoWrapper}>
+              <Image src={headshotData} style={styles.repPhotoImg} />
+            </View>
+          ) : null}
+          <View>
+            {repName ? <Text style={styles.repContactName}>{repName}</Text> : null}
+            {repEmail ? <Text style={styles.repContactLine}>{repEmail}</Text> : null}
+            {repPhone ? <Text style={styles.repContactLine}>Cell: {repPhone}</Text> : null}
+          </View>
         </View>
 
         {/* Blue bottom bar */}
-        <View style={styles.coverBottomBar}>
-          <Text style={styles.coverBottomBarText}>{fullAddress || companyName}</Text>
+        <View style={styles.bottomBar}>
+          <Text style={styles.bottomBarText}>{fullAddress || companyName}</Text>
         </View>
       </Page>
 
-      {/* ─── PAGE 2: PRICING SUMMARY ─── */}
+      {/* ─── PAGE 2: PROPOSAL DETAILS ─── */}
       <Page size="A4" style={styles.page2}>
         {/* Header */}
         <View style={styles.pageHeader}>
-          <Text style={styles.logoText}>{companyName || 'Proposal'}</Text>
-          <Text style={styles.proposalTypeLabel}>{proposalTypeLabel}</Text>
+          <View style={styles.headerLeft}>
+            {companyFirst ? (
+              <>
+                <Text style={styles.headerCompanyFirst}>{companyFirst}</Text>
+                {companyRest ? <Text style={styles.headerCompanyRest}> {companyRest}</Text> : null}
+              </>
+            ) : <Text style={styles.headerCompanyFirst}>{proposalTypeLabel}</Text>}
+          </View>
+          <View style={styles.headerRight}>
+            <Text style={styles.headerMeta}>{quoteNumber}  ·  {createdDate}</Text>
+          </View>
         </View>
 
-        {/* Customer info box — gray bg, two columns */}
+        {/* Customer info box */}
         <View style={styles.infoBox}>
+          {/* Left column */}
           <View style={styles.infoCol}>
-            <View style={styles.infoField}>
-              <Text style={styles.infoLabel}>CUSTOMER</Text>
-              <Text style={styles.infoValue}>{customerName}</Text>
-            </View>
-            {fullAddress ? (
-              <View style={styles.infoField}>
-                <Text style={styles.infoLabel}>ADDRESS</Text>
-                <Text style={styles.infoValue}>{fullAddress}</Text>
-              </View>
+            <Text style={styles.infoLabel}>Customer</Text>
+            <Text style={styles.infoValue}>{customerName}</Text>
+            {spouseFirst ? (
+              <Text style={styles.infoSubValue}>& {spouseFirst} {spouseLast}</Text>
             ) : null}
+            {addressLine ? <Text style={[styles.infoSubValue, { marginTop: 4, color: GRAY, fontSize: 9 }]}>{addressLine}</Text> : null}
+            {cityStateZip ? <Text style={[styles.infoSubValue, { color: GRAY, fontSize: 9 }]}>{cityStateZip}</Text> : null}
           </View>
+          {/* Right column */}
           <View style={styles.infoCol}>
+            <Text style={styles.infoLabel}>Contact</Text>
             {customerPhone ? (
               <View style={styles.infoField}>
-                <Text style={styles.infoLabel}>PHONE</Text>
-                <Text style={styles.infoValue}>{customerPhone}</Text>
+                <Text style={styles.infoFieldLabel}>Phone</Text>
+                <Text style={styles.infoFieldValue}>{customerPhone}</Text>
               </View>
             ) : null}
             {customerEmail ? (
               <View style={styles.infoField}>
-                <Text style={styles.infoLabel}>EMAIL</Text>
-                <Text style={styles.infoValue}>{customerEmail}</Text>
+                <Text style={styles.infoFieldLabel}>Email</Text>
+                <Text style={styles.infoFieldValue}>{customerEmail}</Text>
               </View>
             ) : null}
             <View style={styles.infoField}>
-              <Text style={styles.infoLabel}>DATE</Text>
-              <Text style={styles.infoValue}>{createdDate}</Text>
+              <Text style={styles.infoFieldLabel}>Date</Text>
+              <Text style={styles.infoFieldValue}>{createdDate}</Text>
             </View>
             <View style={styles.infoField}>
-              <Text style={styles.infoLabel}>QUOTE #</Text>
-              <Text style={styles.infoValue}>{quoteNumber}</Text>
+              <Text style={styles.infoFieldLabel}>Quote #</Text>
+              <Text style={styles.infoFieldValue}>{quoteNumber}</Text>
             </View>
           </View>
         </View>
@@ -502,7 +682,7 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
             <Text style={styles.sectionTitle}>Project Summary</Text>
             {scopeItems.map((item, i) => (
               <View key={i} style={styles.scopeItem}>
-                <Text style={styles.bullet}>•</Text>
+                <View style={styles.blueDot} />
                 <Text style={styles.scopeText}>{item}</Text>
               </View>
             ))}
@@ -513,118 +693,119 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
         <View style={styles.investmentBox}>
           <Text style={styles.investmentTitle}>Your Investment</Text>
 
-          {packagePrice != null && (
+          {packagePrice != null && packagePrice > 0 && (
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>Package Price</Text>
-              <Text style={discountAmount ? styles.priceStrike : styles.priceValue}>
+              <Text style={discountLines.length > 0 ? styles.priceStrike : styles.priceValue}>
                 {fmtDollar(packagePrice)}
               </Text>
             </View>
           )}
 
-          {discountAmount != null && discountAmount > 0 && (
+          {discountLines.map((dl, i) => (
+            <View key={i} style={styles.priceRow}>
+              <Text style={styles.priceLabel}>{dl.label}</Text>
+              <Text style={styles.priceSavings}>-{fmtDollar(dl.amount)}</Text>
+            </View>
+          ))}
+
+          {totalSavings > 0 && (
             <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>{discountName}</Text>
-              <Text style={styles.priceDiscount}>-{fmtDollar(discountAmount)}</Text>
+              <Text style={[styles.priceLabel, { fontStyle: 'italic', color: TEAL }]}>Total Savings</Text>
+              <Text style={[styles.priceSavings, { fontStyle: 'italic' }]}>-{fmtDollar(totalSavings)}</Text>
             </View>
           )}
 
-          {youSave != null && youSave > 0 && (
-            <View style={styles.priceRow}>
-              <Text style={[styles.priceLabel, { color: '#059669' }]}>You Save</Text>
-              <Text style={[styles.priceValue, { color: '#059669' }]}>{fmtDollar(youSave)}</Text>
-            </View>
-          )}
-
-          {subtotal != null && discountAmount != null && discountAmount > 0 && (
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>Subtotal</Text>
-              <Text style={styles.priceValue}>{fmtDollar(subtotal)}</Text>
-            </View>
-          )}
-
-          {adminFee != null && (
+          {adminFee != null && adminFee > 0 && (
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>Admin Fee</Text>
               <Text style={styles.priceValue}>{fmtDollar(adminFee)}</Text>
             </View>
           )}
 
+          {leadPaint != null && leadPaint > 0 && (
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Lead Paint Test</Text>
+              <Text style={styles.priceValue}>{fmtDollar(leadPaint)}</Text>
+            </View>
+          )}
+
+          <View style={styles.priceDivider} />
+
           <View style={styles.yourPriceRow}>
             <Text style={styles.yourPriceLabel}>Your Price</Text>
             <Text style={styles.yourPriceValue}>{fmtDollar(yourPrice)}</Text>
           </View>
+
+          {monthlyPayment != null && monthlyPayment > 0 && (
+            <Text style={styles.financingNote}>
+              Or {financingOption ?? 'financing'}: {fmtDollar(monthlyPayment)}/mo · Subject to credit approval
+            </Text>
+          )}
         </View>
 
         {/* Costco savings */}
-        {costcoMember && costcoSavings != null && (
-          <View style={[styles.financingBox, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
-            <Text style={[styles.priceLabel, { color: '#047857' }]}>Costco Member Savings</Text>
-            <Text style={[styles.priceValue, { color: '#047857' }]}>-{fmtDollar(costcoSavings)}</Text>
+        {costcoMember && costcoSavings != null && costcoSavings > 0 && (
+          <View style={{ backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 4, padding: 10, marginBottom: 10 }}>
+            <View style={styles.costcoRow}>
+              <Text style={styles.costcoLabel}>Costco Member Savings</Text>
+              <Text style={styles.costcoValue}>-{fmtDollar(costcoSavings)}</Text>
+            </View>
+            {netAfterCostco != null && (
+              <View style={styles.costcoRow}>
+                <Text style={[styles.costcoLabel, { fontFamily: 'Helvetica-Bold' }]}>Net After Costco</Text>
+                <Text style={[styles.costcoValue, { fontFamily: 'Helvetica-Bold' }]}>{fmtDollar(netAfterCostco)}</Text>
+              </View>
+            )}
           </View>
         )}
 
-        {/* Financing */}
-        {monthlyPayment != null && (
-          <View style={styles.financingBox}>
-            <View>
-              <Text style={[styles.priceLabel, { fontFamily: 'Helvetica-Bold', color: '#0369A1' }]}>
-                {financingOption ?? 'Financing Available'}
-              </Text>
-              <Text style={[styles.priceLabel, { color: '#6B7280', fontSize: 8, marginTop: 2 }]}>
-                Subject to credit approval
-              </Text>
-            </View>
-            <Text style={[styles.yourPriceLabel, { color: '#0369A1', fontSize: 14 }]}>
-              {fmtDollar(monthlyPayment)}/mo
-            </Text>
-          </View>
-        )}
-
-        {/* Signature section */}
-        <View style={styles.signatureSection}>
-          <Text style={[styles.sectionTitle, { marginTop: 6 }]}>Authorization</Text>
-          <View style={styles.signatureRow}>
-            <View style={styles.signatureBlock}>
-              <View style={styles.signatureLine} />
-              <Text style={styles.signatureLabel}>Customer Signature</Text>
+        {/* Authorization */}
+        <View style={styles.authSection}>
+          <Text style={styles.sectionTitle}>Authorization</Text>
+          <View style={styles.sigRow}>
+            <View style={styles.sigBlock}>
+              <View style={styles.sigLine} />
+              <Text style={styles.sigLabel}>Customer Signature</Text>
             </View>
             <View style={styles.dateLine}>
-              <View style={styles.signatureLine} />
-              <Text style={styles.signatureLabel}>Date</Text>
+              <View style={styles.sigLine} />
+              <Text style={styles.sigLabel}>Date</Text>
             </View>
           </View>
-          <View style={styles.signatureRow}>
-            <View style={styles.signatureBlock}>
-              <View style={styles.signatureLine} />
-              <Text style={styles.signatureLabel}>Sales Representative</Text>
+          <View style={styles.sigRow}>
+            <View style={styles.sigBlock}>
+              <View style={styles.sigLine} />
+              <Text style={styles.sigLabel}>Sales Representative</Text>
+              {repName ? <Text style={styles.sigRepName}>{repName}</Text> : null}
             </View>
             <View style={styles.dateLine}>
-              <View style={styles.signatureLine} />
-              <Text style={styles.signatureLabel}>Date</Text>
+              <View style={styles.sigLine} />
+              <Text style={styles.sigLabel}>Date</Text>
             </View>
           </View>
         </View>
 
         {/* Terms */}
-        <View style={{ marginBottom: 60 }}>
-          <Text style={styles.termsText}>• Infinity by Marvin lifetime limited warranty / James Hardie HZ5 30-year limited product warranty</Text>
-          {companyName ? (
-            <Text style={styles.termsText}>• Lifetime Labor Warranty provided by {companyName}</Text>
-          ) : null}
-          <Text style={styles.termsText}>• Estimated project completion: 4–6 weeks from signed agreement</Text>
-          <Text style={styles.termsText}>• This proposal is valid for 30 days from the date above</Text>
+        <View style={{ marginBottom: 52 }}>
+          {warrantyLines.map((line, i) => (
+            <Text key={i} style={styles.termsText}>• {line}</Text>
+          ))}
         </View>
 
         {/* Footer */}
         <View style={styles.footer} fixed>
-          <View>
+          <View style={styles.footerCol}>
             {repName ? <Text style={styles.footerText}>{repName}</Text> : null}
             {repEmail ? <Text style={styles.footerText}>{repEmail}</Text> : null}
-            {repPhone ? <Text style={styles.footerText}>{repPhone}</Text> : null}
+            {repPhone ? <Text style={styles.footerText}>Cell: {repPhone}</Text> : null}
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            {companyName ? <Text style={styles.footerText}>{companyName}</Text> : null}
+          <View style={styles.footerColCenter}>
+            <Text style={styles.footerText}>Office: 303-934-4508</Text>
+          </View>
+          <View style={styles.footerColRight}>
+            <Text style={styles.footerText}>www.mylifetimehome.com</Text>
+            <Text style={{ fontSize: 7, color: '#D1D5DB', marginTop: 3 }}>Powered by Clozr</Text>
           </View>
         </View>
       </Page>

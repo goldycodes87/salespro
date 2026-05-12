@@ -101,7 +101,7 @@ async function syncIcalConnection(
 ) {
   try {
     const res = await fetch(connection.ical_url, {
-      headers: { 'User-Agent': 'SalesPro/1.0' },
+      headers: { 'User-Agent': 'Clozr/1.0' },
       signal: AbortSignal.timeout(10000),
     })
     if (!res.ok) return 0

@@ -51,7 +51,7 @@ export default function AdminSystemPage() {
 
   const statusColor = (s: HealthResult['status']) => s === 'healthy' ? '#34D399' : s === 'slow' ? '#FCD34D' : '#F87171'
   const LOGO_SLOTS = [
-    { name: 'salespro', label: 'SalesPro' },
+    { name: 'clozr', label: 'Clozr' },
     { name: 'lifetime', label: 'Lifetime Home Remodeling' },
     { name: 'infinity', label: 'Infinity / Marvin' },
     { name: 'james_hardie', label: 'James Hardie' },
