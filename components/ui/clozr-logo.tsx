@@ -16,9 +16,8 @@ export default function ClozrLogo({
         alt="Clozr"
         style={{
           height: height,
-          width: height * 1.5,
+          width: Math.round(height * 1.5),
           objectFit: 'contain',
-          objectPosition: 'left center',
           display: 'block',
         }}
         className={className}
@@ -31,19 +30,18 @@ export default function ClozrLogo({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: Math.round(height * 0.25),
+        gap: 14,
         flexShrink: 0,
       }}
       className={className}
     >
       <img
         src="/clozr-icon.png"
-        alt="Clozr"
+        alt=""
         style={{
           height: height,
-          width: height * 1.5,
+          width: Math.round(height * 1.5),
           objectFit: 'contain',
-          objectPosition: 'left center',
           display: 'block',
           flexShrink: 0,
         }}
