@@ -178,7 +178,7 @@ export default async function DashboardPage() {
       overflow: 'hidden',
     }}>
     <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 0, pointerEvents: 'none', userSelect: 'none' }}>
-      <img src="/clozr-icon.svg" alt="" style={{ width: 600, height: 600, opacity: 0.04, pointerEvents: 'none' }} />
+      <img src="/clozr-icon.svg" alt="" style={{ height: 500, width: 'auto', opacity: 0.04, pointerEvents: 'none', filter: 'brightness(0) invert(1)' }} />
     </div>
     <div style={{ position: 'relative', zIndex: 1 }}>
     <CalendarSyncOnLoad />
