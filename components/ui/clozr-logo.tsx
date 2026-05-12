@@ -31,7 +31,7 @@ export default function ClozrLogo({
       style={{
         height: height,
         width: 'auto',
-        maxWidth: 280,
+        maxWidth: 480,
         display: 'block',
         margin: '0 auto',
       }}
