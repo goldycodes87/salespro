@@ -12,13 +12,12 @@ export default function ClozrLogo({
   if (variant === 'icon') {
     return (
       <img
-        src="/clozr-icon.svg"
+        src="/clozr-icon.png"
         alt="Clozr"
         style={{
           height: height,
           width: 'auto',
           display: 'block',
-          filter: 'brightness(0) invert(1)',
         }}
         className={className}
       />
@@ -27,7 +26,7 @@ export default function ClozrLogo({
 
   return (
     <img
-      src="/clozr-logo.svg"
+      src="/clozr-logo-clean.svg"
       alt="Clozr"
       style={{
         height: height,
@@ -35,7 +34,6 @@ export default function ClozrLogo({
         maxWidth: 280,
         display: 'block',
         margin: '0 auto',
-        filter: 'brightness(0) invert(1)',
       }}
       className={className}
     />
