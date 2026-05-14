@@ -59,6 +59,7 @@ export async function PATCH(request: NextRequest) {
   if ('full_name' in body) allowed.full_name = body.full_name
   if ('phone' in body) allowed.phone = body.phone
   if ('settings' in body) allowed.settings = body.settings
+  if ('assistant_config' in body) allowed.assistant_config = body.assistant_config
 
   const { data, error } = await admin
     .from('reps')

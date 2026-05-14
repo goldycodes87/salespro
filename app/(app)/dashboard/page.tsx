@@ -178,9 +178,9 @@ export default async function DashboardPage() {
   const leadBorderColor = (status: string) => (STATUS_COLORS[status] ?? STATUS_COLORS.new).border
 
   const coachConfigData = user
-    ? await admin.from('coach_config').select('persona').eq('rep_id', user.id).maybeSingle()
+    ? await admin.from('coach_config').select('active_persona_id').eq('rep_id', user.id).maybeSingle()
     : null
-  const coachPersona = (coachConfigData?.data as any)?.persona as string | null ?? null
+  const coachPersona = (coachConfigData?.data as any)?.active_persona_id as string | null ?? null
   const coachMeta = coachPersona ? (COACH_META[coachPersona] ?? null) : null
 
   const assistantConfig = (rep as any)?.assistant_config as Record<string, any> | null

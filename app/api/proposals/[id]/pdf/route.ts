@@ -51,11 +51,20 @@ export async function GET(
 
   if (error || !proposal) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  console.log('=== PDF DEBUG START ===')
+  console.log('PROPOSAL ID:', id)
   const pd = proposal.pricing_data || {}
-  console.log('PDF PRICING DATA:', JSON.stringify(pd, null, 2))
-  console.log('TOGGLE STATE:', JSON.stringify(pd.toggle_state))
+  const toggles = pd.toggle_state || {}
+  console.log('RAW PRICING_DATA:', JSON.stringify(proposal.pricing_data))
+  console.log('PARSED PD:', JSON.stringify(pd))
+  console.log('TOGGLE STATE:', JSON.stringify(toggles))
+  console.log('PROMOTION:', toggles.promotion)
+  console.log('BNSN:', toggles.bnsn)
+  console.log('CASH:', toggles.cash_incentive)
+  console.log('PACKAGE PRICE:', pd.package_price, proposal.package_price)
+  console.log('YOUR PRICE:', pd.your_price, proposal.your_price)
   console.log('DISCOUNT AMOUNT:', pd.discount_amount)
-  console.log('YOUR PRICE:', proposal.your_price, pd.your_price)
+  console.log('=== PDF DEBUG END ===')
 
   const { data: rep } = await admin
     .from('reps')

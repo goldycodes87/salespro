@@ -41,7 +41,7 @@ export async function PATCH(request: NextRequest) {
 
   const admin = getSupabaseAdmin()
   const { data, error } = await admin.from('coach_config').upsert(
-    { rep_id: user.id, active_persona_id: body.active_persona_id },
+    { rep_id: user.id, active_persona_id: body.active_persona_id, persona: body.active_persona_id },
     { onConflict: 'rep_id' },
   ).select()
 

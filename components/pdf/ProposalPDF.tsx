@@ -505,11 +505,32 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
   const costcoSavings: number | null = pricing.costco_savings > 0 ? pricing.costco_savings : null
   const netAfterCostco: number | null = costcoMember && costcoSavings ? yourPrice - costcoSavings : null
 
-  // Discount lines
+  // Discount lines — check toggle_state first, fall back to stored discount_amount
   type DiscountLine = { label: string; amount: number }
+  const toggles = pricing.toggle_state || {}
+  const adminFeeForDiscount: number = pricing.admin_fee_amount ?? pricing.admin_fee ?? 850
+  const discountableBase: number =
+    (pricing.package_price ?? Number(proposal.package_price) ?? 0) - adminFeeForDiscount
+
   const discountLines: DiscountLine[] = []
-  if (pricing.discount_amount > 0) {
-    discountLines.push({ label: pricing.discount_name || 'Promo Discount', amount: pricing.discount_amount })
+  if (toggles.promotion === '20_off') {
+    discountLines.push({ label: 'Package Discount (20%)', amount: Math.round(discountableBase * 0.20) })
+  }
+  if (toggles.promotion === '25_off') {
+    discountLines.push({ label: 'Package Discount (25%)', amount: Math.round(discountableBase * 0.25) })
+  }
+  if (toggles.bnsn === '10_off') {
+    discountLines.push({ label: 'Buy Now Save Now (10%)', amount: Math.round(discountableBase * 0.10) })
+  }
+  if (toggles.bnsn === '5_off') {
+    discountLines.push({ label: 'Buy Now Save Now (5%)', amount: Math.round(discountableBase * 0.05) })
+  }
+  if (toggles.cash_incentive) {
+    discountLines.push({ label: 'Cash Incentive (7%)', amount: Math.round(discountableBase * 0.07) })
+  }
+  // Fallback: Vendo import or any stored discount_amount
+  if (discountLines.length === 0 && pricing.discount_amount > 0) {
+    discountLines.push({ label: pricing.discount_name || 'Promotional Discount', amount: pricing.discount_amount })
   }
   const totalSavings = discountLines.reduce((s, d) => s + d.amount, 0)
 

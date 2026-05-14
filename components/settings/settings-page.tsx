@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { motion } from 'framer-motion'
@@ -185,7 +185,29 @@ function SaveButton({ saving, saved, onClick, label = 'Save' }: {
   )
 }
 
-type TabId = 'general' | 'coach' | 'calendar' | 'integrations'
+const VOICE_OPTIONS = {
+  female: [
+    { name: 'Rachel', voice_id: '21m00Tcm4TlvDq8ikWAM' },
+    { name: 'Bella',  voice_id: 'EXAVITQu4vr4xnSDxMaL' },
+    { name: 'Elli',   voice_id: 'MF3mGyEYCl7XYWbV9V6O' },
+  ],
+  male: [
+    { name: 'Adam', voice_id: 'pNInz6obpgDQGcFmaJgB' },
+    { name: 'Josh', voice_id: 'TxGEqnHWrfWFTfGW9XjX' },
+    { name: 'Sam',  voice_id: 'yoZ06aMxZJJ28mfd3POQ' },
+  ],
+}
+
+const CAPABILITIES = [
+  { id: 'answer_all',     icon: '📞', label: 'Answer all calls' },
+  { id: 'answer_dnd',    icon: '🔕', label: 'Answer calls on DND only' },
+  { id: 'schedule',      icon: '📅', label: 'Schedule appointments' },
+  { id: 'qualify',       icon: '👤', label: 'Qualify leads' },
+  { id: 'email_summary', icon: '📧', label: 'Send call summary emails' },
+  { id: 'outbound',      icon: '📱', label: 'Make outbound calls' },
+]
+
+type TabId = 'general' | 'assistant' | 'coach' | 'calendar' | 'integrations'
 
 export default function SettingsPage({
   rep,
@@ -258,6 +280,93 @@ export default function SettingsPage({
   const [iCloudPassword, setICloudPassword] = useState('')
   const [connectingICloud, setConnectingICloud] = useState(false)
   const [iCloudError, setICloudError] = useState<string | null>(null)
+
+  // Assistant state
+  const initConfig = (rep.assistant_config ?? {}) as Record<string, any>
+  const [assistantEnabled, setAssistantEnabled] = useState<boolean>(initConfig.enabled ?? false)
+  const [assistantName, setAssistantName]       = useState<string>(initConfig.name ?? 'Alex')
+  const [selectedVoice, setSelectedVoice]       = useState<string>(initConfig.voice_id ?? '')
+  const [voiceTab, setVoiceTab]                 = useState<'female' | 'male'>('female')
+  const [capabilities, setCapabilities]         = useState<string[]>(initConfig.capabilities ?? [])
+  const [qualifyCriteria, setQualifyCriteria]   = useState<string>(initConfig.qualifying_criteria ?? '')
+  const [asPhoneType, setAsPhoneType]           = useState<string>(initConfig.phone_type ?? '')
+  const [areaCode, setAreaCode]                 = useState('')
+  const [availableNumbers, setAvailableNumbers] = useState<{ phoneNumber: string; friendlyName: string }[]>([])
+  const [searchingNumbers, setSearchingNumbers] = useState(false)
+  const [selectedNumber, setSelectedNumber]     = useState<string>(initConfig.business_number ?? '')
+  const [dndActive, setDndActive]               = useState<boolean>(initConfig.dnd_active ?? false)
+  const [dndDuringAppts, setDndDuringAppts]     = useState<boolean>(initConfig.dnd_during_appointments ?? false)
+  const [previewingVoice, setPreviewingVoice]   = useState('')
+  const [showVoicePicker, setShowVoicePicker]   = useState(false)
+  const [savingAssistant, setSavingAssistant]   = useState(false)
+  const [assistantSaved, setAssistantSaved]     = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  const previewVoice = async (voice_id: string) => {
+    if (previewingVoice === voice_id) return
+    setPreviewingVoice(voice_id)
+    try {
+      const res = await fetch('/api/voice/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voice_id }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null }
+      const audio = new Audio(url)
+      audioRef.current = audio
+      audio.play()
+      audio.onended = () => setPreviewingVoice('')
+    } catch {
+      setPreviewingVoice('')
+    }
+  }
+
+  const searchNumbers = async () => {
+    if (areaCode.length !== 3) return
+    setSearchingNumbers(true)
+    try {
+      const res = await fetch('/api/twilio/search-numbers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ areaCode }),
+      })
+      const data = await res.json()
+      setAvailableNumbers(data.numbers ?? [])
+    } catch {
+      setAvailableNumbers([])
+    } finally {
+      setSearchingNumbers(false)
+    }
+  }
+
+  const toggleCap = (id: string) =>
+    setCapabilities(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id])
+
+  const saveAssistant = async () => {
+    setSavingAssistant(true)
+    await fetch('/api/reps', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        assistant_config: {
+          enabled: assistantEnabled,
+          name: assistantName,
+          voice_id: selectedVoice || null,
+          capabilities,
+          qualifying_criteria: qualifyCriteria || null,
+          phone_type: asPhoneType || null,
+          business_number: selectedNumber || null,
+          dnd_active: dndActive,
+          dnd_during_appointments: dndDuringAppts,
+        },
+      }),
+    })
+    setSavingAssistant(false)
+    savedFlash(setAssistantSaved)
+  }
 
   const savedFlash = (setter: (v: boolean) => void) => {
     setter(true)
@@ -446,9 +555,10 @@ export default function SettingsPage({
   }
 
   const tabs: { id: TabId; label: string }[] = [
-    { id: 'general', label: 'General' },
-    { id: 'coach', label: 'Coach' },
-    { id: 'calendar', label: 'Calendar' },
+    { id: 'general',      label: 'General' },
+    { id: 'assistant',    label: 'Assistant' },
+    { id: 'coach',        label: 'Coach' },
+    { id: 'calendar',     label: 'Calendar' },
     { id: 'integrations', label: 'Integrations' },
   ]
 
@@ -721,6 +831,268 @@ export default function SettingsPage({
             </div>
           </CollapsibleSection>
         </>
+      )}
+
+      {/* ASSISTANT TAB */}
+      {activeTab === 'assistant' && (
+        <div style={{ opacity: 1 }}>
+          {/* Section 1 — Status */}
+          <div className="rounded-2xl mb-4 overflow-hidden"
+            style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="flex items-center justify-between px-5 py-4">
+              <div>
+                <p className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>AI Assistant</p>
+                <p className="text-xs mt-0.5" style={{ color: assistantEnabled ? '#10B981' : '#6B7280' }}>
+                  {assistantEnabled ? 'Active' : 'Disabled'}
+                </p>
+              </div>
+              <Toggle on={assistantEnabled} onToggle={() => setAssistantEnabled(v => !v)} />
+            </div>
+          </div>
+
+          <div style={{ opacity: assistantEnabled ? 1 : 0.4, pointerEvents: assistantEnabled ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
+            {/* Section 2 — Identity */}
+            <CollapsibleSection title="Identity" storageKey="assistant-identity" defaultOpen={true}>
+              <Field label="Assistant Name">
+                <FocusInput value={assistantName} onChange={v => setAssistantName(v.slice(0, 20))} placeholder="Alex" />
+              </Field>
+
+              <Field label="Voice">
+                <div className="flex items-center justify-between p-3 rounded-xl"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: '#F9FAFB' }}>
+                      {selectedVoice
+                        ? ([...VOICE_OPTIONS.female, ...VOICE_OPTIONS.male].find(v => v.voice_id === selectedVoice)?.name ?? 'Custom voice')
+                        : 'No voice selected'}
+                    </p>
+                    {selectedVoice && (
+                      <button
+                        onClick={() => previewVoice(selectedVoice)}
+                        className="text-xs mt-0.5"
+                        style={{ color: previewingVoice === selectedVoice ? '#06B6D4' : '#6B7280', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      >
+                        {previewingVoice === selectedVoice ? '▶ Playing…' : '▶ Preview'}
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowVoicePicker(v => !v)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                    style={{ background: 'rgba(29,78,216,0.15)', color: '#60A5FA', border: '1px solid rgba(29,78,216,0.3)' }}
+                  >
+                    {showVoicePicker ? 'Close' : 'Change Voice'}
+                  </button>
+                </div>
+
+                {showVoicePicker && (
+                  <div className="mt-2 rounded-xl overflow-hidden"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div className="flex gap-1 p-2">
+                      {(['female', 'male'] as const).map(tab => (
+                        <button key={tab} onClick={() => setVoiceTab(tab)}
+                          className="flex-1 py-1.5 rounded-lg text-xs font-semibold"
+                          style={{
+                            background: voiceTab === tab ? 'rgba(29,78,216,0.2)' : 'transparent',
+                            color: voiceTab === tab ? '#60A5FA' : '#6B7280',
+                            border: voiceTab === tab ? '1px solid rgba(29,78,216,0.3)' : '1px solid transparent',
+                          }}
+                        >
+                          {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="px-2 pb-2 space-y-1.5">
+                      {VOICE_OPTIONS[voiceTab].map(v => (
+                        <div key={v.voice_id}
+                          onClick={() => { setSelectedVoice(v.voice_id); setShowVoicePicker(false) }}
+                          className="flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer"
+                          style={{
+                            background: selectedVoice === v.voice_id ? 'rgba(6,182,212,0.1)' : 'rgba(255,255,255,0.03)',
+                            border: selectedVoice === v.voice_id ? '1px solid #06B6D4' : '1px solid rgba(255,255,255,0.06)',
+                          }}
+                        >
+                          <span className="text-sm font-medium" style={{ color: '#F9FAFB' }}>{v.name}</span>
+                          <button
+                            onClick={e => { e.stopPropagation(); previewVoice(v.voice_id) }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold"
+                            style={{
+                              background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)',
+                              color: previewingVoice === v.voice_id ? '#06B6D4' : 'rgba(255,255,255,0.6)',
+                            }}
+                          >
+                            {previewingVoice === v.voice_id ? '▶ Playing…' : '▶ Preview'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Field>
+            </CollapsibleSection>
+
+            {/* Section 3 — Phone */}
+            <CollapsibleSection title="Phone" storageKey="assistant-phone" defaultOpen={true}>
+              {initConfig.business_number ? (
+                <div>
+                  <div className="flex items-center justify-between p-3 rounded-xl mb-3"
+                    style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>{initConfig.business_number}</p>
+                      <p className="text-xs mt-0.5" style={{ color: '#10B981' }}>Business number · Active</p>
+                    </div>
+                    <span className="text-xs px-2 py-1 rounded-full font-semibold"
+                      style={{ background: 'rgba(16,185,129,0.2)', color: '#34D399', border: '1px solid rgba(16,185,129,0.3)' }}>
+                      Active
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setAsPhoneType('business')}
+                    className="text-xs" style={{ color: '#6B7280', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                  >
+                    Change number
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs" style={{ color: '#6B7280' }}>How should your assistant handle calls?</p>
+                  {[
+                    { id: 'business', label: 'Get a business number', sub: 'Dedicated Clozr number. Calls forward to your cell.' },
+                    { id: 'cell',     label: 'Use my cell number',    sub: 'Assistant activates when you\'re in DND mode.' },
+                  ].map(opt => (
+                    <button key={opt.id} onClick={() => setAsPhoneType(opt.id)}
+                      className="w-full text-left p-3 rounded-xl"
+                      style={{
+                        background: asPhoneType === opt.id ? 'rgba(6,182,212,0.08)' : 'rgba(255,255,255,0.03)',
+                        border: asPhoneType === opt.id ? '1px solid #06B6D4' : '1px solid rgba(255,255,255,0.08)',
+                      }}
+                    >
+                      <p className="text-sm font-medium" style={{ color: '#F9FAFB' }}>{opt.label}</p>
+                      <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>{opt.sub}</p>
+                    </button>
+                  ))}
+
+                  {asPhoneType === 'business' && (
+                    <div>
+                      <p className="text-xs mb-2 font-medium" style={{ color: '#9CA3AF' }}>Enter your area code</p>
+                      <div className="flex gap-2">
+                        <input
+                          value={areaCode}
+                          onChange={e => setAreaCode(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                          placeholder="719"
+                          type="tel"
+                          style={{ ...inputStyle, width: 80, height: 40, fontSize: 14 }}
+                        />
+                        <button
+                          onClick={searchNumbers}
+                          disabled={areaCode.length !== 3 || searchingNumbers}
+                          className="px-4 h-10 rounded-xl text-sm font-semibold"
+                          style={{
+                            background: areaCode.length === 3 ? 'rgba(29,78,216,0.2)' : 'rgba(255,255,255,0.05)',
+                            border: '1px solid rgba(29,78,216,0.3)',
+                            color: areaCode.length === 3 ? '#60A5FA' : '#4B5563',
+                          }}
+                        >
+                          {searchingNumbers ? 'Searching…' : 'Search'}
+                        </button>
+                      </div>
+                      {availableNumbers.length > 0 && (
+                        <div className="mt-2 space-y-1.5">
+                          {availableNumbers.map(n => (
+                            <button key={n.phoneNumber} onClick={() => setSelectedNumber(n.phoneNumber)}
+                              className="w-full flex items-center justify-between px-3 py-2 rounded-lg"
+                              style={{
+                                background: selectedNumber === n.phoneNumber ? 'rgba(6,182,212,0.1)' : 'rgba(255,255,255,0.03)',
+                                border: selectedNumber === n.phoneNumber ? '1px solid #06B6D4' : '1px solid rgba(255,255,255,0.06)',
+                              }}
+                            >
+                              <span className="text-sm" style={{ color: '#F9FAFB' }}>{n.friendlyName}</span>
+                              <span className="text-xs" style={{ color: selectedNumber === n.phoneNumber ? '#06B6D4' : '#6B7280' }}>
+                                {selectedNumber === n.phoneNumber ? 'Selected ✓' : 'Select'}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CollapsibleSection>
+
+            {/* Section 4 — Capabilities */}
+            <CollapsibleSection title="Capabilities" storageKey="assistant-capabilities" defaultOpen={true}>
+              <p className="text-xs -mt-1" style={{ color: '#6B7280' }}>What can your assistant do?</p>
+              <div className="space-y-2">
+                {CAPABILITIES.map(cap => (
+                  <div key={cap.id}>
+                    <button
+                      onClick={() => toggleCap(cap.id)}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left"
+                      style={{
+                        background: capabilities.includes(cap.id) ? 'rgba(29,78,216,0.1)' : 'rgba(255,255,255,0.03)',
+                        border: capabilities.includes(cap.id) ? '1px solid rgba(29,78,216,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                      }}
+                    >
+                      <span style={{ fontSize: 18 }}>{cap.icon}</span>
+                      <span className="flex-1 text-sm font-medium" style={{ color: '#F9FAFB' }}>{cap.label}</span>
+                      {capabilities.includes(cap.id) && (
+                        <span style={{ color: '#06B6D4', fontSize: 14 }}>✓</span>
+                      )}
+                    </button>
+                    {cap.id === 'qualify' && capabilities.includes('qualify') && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        style={{ marginTop: 6 }}
+                      >
+                        <textarea
+                          value={qualifyCriteria}
+                          onChange={e => setQualifyCriteria(e.target.value)}
+                          placeholder="e.g. Homeowner, project over $5,000, within my territory"
+                          rows={3}
+                          style={{
+                            ...inputStyle, height: 'auto', padding: '10px 14px',
+                            resize: 'none', lineHeight: 1.5, fontSize: 13,
+                          } as React.CSSProperties}
+                        />
+                      </motion.div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CollapsibleSection>
+
+            {/* Section 5 — DND */}
+            <CollapsibleSection title="Do Not Disturb" storageKey="assistant-dnd">
+              <div className="flex items-center justify-between py-1">
+                <div>
+                  <p className="text-sm font-medium" style={{ color: '#F9FAFB' }}>Enable DND now</p>
+                  {dndActive && (
+                    <p className="text-xs mt-0.5 flex items-center gap-1.5" style={{ color: '#10B981' }}>
+                      <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#10B981' }} />
+                      DND Active — calls go to assistant
+                    </p>
+                  )}
+                </div>
+                <Toggle on={dndActive} onToggle={() => setDndActive(v => !v)} />
+              </div>
+              <div className="flex items-center justify-between py-1 mt-2"
+                style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: '#F9FAFB' }}>During appointments</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>Auto-activates when a calendar event is active</p>
+                </div>
+                <Toggle on={dndDuringAppts} onToggle={() => setDndDuringAppts(v => !v)} />
+              </div>
+            </CollapsibleSection>
+          </div>
+
+          {/* Save */}
+          <div className="mt-2">
+            <SaveButton saving={savingAssistant} saved={assistantSaved} onClick={saveAssistant} label="Save Assistant Settings" />
+          </div>
+        </div>
       )}
 
       {/* COACH TAB */}
