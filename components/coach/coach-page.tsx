@@ -15,7 +15,6 @@ interface Message {
 interface CoachPageProps {
   repName: string
   initialPersonaId: string | null
-  vapiCoachId?: string | null
 }
 
 // ── Coach photo components ───────────────────────────────────────────────────
@@ -231,9 +230,33 @@ function HistoryModal({ allMessages, onClose, onClearAll }: HistoryModalProps) {
   )
 }
 
+// ── Waveform animation ────────────────────────────────────────────────────────
+
+function Waveform({ color, fast }: { color: string; fast?: boolean }) {
+  return (
+    <div className="flex items-center justify-center gap-1" style={{ height: 32 }}>
+      {[0, 1, 2].map((i) => (
+        <motion.div
+          key={i}
+          style={{ width: 4, borderRadius: 2, background: color }}
+          animate={{ height: [6, fast ? 28 : 20, 6] }}
+          transition={{ duration: fast ? 0.5 : 0.8, repeat: Infinity, delay: i * (fast ? 0.1 : 0.15), ease: 'easeInOut' }}
+        />
+      ))}
+    </div>
+  )
+}
+
+const PERSONA_SOLID_COLORS: Record<string, string> = {
+  jordan: '#1D4ED8',
+  victoria: '#7C3AED',
+  ray: '#D97706',
+  noel: '#0F766E',
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function CoachPage({ repName, initialPersonaId, vapiCoachId }: CoachPageProps) {
+export default function CoachPage({ repName, initialPersonaId }: CoachPageProps) {
   const personaId = initialPersonaId ?? 'jordan'
   const persona = getPersona(personaId)
 
@@ -249,11 +272,14 @@ export default function CoachPage({ repName, initialPersonaId, vapiCoachId }: Co
   const [activeTab, setActiveTab] = useState<'chat' | 'voice'>('chat')
 
   // Voice state
-  const [voiceStatus, setVoiceStatus] = useState<'idle' | 'connecting' | 'listening' | 'speaking'>('idle')
+  type CallStatus = 'idle' | 'loading' | 'active' | 'coach-speaking' | 'ending'
+  const [callStatus, setCallStatus] = useState<CallStatus>('idle')
   const [voiceError, setVoiceError] = useState<string | null>(null)
-  const [postCallMsg, setPostCallMsg] = useState(false)
+  const [showPostCall, setShowPostCall] = useState(false)
+  const [liveTranscript, setLiveTranscript] = useState<{ role: string; text: string }[]>([])
   const vapiRef = useRef<any>(null)
-  const [localCoachId, setLocalCoachId] = useState<string | null>(vapiCoachId ?? null)
+  const liveTranscriptRef = useRef<{ role: string; text: string }[]>([])
+  const callStartTimeRef = useRef<number>(0)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -314,60 +340,118 @@ export default function CoachPage({ repName, initialPersonaId, vapiCoachId }: Co
     setSessionStart(messages.length)
   }
 
-  const initVapi = async () => {
-    if (!localCoachId) return
+  const endCall = () => {
+    setCallStatus('ending')
+    vapiRef.current?.stop()
+  }
+
+  const startVoice = async () => {
+    if (callStatus !== 'idle') return
+    setVoiceError(null)
+    setShowPostCall(false)
+    setCallStatus('loading')
+    liveTranscriptRef.current = []
+    setLiveTranscript([])
+
     try {
+      // Fetch fresh context from server — never expose API keys to browser
+      const configRes = await fetch('/api/coach/voice-config')
+      if (!configRes.ok) throw new Error('Failed to load coach config')
+      const coachConfig = await configRes.json()
+
       const { default: Vapi } = await import('@vapi-ai/web')
       const vapi = new Vapi(process.env.NEXT_PUBLIC_VAPI_KEY!)
       vapiRef.current = vapi
-      vapi.on('call-start', () => setVoiceStatus('listening'))
-      vapi.on('speech-start', () => setVoiceStatus('speaking'))
-      vapi.on('speech-end', () => setVoiceStatus('listening'))
-      vapi.on('call-end', () => {
-        setVoiceStatus('idle')
-        setPostCallMsg(true)
-        setTimeout(() => setPostCallMsg(false), 5000)
+
+      vapi.on('call-start', () => {
+        callStartTimeRef.current = Date.now()
+        setCallStatus('active')
       })
+
+      vapi.on('speech-start', () => {
+        setCallStatus('coach-speaking')
+      })
+
+      vapi.on('speech-end', () => {
+        setCallStatus('active')
+      })
+
+      vapi.on('message', (message: any) => {
+        if (message.type === 'transcript' && message.transcriptType === 'final') {
+          const turn = { role: message.role as string, text: message.transcript as string }
+          liveTranscriptRef.current = [...liveTranscriptRef.current, turn]
+          setLiveTranscript((prev) => [...prev, turn])
+        }
+      })
+
+      vapi.on('call-end', () => {
+        setCallStatus('ending')
+        const durationSeconds = Math.round((Date.now() - callStartTimeRef.current) / 1000)
+
+        const transcriptStr = liveTranscriptRef.current
+          .map((t) => `${t.role === 'assistant' ? 'AI' : 'User'}: ${t.text}`)
+          .join('\n')
+
+        // Save to coach_messages (fire-and-forget from client)
+        if (transcriptStr) {
+          fetch('/api/coach/save-voice-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transcript: transcriptStr, summary: '', durationSeconds }),
+          }).catch(console.error)
+        }
+
+        vapiRef.current = null
+        liveTranscriptRef.current = []
+        setLiveTranscript([])
+        setCallStatus('idle')
+        setShowPostCall(true)
+      })
+
       vapi.on('error', (err: any) => {
         console.error('Vapi error:', err)
-        setVoiceStatus('idle')
+        vapiRef.current = null
+        setCallStatus('idle')
         setVoiceError('Connection failed. Try again.')
         setTimeout(() => setVoiceError(null), 4000)
       })
-      setVoiceStatus('connecting')
-      vapi.start(localCoachId)
+
+      // Start transient session — fresh context every call, no persistent assistant ID
+      vapi.start({
+        transcriber: { provider: 'deepgram', model: 'nova-2', language: 'en-US' },
+        model: {
+          provider: 'anthropic',
+          model: 'claude-haiku-4-5-20251001',
+          messages: [{ role: 'system', content: coachConfig.systemPrompt }],
+          temperature: 0.7,
+          maxTokens: 150,
+        },
+        voice: {
+          provider: '11labs',
+          voiceId: coachConfig.voiceId,
+          stability: 0.5,
+          similarityBoost: 0.75,
+          optimizeStreamingLatency: 3,
+        },
+        firstMessage: coachConfig.firstMessage,
+        endCallMessage: 'Good talk. Go close something.',
+      })
     } catch (e) {
-      console.error('Vapi init failed:', e)
+      console.error('Voice start failed:', e)
+      vapiRef.current = null
+      setCallStatus('idle')
       setVoiceError('Could not start voice session.')
       setTimeout(() => setVoiceError(null), 4000)
     }
   }
 
-  const endVoice = () => {
-    vapiRef.current?.stop()
-    vapiRef.current = null
-    setVoiceStatus('idle')
-  }
-
-  const ensureCoach = async () => {
-    if (localCoachId) return localCoachId
-    const res = await fetch('/api/vapi/create-coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ persona: personaId }) })
-    const data = await res.json()
-    if (data.coachId) { setLocalCoachId(data.coachId); return data.coachId }
-    return null
-  }
-
-  const startVoice = async () => {
-    if (voiceStatus !== 'idle') return
-    setVoiceError(null)
-    if (!localCoachId) {
-      setVoiceStatus('connecting')
-      const id = await ensureCoach()
-      if (!id) { setVoiceStatus('idle'); setVoiceError('Could not set up voice coach.'); return }
-      setLocalCoachId(id)
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      vapiRef.current?.stop()
+      vapiRef.current = null
     }
-    await initVapi()
-  }
+  }, [])
 
   const firstName = repName.split(' ')[0]
   // Only show messages from current session start
@@ -441,53 +525,165 @@ export default function CoachPage({ repName, initialPersonaId, vapiCoachId }: Co
 
         {/* Voice tab */}
         {activeTab === 'voice' && (
-          <div className="flex-1 flex flex-col items-center justify-center px-6 pb-16">
-            <CoachPhoto personaId={personaId} size={120} color={persona.color} />
-            <h2 className="text-2xl font-bold mt-5 mb-1" style={{ color: '#F9FAFB' }}>{persona.name}</h2>
-            <p className="text-sm mb-10" style={{ color: persona.color }}>{persona.tagline}</p>
+          <div className="flex-1 flex flex-col items-center px-6 pt-8 pb-16 overflow-y-auto">
+            <CoachPhoto personaId={personaId} size={96} color={persona.color} />
+            <h2 className="text-xl font-bold mt-4 mb-0.5" style={{ color: '#F9FAFB' }}>{persona.name}</h2>
+            <p className="text-xs mb-8" style={{ color: PERSONA_SOLID_COLORS[personaId] ?? '#1D4ED8' }}>{persona.tagline}</p>
 
             {voiceError && (
               <p className="text-sm mb-4 text-center" style={{ color: '#EF4444' }}>{voiceError}</p>
             )}
 
-            {postCallMsg ? (
-              <div className="text-center mb-8">
-                <p className="text-xl font-bold mb-2" style={{ color: '#06B6D4' }}>Great session, {firstName}! 👊</p>
-                <p className="text-sm mb-4" style={{ color: '#6B7280' }}>Your conversation is being saved...</p>
-                <button onClick={() => setActiveTab('chat')} className="text-sm font-semibold px-5 py-2.5 rounded-xl" style={{ background: 'rgba(6,182,212,0.15)', color: '#06B6D4', border: '1px solid rgba(6,182,212,0.3)' }}>
-                  View in chat →
-                </button>
-              </div>
-            ) : (
-              <>
-                <motion.button
-                  onClick={voiceStatus === 'idle' ? startVoice : undefined}
-                  animate={voiceStatus !== 'idle' ? { scale: [1, 1.04, 1] } : {}}
-                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                  style={{
-                    width: 180, height: 180, borderRadius: '50%',
-                    background: voiceStatus === 'listening' ? 'rgba(29,78,216,0.25)' : voiceStatus === 'speaking' ? `${persona.color}33` : 'rgba(29,78,216,0.12)',
-                    border: voiceStatus === 'idle' ? '2px solid rgba(29,78,216,0.4)' : voiceStatus === 'speaking' ? `2px solid ${persona.color}` : '2px solid #1D4ED8',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    cursor: voiceStatus === 'idle' ? 'pointer' : 'default',
-                    transition: 'background 0.3s, border-color 0.3s',
-                  }}
+            <AnimatePresence mode="wait">
+              {showPostCall ? (
+                <motion.div
+                  key="post-call"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.3 }}
+                  className="text-center"
                 >
-                  <span style={{ fontSize: 48 }}>🎙️</span>
-                </motion.button>
-                <p className="text-sm mt-5" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                  {voiceStatus === 'idle' && `Tap to talk to ${persona.name}`}
-                  {voiceStatus === 'connecting' && 'Connecting...'}
-                  {voiceStatus === 'listening' && 'Listening...'}
-                  {voiceStatus === 'speaking' && `${persona.name} is speaking...`}
-                </p>
-                {voiceStatus !== 'idle' && (
-                  <button onClick={endVoice} className="mt-6 px-5 py-2.5 rounded-xl text-sm font-semibold" style={{ background: 'rgba(239,68,68,0.12)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.3)' }}>
-                    End conversation
+                  <p className="text-lg font-bold mb-2" style={{ color: '#06B6D4' }}>Great session, {firstName}! 👊</p>
+                  <p className="text-sm mb-5" style={{ color: '#6B7280' }}>Your conversation is being saved...</p>
+                  <button
+                    onClick={() => { setShowPostCall(false); setActiveTab('chat') }}
+                    className="text-sm font-semibold px-6 py-3 rounded-xl"
+                    style={{ background: 'rgba(6,182,212,0.15)', color: '#06B6D4', border: '1px solid rgba(6,182,212,0.3)', minHeight: 44 }}
+                  >
+                    View in chat →
                   </button>
-                )}
-              </>
-            )}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="tap-button"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col items-center"
+                >
+                  {/* Tap-to-talk button */}
+                  <motion.button
+                    onClick={callStatus === 'idle' ? startVoice : undefined}
+                    animate={
+                      callStatus === 'idle'
+                        ? { scale: [1, 1.03, 1] }
+                        : callStatus === 'active' || callStatus === 'coach-speaking'
+                        ? { scale: [1, 1.04, 1] }
+                        : {}
+                    }
+                    transition={{ duration: callStatus === 'idle' ? 2.5 : 1.8, repeat: Infinity, ease: 'easeInOut' }}
+                    style={{
+                      width: 180,
+                      height: 180,
+                      minWidth: 160,
+                      minHeight: 160,
+                      borderRadius: '50%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: callStatus === 'idle' ? 'pointer' : 'default',
+                      transition: 'background 0.3s, border-color 0.3s, box-shadow 0.3s',
+                      background:
+                        callStatus === 'idle'
+                          ? 'rgba(29,78,216,0.15)'
+                          : callStatus === 'loading'
+                          ? 'rgba(255,255,255,0.05)'
+                          : callStatus === 'active'
+                          ? 'rgba(29,78,216,0.3)'
+                          : callStatus === 'coach-speaking'
+                          ? `${PERSONA_SOLID_COLORS[personaId] ?? '#1D4ED8'}33`
+                          : 'rgba(255,255,255,0.05)',
+                      border:
+                        callStatus === 'idle'
+                          ? '2px solid rgba(29,78,216,0.3)'
+                          : callStatus === 'loading' || callStatus === 'ending'
+                          ? '2px solid rgba(255,255,255,0.2)'
+                          : callStatus === 'active'
+                          ? '2px solid #1D4ED8'
+                          : `2px solid ${PERSONA_SOLID_COLORS[personaId] ?? '#1D4ED8'}`,
+                      boxShadow:
+                        callStatus === 'active'
+                          ? '0 0 30px rgba(29,78,216,0.4)'
+                          : callStatus === 'coach-speaking'
+                          ? `0 0 30px ${PERSONA_SOLID_COLORS[personaId] ?? '#1D4ED8'}40`
+                          : 'none',
+                    }}
+                  >
+                    {callStatus === 'idle' && <span style={{ fontSize: 52 }}>🎙️</span>}
+                    {callStatus === 'loading' && (
+                      <div
+                        className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin"
+                        style={{ borderColor: 'rgba(255,255,255,0.2)', borderTopColor: '#60A5FA' }}
+                      />
+                    )}
+                    {callStatus === 'active' && (
+                      <Waveform color="#60A5FA" fast={false} />
+                    )}
+                    {callStatus === 'coach-speaking' && (
+                      <Waveform color={PERSONA_SOLID_COLORS[personaId] ?? '#06B6D4'} fast={true} />
+                    )}
+                    {callStatus === 'ending' && (
+                      <div
+                        className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin"
+                        style={{ borderColor: 'rgba(255,255,255,0.15)', borderTopColor: 'rgba(255,255,255,0.4)' }}
+                      />
+                    )}
+                  </motion.button>
+
+                  {/* Status text */}
+                  <p className="text-sm mt-5" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                    {callStatus === 'idle' && `Tap to talk to ${persona.name}`}
+                    {callStatus === 'loading' && `Getting ${persona.name} ready...`}
+                    {callStatus === 'active' && 'Listening...'}
+                    {callStatus === 'coach-speaking' && `${persona.name} is speaking...`}
+                    {callStatus === 'ending' && 'Ending session...'}
+                  </p>
+
+                  {/* End call button */}
+                  {(callStatus === 'active' || callStatus === 'coach-speaking') && (
+                    <motion.button
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      onClick={endCall}
+                      className="mt-6 px-6 py-3 rounded-xl text-sm font-semibold"
+                      style={{ background: 'rgba(239,68,68,0.12)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.3)', minHeight: 44 }}
+                    >
+                      End conversation
+                    </motion.button>
+                  )}
+
+                  {/* Live transcript */}
+                  <AnimatePresence>
+                    {liveTranscript.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-6 w-full max-w-sm space-y-2 overflow-y-auto"
+                        style={{ maxHeight: 180 }}
+                      >
+                        {liveTranscript.map((turn, i) => (
+                          <div key={i} className={`flex ${turn.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div
+                              className="px-3 py-2 rounded-2xl text-xs leading-relaxed max-w-[85%]"
+                              style={{
+                                background: turn.role === 'user' ? '#1D4ED8' : '#1F2937',
+                                color: '#E5E7EB',
+                                borderRadius: turn.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                              }}
+                            >
+                              {turn.text}
+                            </div>
+                          </div>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
