@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const {
     firstName, lastName, phone, company, position, territory, industry,
-    coachPersona,
+    coachPersona, headshotUrl,
     assistantEnabled, assistantName, assistantVoiceId,
     assistantCapabilities, assistantQualifyingCriteria,
     phoneNumberType, selectedPhoneNumber,
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
       position: position?.trim() || null,
       territory: territory?.trim() || null,
       industry: industry || null,
+      headshot_url: headshotUrl || null,
       subscription_tier: subscriptionTier || 'payg',
       trial_started_at: new Date().toISOString(),
       assistant_config: {

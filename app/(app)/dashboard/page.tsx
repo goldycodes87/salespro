@@ -8,6 +8,13 @@ import WelcomeToast from '@/components/dashboard/welcome-toast'
 import { getMTStartOfDay, getMTStartOfWeek, getMTHour } from '@/lib/time'
 import { getTerminology } from '@/lib/platform-registry'
 
+const COACH_META: Record<string, { name: string; color: string; photo: string }> = {
+  jordan:    { name: 'Jordan',    color: '#1D4ED8', photo: '/coaches/jordan.png' },
+  victoria:  { name: 'Victoria',  color: '#7C3AED', photo: '/coaches/victoria.png' },
+  coach_ray: { name: 'Coach Ray', color: '#DC2626', photo: '/coaches/coach-ray.png' },
+  noel:      { name: 'Noel',      color: '#0F766E', photo: '/coaches/noel.png' },
+}
+
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   new:       { bg: 'rgba(29,78,216,0.15)',  text: '#60A5FA', border: '#3B82F6' },
   contacted: { bg: 'rgba(245,158,11,0.15)', text: '#FCD34D', border: '#F59E0B' },
@@ -23,7 +30,7 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   const repData = user
-    ? await supabase.from('reps').select('headshot_url, full_name, industry').eq('id', user.id).single()
+    ? await supabase.from('reps').select('headshot_url, full_name, industry, assistant_config').eq('id', user.id).single()
     : null
   const rep = repData?.data ?? null
   const terminology = getTerminology(rep?.industry)
@@ -169,6 +176,15 @@ export default async function DashboardPage() {
   }
 
   const leadBorderColor = (status: string) => (STATUS_COLORS[status] ?? STATUS_COLORS.new).border
+
+  const coachConfigData = user
+    ? await admin.from('coach_config').select('persona').eq('rep_id', user.id).maybeSingle()
+    : null
+  const coachPersona = (coachConfigData?.data as any)?.persona as string | null ?? null
+  const coachMeta = coachPersona ? (COACH_META[coachPersona] ?? null) : null
+
+  const assistantConfig = (rep as any)?.assistant_config as Record<string, any> | null
+  const assistantEnabled = assistantConfig?.enabled === true
 
   return (
     <div style={{
@@ -393,21 +409,64 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {/* Vapi placeholder */}
+      {/* AI Coach */}
+      {coachMeta && (
+        <div className="rounded-2xl p-4 mb-4" style={{ background: 'rgba(17,24,39,0.6)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="flex items-center gap-3">
+            <img
+              src={coachMeta.photo}
+              alt={coachMeta.name}
+              style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', objectPosition: 'top', flexShrink: 0 }}
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>Your coach is {coachMeta.name}</p>
+              <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>AI Sales Coach</p>
+            </div>
+            <Link
+              href="/coach"
+              className="text-xs font-semibold px-3 py-1.5 rounded-xl flex-shrink-0"
+              style={{ background: `${coachMeta.color}20`, color: coachMeta.color, border: `1px solid ${coachMeta.color}40` }}
+            >
+              Chat now →
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* AI Assistant */}
       <div className="rounded-2xl p-5" style={{ background: 'rgba(17,24,39,0.6)', border: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: assistantEnabled ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.06)' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={assistantEnabled ? '#10B981' : '#6B7280'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.59 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.56a16 16 0 0 0 6.37 6.37l.72-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
             </svg>
           </div>
-          <div>
-            <p className="text-sm font-semibold" style={{ color: '#6B7280' }}>AI Call Assistant</p>
-            <p className="text-xs mt-0.5" style={{ color: '#4B5563' }}>Coming Soon</p>
+          <div className="flex-1 min-w-0">
+            {assistantEnabled ? (
+              <>
+                <p className="text-sm font-semibold flex items-center gap-1.5" style={{ color: '#F9FAFB' }}>
+                  AI Assistant — Active
+                  <span className="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#10B981' }} />
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
+                  {assistantConfig?.name || 'Alex'}{(assistantConfig?.capabilities as string[] | null)?.length ? ` · ${(assistantConfig!.capabilities as string[]).length} capabilities` : ''}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold" style={{ color: '#6B7280' }}>AI Assistant</p>
+                <p className="text-xs mt-0.5" style={{ color: '#4B5563' }}>Set up your assistant</p>
+              </>
+            )}
           </div>
-          <div className="ml-auto text-xs px-2.5 py-1 rounded-full" style={{ background: 'rgba(255,255,255,0.04)', color: '#6B7280', border: '1px solid rgba(255,255,255,0.06)' }}>
-            Vapi
-          </div>
+          <Link
+            href="/settings?tab=assistant"
+            className="text-xs font-semibold px-3 py-1.5 rounded-xl flex-shrink-0"
+            style={{ background: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            {assistantEnabled ? 'Configure →' : 'Set up →'}
+          </Link>
         </div>
       </div>
     </div>

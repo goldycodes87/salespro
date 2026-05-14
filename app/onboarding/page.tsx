@@ -7,10 +7,11 @@ import confetti from 'canvas-confetti'
 import ClozrLogo from '@/components/ui/clozr-logo'
 import AnimatedGradientBackground from '@/components/ui/animated-gradient-background'
 import { Spotlight } from '@/components/ui/spotlight'
+import { createClient } from '@/lib/supabase/client'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TOTAL_STEPS = 7
+const TOTAL_STEPS = 8
 
 const INDUSTRIES = [
   { id: 'windows_doors', icon: '🪟', name: 'Windows & Doors' },
@@ -197,7 +198,14 @@ export default function OnboardingPage() {
   const [role, setRole]             = useState('')
   const [territory, setTerritory]   = useState('')
 
-  // Step 3 — industry
+  // Step 3 — photo
+  const [photoFile, setPhotoFile]             = useState<File | null>(null)
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState('')
+  const [headshotUrl, setHeadshotUrl]         = useState('')
+  const [photoUploading, setPhotoUploading]   = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
+
+  // Step 4 — industry
   const [industry, setIndustry] = useState('')
 
   // Step 4 — coach
@@ -218,6 +226,7 @@ export default function OnboardingPage() {
   const [capabilities, setCapabilities]             = useState<string[]>([])
   const [qualifyCriteria, setQualifyCriteria]       = useState('')
   const audioRef = useRef<HTMLAudioElement | null>(null)
+
 
   // Step 6 — plan
   const [plan, setPlan] = useState<'payg' | 'unlimited' | ''>('')
@@ -249,7 +258,7 @@ export default function OnboardingPage() {
 
   // ── Step 7 confetti + submit ───────────────────────────────────────────────
   useEffect(() => {
-    if (step !== 7 || confettiFired.current) return
+    if (step !== 8 || confettiFired.current) return
     confettiFired.current = true
     confetti({
       particleCount: 200,
@@ -322,6 +331,29 @@ export default function OnboardingPage() {
     )
   }
 
+  // ── Photo upload + continue ────────────────────────────────────────────────
+  const handlePhotoAndContinue = async () => {
+    if (!photoFile) { goNext(); return }
+    setPhotoUploading(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const ext = photoFile.type === 'image/png' ? 'png' : 'jpg'
+        const path = `${user.id}/headshot.${ext}`
+        const { data } = await supabase.storage
+          .from('rep-photos')
+          .upload(path, photoFile, { upsert: true, contentType: photoFile.type })
+        if (data) {
+          const { data: urlData } = supabase.storage.from('rep-photos').getPublicUrl(path)
+          setHeadshotUrl(urlData.publicUrl)
+        }
+      }
+    } catch {}
+    setPhotoUploading(false)
+    goNext()
+  }
+
   // ── Final submit ───────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (submitting || submitted) return
@@ -334,6 +366,7 @@ export default function OnboardingPage() {
           firstName, lastName, phone, company,
           position: role, territory, industry,
           coachPersona: coach,
+          headshotUrl: headshotUrl || undefined,
           assistantEnabled,
           assistantName,
           assistantVoiceId: selectedVoice,
@@ -380,7 +413,7 @@ export default function OnboardingPage() {
       )}
 
       {/* Back button */}
-      {step > 1 && step < 7 && (
+      {step > 1 && step < 8 && (
         <button
           onClick={goBack}
           style={{
@@ -523,8 +556,104 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ── STEP 3: INDUSTRY ───────────────────────────────────────── */}
+          {/* ── STEP 3: PHOTO ──────────────────────────────────────────── */}
           {step === 3 && (
+            <div className="px-5 pb-32 max-w-lg mx-auto w-full flex flex-col items-center">
+              <h2 style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginBottom: 8, textAlign: 'center' }}>
+                Add your photo.
+              </h2>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', marginBottom: 32, textAlign: 'center' }}>
+                Put a face to your name. Clients connect better when they see you.
+              </p>
+
+              {/* Photo circle */}
+              <div style={{
+                width: 120, height: 120, borderRadius: '50%',
+                background: photoPreviewUrl ? 'transparent' : 'rgba(29,78,216,0.15)',
+                border: '2px solid rgba(255,255,255,0.12)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden', marginBottom: 20, flexShrink: 0,
+              }}>
+                {photoPreviewUrl ? (
+                  <img src={photoPreviewUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: 36, fontWeight: 700, color: 'rgba(255,255,255,0.3)' }}>
+                    {(firstName[0] ?? '?').toUpperCase()}{(lastName[0] ?? '').toUpperCase()}
+                  </span>
+                )}
+              </div>
+
+              {photoPreviewUrl && (
+                <p style={{ fontSize: 13, color: '#06B6D4', marginBottom: 16, fontWeight: 600 }}>
+                  Looking good, {firstName}!
+                </p>
+              )}
+
+              {/* Upload buttons */}
+              <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={e => {
+                    const file = e.target.files?.[0]
+                    if (file) { setPhotoFile(file); setPhotoPreviewUrl(URL.createObjectURL(file)) }
+                  }}
+                />
+                <button
+                  onClick={() => photoInputRef.current?.click()}
+                  style={{
+                    height: 44, padding: '0 20px', borderRadius: 12,
+                    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)',
+                    color: '#F9FAFB', fontWeight: 600, fontSize: 14, cursor: 'pointer',
+                  }}
+                >
+                  Upload Photo
+                </button>
+                <label
+                  htmlFor="camera-input"
+                  style={{
+                    height: 44, padding: '0 20px', borderRadius: 12,
+                    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)',
+                    color: '#F9FAFB', fontWeight: 600, fontSize: 14, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center',
+                  }}
+                >
+                  Take Photo
+                </label>
+                <input
+                  id="camera-input"
+                  type="file"
+                  accept="image/*"
+                  capture="user"
+                  style={{ display: 'none' }}
+                  onChange={e => {
+                    const file = e.target.files?.[0]
+                    if (file) { setPhotoFile(file); setPhotoPreviewUrl(URL.createObjectURL(file)) }
+                  }}
+                />
+              </div>
+
+              <button
+                onClick={goNext}
+                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', fontSize: 13, cursor: 'pointer', marginTop: 8, padding: 8 }}
+              >
+                Continue without photo
+              </button>
+
+              <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 20px', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))', background: 'linear-gradient(to top, #0A0F1E 60%, transparent)', zIndex: 40 }}>
+                <div style={{ maxWidth: 480, margin: '0 auto' }}>
+                  <GradientBtn onClick={handlePhotoAndContinue} disabled={photoUploading} fullWidth>
+                    {photoUploading ? 'Uploading…' : photoPreviewUrl ? 'Save & Continue →' : 'Continue →'}
+                  </GradientBtn>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 4: INDUSTRY ───────────────────────────────────────── */}
+          {step === 4 && (
             <div className="px-5 pb-32 max-w-lg mx-auto w-full">
               <h2 style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginBottom: 8 }}>
                 What do you sell?
@@ -574,8 +703,8 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ── STEP 4: COACH ──────────────────────────────────────────── */}
-          {step === 4 && (
+          {/* ── STEP 5: COACH ──────────────────────────────────────────── */}
+          {step === 5 && (
             <div className="px-5 pb-40 max-w-lg mx-auto w-full">
               <h2 style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginBottom: 12, textAlign: 'center' }}>
                 Your AI Sales Coach
@@ -660,8 +789,8 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ── STEP 5: AI ASSISTANT ───────────────────────────────────── */}
-          {step === 5 && (
+          {/* ── STEP 6: AI ASSISTANT ───────────────────────────────────── */}
+          {step === 6 && (
             <div className="px-5 pb-32 max-w-lg mx-auto w-full">
               <h2 style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginBottom: 12, textAlign: 'center' }}>
                 Your AI Sales Assistant
@@ -881,8 +1010,8 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ── STEP 6: SUBSCRIPTION ───────────────────────────────────── */}
-          {step === 6 && (
+          {/* ── STEP 7: SUBSCRIPTION ───────────────────────────────────── */}
+          {step === 7 && (
             <div className="px-5 pb-32 max-w-lg mx-auto w-full">
               <h2 style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginBottom: 8 }}>
                 Choose your plan.
@@ -971,8 +1100,8 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ── STEP 7: LAUNCH ─────────────────────────────────────────── */}
-          {step === 7 && (
+          {/* ── STEP 8: LAUNCH ─────────────────────────────────────────── */}
+          {step === 8 && (
             <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }} style={{ marginBottom: 24 }}>
                 <ClozrLogo variant="full" height={288} />
