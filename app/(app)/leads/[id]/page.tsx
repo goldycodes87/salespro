@@ -4,10 +4,13 @@ import LeadDetail from '@/components/leads/lead-detail'
 
 export default async function LeadDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ merged?: string }>
 }) {
-  const { id } = await params
+  const [{ id }, sp] = await Promise.all([params, searchParams])
+  const merged = sp.merged === '1'
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -52,6 +55,7 @@ export default async function LeadDetailPage({
       referrals={referralsResult.data ?? []}
       proposals={proposalsResult.data ?? []}
       activity={activityResult.data ?? []}
+      merged={merged}
     />
   )
 }

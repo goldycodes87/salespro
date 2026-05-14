@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
     .from('leads')
     .select('*')
     .eq('rep_id', user.id)
+    .is('merged_into', null)
     .order('created_at', { ascending: false })
 
   if (status && status !== 'all') {
