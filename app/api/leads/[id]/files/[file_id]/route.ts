@@ -26,7 +26,6 @@ export async function DELETE(
   const { id, file_id } = await params
   const admin = getSupabaseAdmin()
 
-  // Fetch record first to get storage path
   const { data: record, error: fetchError } = await admin
     .from('lead_files')
     .select('file_url, rep_id')
@@ -37,11 +36,18 @@ export async function DELETE(
 
   if (fetchError || !record) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Derive storage path from URL if it's a Supabase storage URL
   const url = record.file_url as string
-  const bucketMatch = url.match(/\/storage\/v1\/object\/public\/lead-photos\/(.+)$/)
-  if (bucketMatch) {
-    await admin.storage.from('lead-photos').remove([decodeURIComponent(bucketMatch[1])])
+
+  // Delete from lead-files bucket (new uploads)
+  const leadFilesMatch = url.match(/\/storage\/v1\/object\/public\/lead-files\/(.+)$/)
+  if (leadFilesMatch) {
+    await admin.storage.from('lead-files').remove([decodeURIComponent(leadFilesMatch[1])])
+  }
+
+  // Delete from lead-photos bucket (legacy uploads)
+  const leadPhotosMatch = url.match(/\/storage\/v1\/object\/public\/lead-photos\/(.+)$/)
+  if (leadPhotosMatch) {
+    await admin.storage.from('lead-photos').remove([decodeURIComponent(leadPhotosMatch[1])])
   }
 
   const { error } = await admin
@@ -51,5 +57,5 @@ export async function DELETE(
     .eq('rep_id', user.id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ deleted: true })
+  return NextResponse.json({ success: true })
 }

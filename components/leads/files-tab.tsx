@@ -1,7 +1,19 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
+
+type LeadFile = {
+  id: string
+  file_name: string
+  file_url: string
+  file_type: string
+  file_size: number | null
+  mime_type: string | null
+  description: string | null
+  created_at: string
+}
 
 type Activity = {
   id: string
@@ -10,26 +22,72 @@ type Activity = {
   created_at: string
 }
 
-type LeadFile = {
-  id: string
-  file_name: string
-  file_url: string
-  file_type: string
-  file_size: number | null
-  description: string | null
-  created_at: string
+function detectFileType(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? ''
+  const types: Record<string, string> = {
+    pdf: 'pdf',
+    doc: 'document', docx: 'document',
+    xls: 'spreadsheet', xlsx: 'spreadsheet',
+    jpg: 'image', jpeg: 'image', png: 'image', heic: 'image',
+    gif: 'image', webp: 'image',
+    txt: 'text', csv: 'text',
+    mp3: 'audio', mp4: 'video', mov: 'video',
+  }
+  return types[ext] || 'document'
+}
+
+function getFileTypeConfig(type: string) {
+  switch (type) {
+    case 'pdf':
+      return { icon: '📄', bg: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#EF4444', label: 'PDF' }
+    case 'document':
+      return { icon: '📝', bg: 'rgba(29,78,216,0.15)', border: '1px solid rgba(29,78,216,0.3)', color: '#1D4ED8', label: 'Word' }
+    case 'spreadsheet':
+      return { icon: '📊', bg: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#10B981', label: 'Excel' }
+    case 'image':
+      return { icon: '🖼️', bg: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', color: '#8B5CF6', label: 'Image' }
+    case 'vendo_proposal':
+      return { icon: '📋', bg: 'rgba(6,182,212,0.15)', border: '1px solid rgba(6,182,212,0.3)', color: '#06B6D4', label: 'Vendo' }
+    case 'audio':
+      return { icon: '🎵', bg: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#F59E0B', label: 'Audio' }
+    case 'video':
+      return { icon: '🎬', bg: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#F59E0B', label: 'Video' }
+    case 'text':
+      return { icon: '📃', bg: 'rgba(107,114,128,0.15)', border: '1px solid rgba(107,114,128,0.3)', color: '#6B7280', label: 'Text' }
+    default:
+      return { icon: '📄', bg: 'rgba(107,114,128,0.15)', border: '1px solid rgba(107,114,128,0.3)', color: '#6B7280', label: 'File' }
+  }
+}
+
+function formatSize(bytes: number | null): string {
+  if (!bytes) return ''
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+function relativeDate(iso: string): string {
+  const date = new Date(iso)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const hours = diff / (1000 * 60 * 60)
+  if (hours < 1) return 'Just now'
+  if (hours < 24) return `${Math.floor(hours)}h ago`
+  if (hours < 48) return 'Yesterday'
+  return date.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric',
+    ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
+  })
+}
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 const cardStyle: React.CSSProperties = {
   background: '#111827',
   border: '1px solid rgba(255,255,255,0.08)',
   borderRadius: '16px',
-}
-
-function fileBadge(type: string): { label: string; bg: string; color: string } {
-  if (type === 'vendo' || type === 'vendo_proposal') return { label: 'Vendo', bg: 'rgba(29,78,216,0.15)', color: '#60A5FA' }
-  if (type === 'pdf') return { label: 'PDF', bg: 'rgba(255,255,255,0.08)', color: '#9CA3AF' }
-  return { label: 'Doc', bg: 'rgba(255,255,255,0.08)', color: '#9CA3AF' }
 }
 
 export default function FilesTab({
@@ -52,13 +110,18 @@ export default function FilesTab({
   // Documents
   const [leadFiles, setLeadFiles] = useState<LeadFile[]>([])
   const [filesLoading, setFilesLoading] = useState(true)
-  const [uploadingDoc, setUploadingDoc] = useState(false)
-  const docInputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadingName, setUploadingName] = useState('')
+  const [dragOver, setDragOver] = useState(false)
+  const [previewFile, setPreviewFile] = useState<LeadFile | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Photos
   const [photos, setPhotos] = useState<{ name: string; url: string; path: string }[]>([])
   const [loadingPhotos, setLoadingPhotos] = useState(false)
-  const [uploading, setUploading] = useState(false)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [photosLoaded, setPhotosLoaded] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
@@ -67,48 +130,93 @@ export default function FilesTab({
     fetch(`/api/leads/${leadId}/files`)
       .then(r => r.ok ? r.json() : [])
       .then((data: LeadFile[]) => {
-        setLeadFiles(data)
+        setLeadFiles(Array.isArray(data) ? data : [])
         setFilesLoading(false)
       })
       .catch(() => setFilesLoading(false))
   }, [leadId])
 
-  const uploadDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  // Close delete confirm on outside interaction
+  useEffect(() => {
+    if (!deleteConfirm) return
+    const handler = () => setDeleteConfirm(null)
+    const t = setTimeout(handler, 4000)
+    return () => clearTimeout(t)
+  }, [deleteConfirm])
+
+  const handleUpload = async (file: File) => {
     if (!file) return
-    setUploadingDoc(true)
-    const fd = new FormData()
-    fd.append('file', file)
+    if (file.size > 25 * 1024 * 1024) {
+      alert('File too large. Maximum 25MB.')
+      return
+    }
+
+    setUploading(true)
+    setUploadProgress(0)
+    setUploadingName(file.name)
+
+    const progressTimer = setInterval(() => {
+      setUploadProgress(prev => Math.min(prev + 10, 90))
+    }, 200)
+
     try {
+      const fd = new FormData()
+      fd.append('file', file)
       const res = await fetch(`/api/leads/${leadId}/files`, { method: 'POST', body: fd })
+      clearInterval(progressTimer)
+      setUploadProgress(100)
+
       if (res.ok) {
         const record: LeadFile = await res.json()
         setLeadFiles(prev => [record, ...prev])
       }
-    } finally {
-      setUploadingDoc(false)
-      if (docInputRef.current) docInputRef.current.value = ''
+
+      setTimeout(() => {
+        setUploading(false)
+        setUploadProgress(0)
+        setUploadingName('')
+      }, 500)
+    } catch {
+      clearInterval(progressTimer)
+      setUploading(false)
+      setUploadProgress(0)
+      setUploadingName('')
     }
+
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const deleteDoc = async (id: string) => {
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) handleUpload(file)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setDragOver(true) }
+  const handleDragLeave = () => setDragOver(false)
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files[0]
+    if (file) handleUpload(file)
+  }
+
+  const handleDelete = async (id: string) => {
     setLeadFiles(prev => prev.filter(f => f.id !== id))
+    setDeleteConfirm(null)
     await fetch(`/api/leads/${leadId}/files/${id}`, { method: 'DELETE' })
   }
 
   const loadPhotos = useCallback(async () => {
     if (photosLoaded) return
     setLoadingPhotos(true)
-    const { data } = await supabase.storage
-      .from('lead-photos')
-      .list(`${repId}/${leadId}`)
+    const { data } = await supabase.storage.from('lead-photos').list(`${repId}/${leadId}`)
     if (data) {
       const urls = await Promise.all(
         data.map(async file => {
           const path = `${repId}/${leadId}/${file.name}`
           const { data: urlData } = supabase.storage.from('lead-photos').getPublicUrl(path)
           return { name: file.name, url: urlData.publicUrl, path }
-        })
+        }),
       )
       setPhotos(urls)
     }
@@ -120,7 +228,7 @@ export default function FilesTab({
     const files = e.target.files
     if (!files?.length) return
     if (photos.length + files.length > 10) { alert('Maximum 10 photos per lead'); return }
-    setUploading(true)
+    setUploadingPhoto(true)
     for (const file of Array.from(files)) {
       const ext = file.name.split('.').pop()
       const name = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
@@ -131,7 +239,7 @@ export default function FilesTab({
         setPhotos(prev => [...prev, { name, url: urlData.publicUrl, path }])
       }
     }
-    setUploading(false)
+    setUploadingPhoto(false)
     if (photoInputRef.current) photoInputRef.current.value = ''
   }
 
@@ -152,96 +260,295 @@ export default function FilesTab({
     setSavingNotes(false)
   }
 
-  const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-
   if (!photosLoaded && !loadingPhotos) loadPhotos()
 
   return (
     <div>
-      {/* Documents */}
-      <div className="p-5 mb-4" style={cardStyle}>
+      {/* ── DOCUMENTS ── */}
+      <div
+        className="p-5 mb-4"
+        style={{
+          ...cardStyle,
+          border: dragOver ? '2px dashed rgba(29,78,216,0.5)' : '1px solid rgba(255,255,255,0.08)',
+          background: dragOver ? 'rgba(29,78,216,0.05)' : '#111827',
+          transition: 'border 0.15s, background 0.15s',
+          position: 'relative',
+        }}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Drag overlay text */}
+        {dragOver && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-2xl z-10 pointer-events-none">
+            <p style={{ fontSize: 16, fontWeight: 700, color: '#60A5FA' }}>Drop file here</p>
+          </div>
+        )}
+
+        {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <span className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>Documents</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: '#F9FAFB' }}>Documents</span>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            style={{
+              background: 'rgba(29,78,216,0.2)',
+              border: '1px solid rgba(29,78,216,0.4)',
+              color: '#60A5FA',
+              borderRadius: 10,
+              padding: '8px 14px',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: uploading ? 'default' : 'pointer',
+              opacity: uploading ? 0.5 : 1,
+              minHeight: 44,
+            }}
+          >
+            ↑ Upload
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.heic,.txt,.csv"
+            style={{ display: 'none' }}
+            onChange={handleFileInput}
+          />
         </div>
 
+        {/* Upload progress */}
+        <AnimatePresence>
+          {uploading && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              style={{ marginBottom: 12, overflow: 'hidden' }}
+            >
+              <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '12px 16px' }}>
+                <div className="flex items-center gap-3 mb-2">
+                  <span style={{ fontSize: 16, flexShrink: 0 }}>📄</span>
+                  <span className="flex-1 text-sm truncate" style={{ color: '#D1D5DB' }}>{uploadingName}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#60A5FA', flexShrink: 0 }}>{uploadProgress}%</span>
+                </div>
+                <div style={{ height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
+                  <motion.div
+                    initial={{ width: '0%' }}
+                    animate={{ width: `${uploadProgress}%` }}
+                    transition={{ duration: 0.2 }}
+                    style={{ height: '100%', background: 'linear-gradient(90deg, #1D4ED8, #06B6D4)', borderRadius: 2 }}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* File list */}
         {filesLoading ? (
-          <div className="space-y-2 mb-3">
-            {[1, 2].map(i => <div key={i} className="h-12 rounded-xl animate-pulse" style={{ background: 'rgba(255,255,255,0.06)' }} />)}
+          <div className="space-y-2">
+            {[1, 2].map(i => <div key={i} className="h-16 rounded-xl animate-pulse" style={{ background: 'rgba(255,255,255,0.06)' }} />)}
           </div>
-        ) : leadFiles.length === 0 ? (
-          <p className="text-sm mb-3" style={{ color: '#4B5563' }}>No documents yet</p>
+        ) : leadFiles.length === 0 && !uploading ? (
+          /* Empty state */
+          <div className="flex flex-col items-center justify-center text-center" style={{ padding: '40px 0' }}>
+            <span style={{ fontSize: 48, opacity: 0.3 }}>📁</span>
+            <p style={{ fontSize: 16, fontWeight: 500, color: '#F9FAFB', marginTop: 16 }}>No files yet</p>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', maxWidth: 240, marginTop: 8, lineHeight: 1.6 }}>
+              Upload documents, photos, or import from Vendo to keep everything in one place.
+            </p>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                marginTop: 20,
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: 12,
+                padding: '10px 20px',
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'rgba(255,255,255,0.5)',
+                cursor: 'pointer',
+                minHeight: 44,
+              }}
+            >
+              Upload your first file
+            </button>
+          </div>
         ) : (
-          <div className="space-y-2 mb-3">
+          <div>
             {leadFiles.map(f => {
-              const badge = fileBadge(f.file_type)
+              const fileType = f.file_type || detectFileType(f.file_name)
+              const cfg = getFileTypeConfig(fileType)
+              const isVendo = fileType === 'vendo_proposal'
+              const isImage = fileType === 'image'
+              const isPdf = fileType === 'pdf'
+
               return (
-                <div key={f.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <span style={{ fontSize: '16px', lineHeight: 1 }}>📄</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: '#D1D5DB' }}>{f.file_name}</p>
-                    {f.description && (
-                      <p className="text-xs truncate" style={{ color: '#6B7280' }}>{f.description}</p>
+                <div
+                  key={f.id}
+                  style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                    marginBottom: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  {/* Type icon */}
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '50%',
+                    background: cfg.bg, border: cfg.border,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, fontSize: 18, lineHeight: 1,
+                  }}>
+                    {cfg.icon}
+                  </div>
+
+                  {/* Info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{
+                      fontSize: 14, fontWeight: 500, color: '#F9FAFB',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {f.file_name.length > 30 ? f.file_name.slice(0, 30) + '…' : f.file_name}
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
+                      <span style={{
+                        background: isVendo ? 'rgba(6,182,212,0.15)' : 'rgba(255,255,255,0.06)',
+                        borderRadius: 4, padding: '2px 6px',
+                        fontSize: 11, color: isVendo ? '#06B6D4' : 'rgba(255,255,255,0.5)',
+                        fontWeight: isVendo ? 700 : 400,
+                      }}>
+                        {cfg.label}
+                      </span>
+                      {f.file_size ? (
+                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
+                          · {formatSize(f.file_size)}
+                        </span>
+                      ) : null}
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
+                        · {relativeDate(f.created_at)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                    {/* Preview — image or PDF */}
+                    {(isImage || isPdf) && (
+                      <button
+                        onClick={() => {
+                          if (isPdf) window.open(f.file_url, '_blank')
+                          else setPreviewFile(f)
+                        }}
+                        title="Preview"
+                        style={{
+                          width: 36, height: 44, borderRadius: 8, border: 'none',
+                          background: 'transparent', color: 'rgba(255,255,255,0.4)',
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                          <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                      </button>
+                    )}
+
+                    {/* Download */}
+                    <button
+                      onClick={() => window.open(f.file_url, '_blank')}
+                      title="Download"
+                      style={{
+                        width: 36, height: 44, borderRadius: 8, border: 'none',
+                        background: 'transparent', color: 'rgba(255,255,255,0.4)',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                    </button>
+
+                    {/* Delete */}
+                    {deleteConfirm === f.id ? (
+                      <button
+                        onClick={() => handleDelete(f.id)}
+                        style={{
+                          height: 44, borderRadius: 8, padding: '0 10px',
+                          background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
+                          color: '#EF4444', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                        }}
+                      >
+                        Confirm
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setDeleteConfirm(f.id)}
+                        title="Delete"
+                        style={{
+                          width: 36, height: 44, borderRadius: 8, border: 'none',
+                          background: 'transparent', color: 'rgba(239,68,68,0.4)',
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6"/>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                        </svg>
+                      </button>
                     )}
                   </div>
-                  <span className="px-2 py-0.5 rounded-md text-xs font-semibold flex-shrink-0"
-                    style={{ background: badge.bg, color: badge.color }}>
-                    {badge.label}
-                  </span>
-                  <a href={f.file_url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium flex-shrink-0"
-                    style={{ background: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,0.08)' }}>
-                    Download →
-                  </a>
-                  <button type="button" onClick={() => deleteDoc(f.id)}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ background: 'rgba(239,68,68,0.08)', color: '#EF4444' }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                    </svg>
-                  </button>
                 </div>
               )
             })}
           </div>
         )}
-
-        <input
-          ref={docInputRef}
-          type="file"
-          accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-          className="hidden"
-          onChange={uploadDoc}
-        />
-        <button
-          onClick={() => docInputRef.current?.click()}
-          disabled={uploadingDoc}
-          className="w-full h-11 rounded-xl flex items-center justify-center gap-2 text-sm font-medium"
-          style={{ background: 'rgba(255,255,255,0.06)', color: uploadingDoc ? '#4B5563' : '#9CA3AF', border: '1px solid rgba(255,255,255,0.10)' }}>
-          {uploadingDoc ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-              Uploading…
-            </>
-          ) : (
-            <>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              Upload Document
-            </>
-          )}
-        </button>
       </div>
 
-      {/* Photos */}
+      {/* ── IMAGE PREVIEW MODAL ── */}
+      <AnimatePresence>
+        {previewFile && previewFile.file_type === 'image' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(10px)' }}
+            onClick={() => setPreviewFile(null)}
+          >
+            <motion.img
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              src={previewFile.file_url}
+              alt={previewFile.file_name}
+              style={{ maxWidth: '90vw', maxHeight: '85vh', objectFit: 'contain', borderRadius: 8 }}
+              onClick={e => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setPreviewFile(null)}
+              className="absolute top-6 right-6 w-10 h-10 rounded-full flex items-center justify-center"
+              style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', cursor: 'pointer' }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── PHOTOS ── */}
       <div className="p-5 mb-4" style={cardStyle}>
         <div className="flex items-center justify-between mb-4">
-          <span className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>Photos</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: '#F9FAFB' }}>Photos</span>
           <span className="text-xs" style={{ color: '#6B7280' }}>{photos.length}/10</span>
         </div>
 
@@ -252,7 +559,8 @@ export default function FilesTab({
         ) : photos.length > 0 ? (
           <div className="grid grid-cols-3 gap-2 mb-3">
             {photos.map(p => (
-              <div key={p.path} className="relative aspect-square rounded-xl overflow-hidden group">
+              <div key={p.path} className="relative aspect-square rounded-xl overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={p.url}
                   alt=""
@@ -261,10 +569,11 @@ export default function FilesTab({
                 />
                 <button
                   onClick={() => deletePhoto(p.path)}
-                  className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center"
-                  style={{ background: 'rgba(0,0,0,0.7)', color: '#fff' }}>
+                  className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center"
+                  style={{ background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', cursor: 'pointer' }}
+                >
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                   </svg>
                 </button>
               </div>
@@ -274,40 +583,24 @@ export default function FilesTab({
 
         {photos.length < 10 && (
           <>
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif"
-              multiple
-              className="hidden"
-              onChange={uploadPhoto}
-            />
+            <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/heic,image/heif" multiple className="hidden" onChange={uploadPhoto} />
             <button
               onClick={() => photoInputRef.current?.click()}
-              disabled={uploading}
-              className="w-full h-11 rounded-xl flex items-center justify-center gap-2 text-sm font-medium"
-              style={{ background: 'rgba(255,255,255,0.06)', color: uploading ? '#4B5563' : '#9CA3AF', border: '1px solid rgba(255,255,255,0.10)' }}>
-              {uploading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-                  Uploading…
-                </>
+              disabled={uploadingPhoto}
+              className="w-full rounded-xl flex items-center justify-center gap-2 text-sm font-medium"
+              style={{ height: 44, background: 'rgba(255,255,255,0.06)', color: uploadingPhoto ? '#4B5563' : '#9CA3AF', border: '1px solid rgba(255,255,255,0.10)', cursor: uploadingPhoto ? 'default' : 'pointer' }}
+            >
+              {uploadingPhoto ? (
+                <><div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" /> Uploading…</>
               ) : (
-                <>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="17 8 12 3 7 8" />
-                    <line x1="12" y1="3" x2="12" y2="15" />
-                  </svg>
-                  Upload Photos
-                </>
+                <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload Photos</>
               )}
             </button>
           </>
         )}
       </div>
 
-      {/* Notes */}
+      {/* ── NOTES ── */}
       <div className="p-5 mb-4" style={cardStyle}>
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>Notes</span>
@@ -324,7 +617,7 @@ export default function FilesTab({
         />
       </div>
 
-      {/* Activity Log */}
+      {/* ── ACTIVITY ── */}
       <div className="p-5 mb-4" style={cardStyle}>
         <h3 className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: '#6B7280' }}>Activity</h3>
         {activity.length === 0 ? (
@@ -344,18 +637,21 @@ export default function FilesTab({
         )}
       </div>
 
-      {/* Lightbox */}
+      {/* ── PHOTO LIGHTBOX ── */}
       {lightbox && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.92)' }}
-          onClick={() => setLightbox(null)}>
+          onClick={() => setLightbox(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={lightbox} alt="" className="max-w-full max-h-full rounded-2xl object-contain" />
           <button
             className="absolute top-6 right-6 w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.1)', color: '#fff' }}>
+            style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', cursor: 'pointer' }}
+          >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
         </div>
