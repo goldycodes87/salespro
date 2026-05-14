@@ -12,7 +12,7 @@ export default async function Coach() {
 
   const admin = getSupabaseAdmin()
   const [repResult, configResult] = await Promise.all([
-    supabase.from('reps').select('full_name').eq('id', user.id).single(),
+    supabase.from('reps').select('full_name, vapi_coach_id').eq('id', user.id).single(),
     admin.from('coach_config').select('active_persona_id').eq('rep_id', user.id).maybeSingle(),
   ])
 
@@ -21,5 +21,5 @@ export default async function Coach() {
   const repName = repResult.data?.full_name ?? 'there'
   const activePersonaId = configResult.data?.active_persona_id ?? null
 
-  return <CoachPage repName={repName} initialPersonaId={activePersonaId} />
+  return <CoachPage repName={repName} initialPersonaId={activePersonaId} vapiCoachId={repResult.data?.vapi_coach_id ?? null} />
 }

@@ -15,6 +15,7 @@ interface Message {
 interface CoachPageProps {
   repName: string
   initialPersonaId: string | null
+  vapiCoachId?: string | null
 }
 
 // ── Coach photo components ───────────────────────────────────────────────────
@@ -232,7 +233,7 @@ function HistoryModal({ allMessages, onClose, onClearAll }: HistoryModalProps) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function CoachPage({ repName, initialPersonaId }: CoachPageProps) {
+export default function CoachPage({ repName, initialPersonaId, vapiCoachId }: CoachPageProps) {
   const personaId = initialPersonaId ?? 'jordan'
   const persona = getPersona(personaId)
 
@@ -243,6 +244,16 @@ export default function CoachPage({ repName, initialPersonaId }: CoachPageProps)
   const [showHistory, setShowHistory] = useState(false)
   // "new session" starts a fresh view without deleting history
   const [sessionStart, setSessionStart] = useState<number>(0)
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'chat' | 'voice'>('chat')
+
+  // Voice state
+  const [voiceStatus, setVoiceStatus] = useState<'idle' | 'connecting' | 'listening' | 'speaking'>('idle')
+  const [voiceError, setVoiceError] = useState<string | null>(null)
+  const [postCallMsg, setPostCallMsg] = useState(false)
+  const vapiRef = useRef<any>(null)
+  const [localCoachId, setLocalCoachId] = useState<string | null>(vapiCoachId ?? null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -303,6 +314,61 @@ export default function CoachPage({ repName, initialPersonaId }: CoachPageProps)
     setSessionStart(messages.length)
   }
 
+  const initVapi = async () => {
+    if (!localCoachId) return
+    try {
+      const { default: Vapi } = await import('@vapi-ai/web')
+      const vapi = new Vapi(process.env.NEXT_PUBLIC_VAPI_KEY!)
+      vapiRef.current = vapi
+      vapi.on('call-start', () => setVoiceStatus('listening'))
+      vapi.on('speech-start', () => setVoiceStatus('speaking'))
+      vapi.on('speech-end', () => setVoiceStatus('listening'))
+      vapi.on('call-end', () => {
+        setVoiceStatus('idle')
+        setPostCallMsg(true)
+        setTimeout(() => setPostCallMsg(false), 5000)
+      })
+      vapi.on('error', (err: any) => {
+        console.error('Vapi error:', err)
+        setVoiceStatus('idle')
+        setVoiceError('Connection failed. Try again.')
+        setTimeout(() => setVoiceError(null), 4000)
+      })
+      setVoiceStatus('connecting')
+      vapi.start(localCoachId)
+    } catch (e) {
+      console.error('Vapi init failed:', e)
+      setVoiceError('Could not start voice session.')
+      setTimeout(() => setVoiceError(null), 4000)
+    }
+  }
+
+  const endVoice = () => {
+    vapiRef.current?.stop()
+    vapiRef.current = null
+    setVoiceStatus('idle')
+  }
+
+  const ensureCoach = async () => {
+    if (localCoachId) return localCoachId
+    const res = await fetch('/api/vapi/create-coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ persona: personaId }) })
+    const data = await res.json()
+    if (data.coachId) { setLocalCoachId(data.coachId); return data.coachId }
+    return null
+  }
+
+  const startVoice = async () => {
+    if (voiceStatus !== 'idle') return
+    setVoiceError(null)
+    if (!localCoachId) {
+      setVoiceStatus('connecting')
+      const id = await ensureCoach()
+      if (!id) { setVoiceStatus('idle'); setVoiceError('Could not set up voice coach.'); return }
+      setLocalCoachId(id)
+    }
+    await initVapi()
+  }
+
   const firstName = repName.split(' ')[0]
   // Only show messages from current session start
   const visibleMessages = messages.slice(sessionStart)
@@ -355,94 +421,168 @@ export default function CoachPage({ repName, initialPersonaId }: CoachPageProps)
           </Link>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-4">
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin"
-                style={{ borderColor: 'rgba(59,130,246,0.3)', borderTopColor: '#3B82F6' }} />
-            </div>
-          ) : (
-            <>
-              <AnimatePresence mode="popLayout">
-                {showWelcome && (
-                  <motion.div key="welcome" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                    className="flex flex-col items-center text-center py-6 px-4">
-                    <CoachPhoto personaId={personaId} size={72} color={persona.color} />
-                    <h2 className="text-lg font-bold mt-4 mb-1" style={{ color: '#F9FAFB' }}>{persona.name}</h2>
-                    <p className="text-xs mb-5" style={{ color: '#6B7280' }}>{persona.tagline}</p>
-                    <div className="max-w-xs rounded-2xl rounded-bl-sm px-4 py-3 text-left" style={{ background: '#1F2937' }}>
-                      <p className="text-sm leading-relaxed" style={{ color: '#E5E7EB' }}>{persona.welcomeMessage(firstName)}</p>
-                    </div>
-                  </motion.div>
+        {/* Chat / Voice tabs */}
+        <div className="flex-shrink-0 flex gap-1 px-4 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          {(['chat', 'voice'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setActiveTab(t)}
+              className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+              style={{
+                background: activeTab === t ? (t === 'voice' ? persona.color + '22' : 'rgba(29,78,216,0.2)') : 'transparent',
+                color: activeTab === t ? (t === 'voice' ? persona.color : '#60A5FA') : '#6B7280',
+                border: activeTab === t ? `1px solid ${t === 'voice' ? persona.color + '44' : 'rgba(29,78,216,0.4)'}` : '1px solid transparent',
+              }}
+            >
+              {t === 'chat' ? '💬 Chat' : '🎙️ Voice'}
+            </button>
+          ))}
+        </div>
+
+        {/* Voice tab */}
+        {activeTab === 'voice' && (
+          <div className="flex-1 flex flex-col items-center justify-center px-6 pb-16">
+            <CoachPhoto personaId={personaId} size={120} color={persona.color} />
+            <h2 className="text-2xl font-bold mt-5 mb-1" style={{ color: '#F9FAFB' }}>{persona.name}</h2>
+            <p className="text-sm mb-10" style={{ color: persona.color }}>{persona.tagline}</p>
+
+            {voiceError && (
+              <p className="text-sm mb-4 text-center" style={{ color: '#EF4444' }}>{voiceError}</p>
+            )}
+
+            {postCallMsg ? (
+              <div className="text-center mb-8">
+                <p className="text-xl font-bold mb-2" style={{ color: '#06B6D4' }}>Great session, {firstName}! 👊</p>
+                <p className="text-sm mb-4" style={{ color: '#6B7280' }}>Your conversation is being saved...</p>
+                <button onClick={() => setActiveTab('chat')} className="text-sm font-semibold px-5 py-2.5 rounded-xl" style={{ background: 'rgba(6,182,212,0.15)', color: '#06B6D4', border: '1px solid rgba(6,182,212,0.3)' }}>
+                  View in chat →
+                </button>
+              </div>
+            ) : (
+              <>
+                <motion.button
+                  onClick={voiceStatus === 'idle' ? startVoice : undefined}
+                  animate={voiceStatus !== 'idle' ? { scale: [1, 1.04, 1] } : {}}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                  style={{
+                    width: 180, height: 180, borderRadius: '50%',
+                    background: voiceStatus === 'listening' ? 'rgba(29,78,216,0.25)' : voiceStatus === 'speaking' ? `${persona.color}33` : 'rgba(29,78,216,0.12)',
+                    border: voiceStatus === 'idle' ? '2px solid rgba(29,78,216,0.4)' : voiceStatus === 'speaking' ? `2px solid ${persona.color}` : '2px solid #1D4ED8',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    cursor: voiceStatus === 'idle' ? 'pointer' : 'default',
+                    transition: 'background 0.3s, border-color 0.3s',
+                  }}
+                >
+                  <span style={{ fontSize: 48 }}>🎙️</span>
+                </motion.button>
+                <p className="text-sm mt-5" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  {voiceStatus === 'idle' && `Tap to talk to ${persona.name}`}
+                  {voiceStatus === 'connecting' && 'Connecting...'}
+                  {voiceStatus === 'listening' && 'Listening...'}
+                  {voiceStatus === 'speaking' && `${persona.name} is speaking...`}
+                </p>
+                {voiceStatus !== 'idle' && (
+                  <button onClick={endVoice} className="mt-6 px-5 py-2.5 rounded-xl text-sm font-semibold" style={{ background: 'rgba(239,68,68,0.12)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.3)' }}>
+                    End conversation
+                  </button>
                 )}
+              </>
+            )}
+          </div>
+        )}
 
-                {visibleMessages.map((msg, i) => (
-                  <motion.div key={msg.id ?? (sessionStart + i)}
-                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                    className={`flex mb-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start items-end gap-2'}`}>
-                    {msg.role === 'assistant' && <SmallCoachPhoto personaId={personaId} color={persona.color} />}
-                    <div className={`px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'rounded-2xl rounded-br-sm' : 'rounded-2xl rounded-bl-sm'}`}
-                      style={{ background: msg.role === 'user' ? '#1D4ED8' : '#1F2937', color: '#F9FAFB', maxWidth: '80%' }}>
-                      {msg.content}
-                    </div>
-                  </motion.div>
-                ))}
+        {/* Messages */}
+        {activeTab === 'chat' && (
+          <>
+            <div className="flex-1 overflow-y-auto px-4 py-4">
+              {loading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin"
+                    style={{ borderColor: 'rgba(59,130,246,0.3)', borderTopColor: '#3B82F6' }} />
+                </div>
+              ) : (
+                <>
+                  <AnimatePresence mode="popLayout">
+                    {showWelcome && (
+                      <motion.div key="welcome" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+                        className="flex flex-col items-center text-center py-6 px-4">
+                        <CoachPhoto personaId={personaId} size={72} color={persona.color} />
+                        <h2 className="text-lg font-bold mt-4 mb-1" style={{ color: '#F9FAFB' }}>{persona.name}</h2>
+                        <p className="text-xs mb-5" style={{ color: '#6B7280' }}>{persona.tagline}</p>
+                        <div className="max-w-xs rounded-2xl rounded-bl-sm px-4 py-3 text-left" style={{ background: '#1F2937' }}>
+                          <p className="text-sm leading-relaxed" style={{ color: '#E5E7EB' }}>{persona.welcomeMessage(firstName)}</p>
+                        </div>
+                      </motion.div>
+                    )}
 
-                {isTyping && <TypingIndicator personaId={personaId} color={persona.color} />}
-              </AnimatePresence>
-              <div ref={messagesEndRef} />
-            </>
-          )}
-        </div>
+                    {visibleMessages.map((msg, i) => (
+                      <motion.div key={msg.id ?? (sessionStart + i)}
+                        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                        className={`flex mb-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start items-end gap-2'}`}>
+                        {msg.role === 'assistant' && <SmallCoachPhoto personaId={personaId} color={persona.color} />}
+                        <div className={`px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'rounded-2xl rounded-br-sm' : 'rounded-2xl rounded-bl-sm'}`}
+                          style={{ background: msg.role === 'user' ? '#1D4ED8' : '#1F2937', color: '#F9FAFB', maxWidth: '80%' }}>
+                          {msg.content}
+                        </div>
+                      </motion.div>
+                    ))}
 
-        {/* Input bar */}
-        <div className="flex-shrink-0 px-4 py-3 flex items-end gap-2"
-          style={{
-            borderTop: '1px solid rgba(255,255,255,0.06)',
-            background: 'rgba(17,24,39,0.95)',
-            paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
-          }}>
-          {/* New session button */}
-          <button onClick={startNewSession}
-            className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#6B7280' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
+                    {isTyping && <TypingIndicator personaId={personaId} color={persona.color} />}
+                  </AnimatePresence>
+                  <div ref={messagesEndRef} />
+                </>
+              )}
+            </div>
 
-          <textarea ref={inputRef} value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={`Message ${persona.name}…`}
-            rows={1}
-            className="flex-1 resize-none rounded-2xl px-4 py-3 text-sm outline-none"
-            style={{
-              background: 'rgba(255,255,255,0.07)',
-              border: '1px solid rgba(255,255,255,0.10)',
-              color: '#F9FAFB',
-              maxHeight: '120px',
-              lineHeight: '1.5',
-            }}
-            onInput={(e) => {
-              const el = e.currentTarget
-              el.style.height = 'auto'
-              el.style.height = `${Math.min(el.scrollHeight, 120)}px`
-            }} />
+            {/* Input bar */}
+            <div className="flex-shrink-0 px-4 py-3 flex items-end gap-2"
+              style={{
+                borderTop: '1px solid rgba(255,255,255,0.06)',
+                background: 'rgba(17,24,39,0.95)',
+                paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
+              }}>
+              {/* New session button */}
+              <button onClick={startNewSession}
+                className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#6B7280' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
 
-          <button onClick={sendMessage} disabled={!input.trim() || isTyping}
-            className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center transition-all"
-            style={{
-              background: !input.trim() || isTyping ? 'rgba(29,78,216,0.2)' : 'linear-gradient(135deg, #1D4ED8, #06B6D4)',
-              opacity: !input.trim() || isTyping ? 0.5 : 1,
-            }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
-          </button>
-        </div>
+              <textarea ref={inputRef} value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={`Message ${persona.name}…`}
+                rows={1}
+                className="flex-1 resize-none rounded-2xl px-4 py-3 text-sm outline-none"
+                style={{
+                  background: 'rgba(255,255,255,0.07)',
+                  border: '1px solid rgba(255,255,255,0.10)',
+                  color: '#F9FAFB',
+                  maxHeight: '120px',
+                  lineHeight: '1.5',
+                }}
+                onInput={(e) => {
+                  const el = e.currentTarget
+                  el.style.height = 'auto'
+                  el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+                }} />
+
+              <button onClick={sendMessage} disabled={!input.trim() || isTyping}
+                className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center transition-all"
+                style={{
+                  background: !input.trim() || isTyping ? 'rgba(29,78,216,0.2)' : 'linear-gradient(135deg, #1D4ED8, #06B6D4)',
+                  opacity: !input.trim() || isTyping ? 0.5 : 1,
+                }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* History modal */}

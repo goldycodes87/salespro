@@ -1002,6 +1002,33 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
+              {/* Skip message when assistant disabled */}
+              {!assistantEnabled && (
+                <div style={{
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 16,
+                  padding: 20,
+                  textAlign: 'center',
+                  marginTop: 16,
+                }}>
+                  <p style={{ fontSize: 18, fontWeight: 700, color: '#F9FAFB', margin: '0 0 8px' }}>No problem! 👋</p>
+                  <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', margin: 0, lineHeight: 1.6 }}>
+                    You can set up your AI Assistant anytime from Settings.
+                  </p>
+                  {plan === 'payg' && (
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 8, margin: '8px 0 0' }}>
+                      Note: enabling later adds ~$3-50/month based on usage.
+                    </p>
+                  )}
+                  {plan === 'unlimited' && (
+                    <p style={{ fontSize: 12, color: '#06B6D4', marginTop: 8, margin: '8px 0 0' }}>
+                      Already included in your Unlimited plan. Free to add anytime.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 20px', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))', background: 'linear-gradient(to top, #0A0F1E 60%, transparent)', zIndex: 40 }}>
                 <div style={{ maxWidth: 480, margin: '0 auto' }}>
                   <GradientBtn onClick={goNext} fullWidth>Continue →</GradientBtn>

@@ -366,6 +366,10 @@ export default function SettingsPage({
     })
     setSavingAssistant(false)
     savedFlash(setAssistantSaved)
+    // If enabling assistant and no vapi_assistant_id yet, create it
+    if (assistantEnabled && !rep.vapi_assistant_id) {
+      fetch('/api/vapi/create-assistant', { method: 'POST' }).catch(() => {})
+    }
   }
 
   const savedFlash = (setter: (v: boolean) => void) => {
@@ -480,6 +484,14 @@ export default function SettingsPage({
     })
     setSavingPersona(false)
     savedFlash(setPersonaSaved)
+    // If rep had a vapi coach, create new one for the updated persona
+    if (rep.vapi_coach_id) {
+      fetch('/api/vapi/create-coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ persona: personaId }),
+      }).catch(() => {})
+    }
   }
 
   const clearPersonaHistory = async (personaId: string) => {
@@ -836,6 +848,22 @@ export default function SettingsPage({
       {/* ASSISTANT TAB */}
       {activeTab === 'assistant' && (
         <div style={{ opacity: 1 }}>
+          {!rep.vapi_assistant_id && assistantEnabled && (
+            <div className="rounded-2xl p-4 mb-4 flex items-center justify-between gap-3"
+              style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: '#FCD34D' }}>Assistant not fully set up</p>
+                <p className="text-xs mt-0.5" style={{ color: 'rgba(252,211,77,0.6)' }}>Your AI assistant hasn&apos;t been created yet.</p>
+              </div>
+              <button
+                onClick={() => fetch('/api/vapi/create-assistant', { method: 'POST' }).catch(() => {})}
+                className="px-3 py-2 rounded-xl text-xs font-bold flex-shrink-0"
+                style={{ background: 'rgba(245,158,11,0.2)', color: '#FCD34D', border: '1px solid rgba(245,158,11,0.3)' }}
+              >
+                Complete setup
+              </button>
+            </div>
+          )}
           {/* Section 1 — Status */}
           <div className="rounded-2xl mb-4 overflow-hidden"
             style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>

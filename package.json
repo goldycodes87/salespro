@@ -17,6 +17,7 @@
     "@splinetool/runtime": "^1.12.91",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.3",
+    "@vapi-ai/web": "^2.5.2",
     "canvas-confetti": "^1.9.4",
     "framer-motion": "^12.38.0",
     "ical.js": "^2.2.1",
