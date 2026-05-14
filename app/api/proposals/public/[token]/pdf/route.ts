@@ -53,9 +53,23 @@ export async function GET(
     headshot_data: headshotData ?? undefined,
   }
 
+  const pd2 = proposal.pricing_data || {}
+  const tg2 = pd2.toggle_state || {}
+  const af2 = pd2.admin_fee_enabled !== false ? (pd2.admin_fee_amount || pd2.admin_fee || 850) : 0
+  const pp2 = pd2.package_price > 0 ? pd2.package_price : pd2.windows_project_value > 0 ? pd2.windows_project_value : Number(proposal.package_price) || 0
+  const db2 = pp2 - af2
+  const dl2: { label: string; amount: number }[] = []
+  if (tg2.promotion === '20_off') dl2.push({ label: 'Package Discount (20%)', amount: Math.round(db2 * 0.20) })
+  if (tg2.promotion === '25_off') dl2.push({ label: 'Package Discount (25%)', amount: Math.round(db2 * 0.25) })
+  if (tg2.bnsn === '10_off') dl2.push({ label: 'Buy Now Save Now (10%)', amount: Math.round(db2 * 0.10) })
+  if (tg2.bnsn === '5_off') dl2.push({ label: 'Buy Now Save Now (5%)', amount: Math.round(db2 * 0.05) })
+  if (tg2.cash_incentive === true) dl2.push({ label: 'Cash Incentive (7%)', amount: Math.round(db2 * 0.07) })
+  if (dl2.length === 0 && pd2.discount_amount > 0) dl2.push({ label: pd2.discount_name || 'Promotional Discount', amount: pd2.discount_amount })
+  const ts2 = dl2.reduce((s, d) => s + d.amount, 0)
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stream = await renderToStream(
-    React.createElement(ProposalPDF, { proposal, repSettings }) as any,
+    React.createElement(ProposalPDF, { proposal, repSettings, discountLines: dl2, totalSavings: ts2 }) as any,
   )
 
   const customerName = (proposal.customer_name ?? proposal.customer_last_name ?? 'Proposal')

@@ -64,6 +64,42 @@ export async function GET(
   console.log('PACKAGE PRICE:', pd.package_price, proposal.package_price)
   console.log('YOUR PRICE:', pd.your_price, proposal.your_price)
   console.log('DISCOUNT AMOUNT:', pd.discount_amount)
+
+  const adminFee = pd.admin_fee_enabled !== false
+    ? (pd.admin_fee_amount || pd.admin_fee || 850)
+    : 0
+  const packagePrice =
+    pd.package_price > 0
+      ? pd.package_price
+      : pd.windows_project_value > 0
+        ? pd.windows_project_value
+        : Number(proposal.package_price) || 0
+  const discountableBase = packagePrice - adminFee
+
+  const discountLines: { label: string; amount: number }[] = []
+  if (toggles.promotion === '20_off') {
+    discountLines.push({ label: 'Package Discount (20%)', amount: Math.round(discountableBase * 0.20) })
+  }
+  if (toggles.promotion === '25_off') {
+    discountLines.push({ label: 'Package Discount (25%)', amount: Math.round(discountableBase * 0.25) })
+  }
+  if (toggles.bnsn === '10_off') {
+    discountLines.push({ label: 'Buy Now Save Now (10%)', amount: Math.round(discountableBase * 0.10) })
+  }
+  if (toggles.bnsn === '5_off') {
+    discountLines.push({ label: 'Buy Now Save Now (5%)', amount: Math.round(discountableBase * 0.05) })
+  }
+  if (toggles.cash_incentive === true) {
+    discountLines.push({ label: 'Cash Incentive (7%)', amount: Math.round(discountableBase * 0.07) })
+  }
+  if (discountLines.length === 0 && pd.discount_amount > 0) {
+    discountLines.push({ label: pd.discount_name || 'Promotional Discount', amount: pd.discount_amount })
+  }
+  const totalSavings = discountLines.reduce((sum, d) => sum + d.amount, 0)
+
+  console.log('DISCOUNT LINES:', JSON.stringify(discountLines))
+  console.log('TOTAL SAVINGS:', totalSavings)
+  console.log('DISCOUNTABLE BASE:', discountableBase)
   console.log('=== PDF DEBUG END ===')
 
   const { data: rep } = await admin
@@ -87,7 +123,7 @@ export async function GET(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stream = await renderToStream(
-    React.createElement(ProposalPDF, { proposal, repSettings }) as any,
+    React.createElement(ProposalPDF, { proposal, repSettings, discountLines, totalSavings }) as any,
   )
 
   const customerName = (proposal.customer_name ?? proposal.customer_last_name ?? 'Proposal')

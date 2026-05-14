@@ -454,12 +454,16 @@ function formatDate(dateStr?: string | null): string {
   }
 }
 
+type DiscountLineProp = { label: string; amount: number }
+
 interface ProposalPDFProps {
   proposal: Record<string, any>
   repSettings?: Record<string, any>
+  discountLines?: DiscountLineProp[]
+  totalSavings?: number
 }
 
-export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps) {
+export default function ProposalPDF({ proposal, repSettings, discountLines: propDiscountLines, totalSavings: propTotalSavings }: ProposalPDFProps) {
   const pricing = proposal.pricing_data ?? {}
   const proposalType = pricing.proposal_type ?? proposal.type ?? 'windows'
 
@@ -505,34 +509,44 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
   const costcoSavings: number | null = pricing.costco_savings > 0 ? pricing.costco_savings : null
   const netAfterCostco: number | null = costcoMember && costcoSavings ? yourPrice - costcoSavings : null
 
-  // Discount lines — check toggle_state first, fall back to stored discount_amount
+  // Discount lines — props from server take priority; internal calc is fallback
   type DiscountLine = { label: string; amount: number }
   const toggles = pricing.toggle_state || {}
-  const adminFeeForDiscount: number = pricing.admin_fee_amount ?? pricing.admin_fee ?? 850
-  const discountableBase: number =
-    (pricing.package_price ?? Number(proposal.package_price) ?? 0) - adminFeeForDiscount
+  const adminFeeEnabled: boolean = pricing.admin_fee_enabled !== false
+  const adminFeeForDiscount: number = adminFeeEnabled
+    ? (pricing.admin_fee_amount ?? pricing.admin_fee ?? 850)
+    : 0
+  const basePackagePrice: number =
+    pricing.package_price > 0
+      ? pricing.package_price
+      : pricing.windows_project_value > 0
+        ? pricing.windows_project_value
+        : Number(proposal.package_price) || 0
+  const discountableBase: number = basePackagePrice - adminFeeForDiscount
 
-  const discountLines: DiscountLine[] = []
+  const internalDiscountLines: DiscountLine[] = []
   if (toggles.promotion === '20_off') {
-    discountLines.push({ label: 'Package Discount (20%)', amount: Math.round(discountableBase * 0.20) })
+    internalDiscountLines.push({ label: 'Package Discount (20%)', amount: Math.round(discountableBase * 0.20) })
   }
   if (toggles.promotion === '25_off') {
-    discountLines.push({ label: 'Package Discount (25%)', amount: Math.round(discountableBase * 0.25) })
+    internalDiscountLines.push({ label: 'Package Discount (25%)', amount: Math.round(discountableBase * 0.25) })
   }
   if (toggles.bnsn === '10_off') {
-    discountLines.push({ label: 'Buy Now Save Now (10%)', amount: Math.round(discountableBase * 0.10) })
+    internalDiscountLines.push({ label: 'Buy Now Save Now (10%)', amount: Math.round(discountableBase * 0.10) })
   }
   if (toggles.bnsn === '5_off') {
-    discountLines.push({ label: 'Buy Now Save Now (5%)', amount: Math.round(discountableBase * 0.05) })
+    internalDiscountLines.push({ label: 'Buy Now Save Now (5%)', amount: Math.round(discountableBase * 0.05) })
   }
   if (toggles.cash_incentive) {
-    discountLines.push({ label: 'Cash Incentive (7%)', amount: Math.round(discountableBase * 0.07) })
+    internalDiscountLines.push({ label: 'Cash Incentive (7%)', amount: Math.round(discountableBase * 0.07) })
   }
   // Fallback: Vendo import or any stored discount_amount
-  if (discountLines.length === 0 && pricing.discount_amount > 0) {
-    discountLines.push({ label: pricing.discount_name || 'Promotional Discount', amount: pricing.discount_amount })
+  if (internalDiscountLines.length === 0 && pricing.discount_amount > 0) {
+    internalDiscountLines.push({ label: pricing.discount_name || 'Promotional Discount', amount: pricing.discount_amount })
   }
-  const totalSavings = discountLines.reduce((s, d) => s + d.amount, 0)
+
+  const discountLines: DiscountLine[] = propDiscountLines ?? internalDiscountLines
+  const totalSavings: number = propTotalSavings ?? discountLines.reduce((s, d) => s + d.amount, 0)
 
   const proposalTypeLabel = proposalType === 'both'
     ? 'Windows & Siding Proposal'
@@ -725,15 +739,16 @@ export default function ProposalPDF({ proposal, repSettings }: ProposalPDFProps)
 
           {discountLines.map((dl, i) => (
             <View key={i} style={styles.priceRow}>
-              <Text style={styles.priceLabel}>{dl.label}</Text>
-              <Text style={styles.priceSavings}>-{fmtDollar(dl.amount)}</Text>
+              <Text style={{ fontSize: 10, color: TEAL, fontFamily: 'Helvetica' }}>{dl.label}</Text>
+              <Text style={{ fontSize: 10, color: TEAL, fontFamily: 'Helvetica-Bold' }}>-{fmtDollar(dl.amount)}</Text>
             </View>
           ))}
 
           {totalSavings > 0 && (
             <View style={styles.priceRow}>
-              <Text style={[styles.priceLabel, { fontStyle: 'italic', color: TEAL }]}>Total Savings</Text>
-              <Text style={[styles.priceSavings, { fontStyle: 'italic' }]}>-{fmtDollar(totalSavings)}</Text>
+              {/* Helvetica-Oblique = italic without combining with Helvetica-Bold (which crashes react-pdf) */}
+              <Text style={{ fontSize: 10, color: TEAL, fontFamily: 'Helvetica-Oblique' }}>Total Savings</Text>
+              <Text style={{ fontSize: 10, color: TEAL, fontFamily: 'Helvetica-Bold' }}>-{fmtDollar(totalSavings)}</Text>
             </View>
           )}
 
