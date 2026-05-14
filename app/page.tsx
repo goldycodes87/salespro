@@ -25,7 +25,7 @@ export default function LandingPage() {
           transition={{ duration: 1, ease: [0.25, 0.1, 0.25, 1] }}
           style={{ marginBottom: 40 }}
         >
-          <ClozrLogo variant="full" height={56} />
+          <ClozrLogo variant="full" height={288} />
         </motion.div>
 
         {/* Headline */}
