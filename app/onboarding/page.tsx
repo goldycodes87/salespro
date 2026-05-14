@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import confetti from 'canvas-confetti'
 import ClozrLogo from '@/components/ui/clozr-logo'
 import AnimatedGradientBackground from '@/components/ui/animated-gradient-background'
+import { Spotlight } from '@/components/ui/spotlight'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -231,10 +232,10 @@ export default function OnboardingPage() {
     if (step !== 1) return
     const timers = [
       setTimeout(() => setS1Phase(1), 300),
-      setTimeout(() => setS1Phase(2), 1000),
-      setTimeout(() => setS1Phase(3), 1200),
-      setTimeout(() => setS1Phase(4), 1800),
-      setTimeout(() => setS1Phase(5), 2600),
+      setTimeout(() => setS1Phase(2), 800),
+      setTimeout(() => setS1Phase(3), 1400),
+      setTimeout(() => setS1Phase(4), 2000),
+      setTimeout(() => setS1Phase(5), 2800),
     ]
     return () => timers.forEach(clearTimeout)
   }, [step])
@@ -409,37 +410,61 @@ export default function OnboardingPage() {
 
           {/* ── STEP 1: WELCOME SPLASH ─────────────────────────────────── */}
           {step === 1 && (
-            <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+            <div className="flex-1 flex flex-col items-center justify-center px-6 text-center" style={{ position: 'relative' }}>
+              <Spotlight className="-top-40 left-0 md:left-60 md:-top-20" fill="#1D4ED8" />
+
+              {/* Logo */}
               <motion.div
-                animate={{ opacity: s1Phase >= 1 ? 1 : 0, y: s1Phase >= 2 ? -40 : 0 }}
-                transition={{ duration: 0.6 }}
+                animate={{ opacity: s1Phase >= 1 ? 1 : 0 }}
+                transition={{ duration: 0.8 }}
                 style={{ marginBottom: 32 }}
               >
-                <ClozrLogo variant="full" height={64} />
+                <ClozrLogo variant="full" height={288} />
               </motion.div>
 
+              {/* Hero headline */}
               <motion.h1
-                animate={{ opacity: s1Phase >= 3 ? 1 : 0, y: s1Phase >= 3 ? 0 : 20 }}
-                transition={{ duration: 0.5 }}
-                style={{ fontSize: 32, fontWeight: 800, color: '#F9FAFB', marginBottom: 12 }}
+                animate={{ opacity: s1Phase >= 2 ? 1 : 0, y: s1Phase >= 2 ? 0 : 20 }}
+                transition={{ duration: 0.6 }}
+                style={{ fontSize: 'clamp(36px, 6vw, 56px)', fontWeight: 800, color: '#FFFFFF', marginBottom: 16, lineHeight: 1.1 }}
               >
-                Welcome to Clozr.
+                The unfair advantage.
               </motion.h1>
 
+              {/* Subtext */}
               <motion.p
-                animate={{ opacity: s1Phase >= 4 ? 1 : 0, y: s1Phase >= 4 ? 0 : 10 }}
+                animate={{ opacity: s1Phase >= 3 ? 1 : 0 }}
                 transition={{ duration: 0.5 }}
-                style={{ fontSize: 16, color: 'rgba(255,255,255,0.5)', marginBottom: 48 }}
+                style={{ fontSize: 16, color: 'rgba(255,255,255,0.5)', maxWidth: 320, margin: '0 auto 24px', lineHeight: 1.6 }}
               >
-                Let&apos;s set up your command center.
+                Top closers use Clozr to win more deals, coach smarter, and close faster.
               </motion.p>
 
+              {/* Feature pills */}
+              <motion.div
+                animate={{ opacity: s1Phase >= 4 ? 1 : 0 }}
+                transition={{ duration: 0.4 }}
+                style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 40 }}
+              >
+                {['🎯 Close more deals', '🧠 AI sales coach', '📱 Smart assistant'].map(pill => (
+                  <span key={pill} style={{
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: 20,
+                    padding: '8px 16px',
+                    fontSize: 13,
+                    color: 'rgba(255,255,255,0.7)',
+                  }}>{pill}</span>
+                ))}
+              </motion.div>
+
+              {/* CTA button */}
               <motion.div
                 animate={{ opacity: s1Phase >= 5 ? 1 : 0, y: s1Phase >= 5 ? 0 : 20 }}
                 transition={{ duration: 0.5 }}
               >
-                <GradientBtn onClick={goNext} style={{ width: 240 }}>
-                  Let&apos;s go →
+                <GradientBtn onClick={goNext} style={{ width: 280 }}>
+                  Let&apos;s build yours →
                 </GradientBtn>
               </motion.div>
             </div>
@@ -552,12 +577,17 @@ export default function OnboardingPage() {
           {/* ── STEP 4: COACH ──────────────────────────────────────────── */}
           {step === 4 && (
             <div className="px-5 pb-40 max-w-lg mx-auto w-full">
-              <h2 style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginBottom: 8 }}>
-                Meet your coaches.
+              <h2 style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginBottom: 12, textAlign: 'center' }}>
+                Your AI Sales Coach
               </h2>
-              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', marginBottom: 24 }}>
-                Pick the one who will push you to close more deals.
+              <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.55)', maxWidth: 340, margin: '0 auto 16px', textAlign: 'center', lineHeight: 1.6 }}>
+                Your coach learns your sales patterns, remembers every appointment, and gives you specific advice to close more deals. Text or talk to your coach anytime — on the drive home, before a big appointment, or when you need a strategy session.
               </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 28 }}>
+                {['💬 Text anytime', '🎙️ Voice on the go', '🧠 Remembers everything'].map(pill => (
+                  <span key={pill} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: '8px 16px', fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>{pill}</span>
+                ))}
+              </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {COACHES.map(c => (
@@ -633,12 +663,28 @@ export default function OnboardingPage() {
           {/* ── STEP 5: AI ASSISTANT ───────────────────────────────────── */}
           {step === 5 && (
             <div className="px-5 pb-32 max-w-lg mx-auto w-full">
-              <h2 style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginBottom: 8 }}>
-                Your AI assistant.
+              <h2 style={{ fontSize: 28, fontWeight: 800, color: '#F9FAFB', marginBottom: 12, textAlign: 'center' }}>
+                Your AI Sales Assistant
               </h2>
-              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', marginBottom: 28 }}>
-                Set up your personal sales assistant.
+              <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.55)', maxWidth: 340, margin: '0 auto 8px', textAlign: 'center', lineHeight: 1.6 }}>
+                Your assistant answers calls, schedules appointments, qualifies leads, and captures every conversation — so you never miss an opportunity, even when you&apos;re with a customer.
               </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 16 }}>
+                {['📞 Answers your calls', '📅 Books appointments', '🎯 Qualifies leads'].map(pill => (
+                  <span key={pill} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: '8px 16px', fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>{pill}</span>
+                ))}
+              </div>
+
+              {/* Meeting Mode highlight */}
+              <div style={{ background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)', borderRadius: 16, padding: 16, margin: '0 0 20px' }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 6 }}>🎙️ Meeting Mode</div>
+                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 10px', lineHeight: 1.5 }}>
+                  Record appointments, get AI summaries, and let your coach debrief every meeting automatically.
+                </p>
+                <span style={{ background: 'rgba(6,182,212,0.15)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, color: '#06B6D4' }}>
+                  Coming soon
+                </span>
+              </div>
 
               {/* Enable toggle */}
               <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -929,14 +975,14 @@ export default function OnboardingPage() {
           {step === 7 && (
             <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }} style={{ marginBottom: 24 }}>
-                <ClozrLogo variant="full" height={52} />
+                <ClozrLogo variant="full" height={288} />
               </motion.div>
 
               <motion.h1
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5, duration: 0.5 }}
-                style={{ fontSize: 36, fontWeight: 800, color: '#F9FAFB', marginBottom: 12 }}
+                style={{ fontSize: 'clamp(32px, 5vw, 48px)', fontWeight: 800, color: '#F9FAFB', marginBottom: 12 }}
               >
                 You&apos;re in,{' '}
                 <span style={{ background: 'linear-gradient(90deg, #1D4ED8, #06B6D4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
