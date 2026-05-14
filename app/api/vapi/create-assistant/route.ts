@@ -30,7 +30,30 @@ export async function POST(_req: NextRequest) {
   const capabilities: string[] = config.capabilities ?? []
   const qualifyingCriteria: string = config.qualifying_criteria ?? ''
 
-  const systemPrompt = `You are ${assistantName}, the AI assistant for ${rep.full_name} at ${rep.company}.
+  // Fetch editable prompts from DB, fall back to hardcoded defaults
+  const { data: promptRows } = await admin
+    .from('assistant_prompts')
+    .select('prompt_key, system_prompt')
+
+  const getPrompt = (key: string) =>
+    promptRows?.find((p: { prompt_key: string; system_prompt: string }) => p.prompt_key === key)?.system_prompt ?? ''
+
+  const replaceVars = (template: string) =>
+    template
+      .replace(/{repName}/g, rep.full_name ?? '')
+      .replace(/{assistantName}/g, assistantName)
+      .replace(/{company}/g, rep.company ?? '')
+      .replace(/{capabilities}/g, capabilities.join(', '))
+      .replace(/{qualifyingCriteria}/g, qualifyingCriteria)
+
+  const baseTemplate = getPrompt('base_assistant')
+  const greetingTemplate = getPrompt('greeting')
+  const voicemailTemplate = getPrompt('voicemail')
+
+  // Use DB prompts if available, else fall back to hardcoded
+  const systemPrompt = baseTemplate
+    ? replaceVars(baseTemplate)
+    : `You are ${assistantName}, the AI assistant for ${rep.full_name} at ${rep.company}.
 
 Your job is to help callers and represent ${rep.company} professionally.
 
@@ -54,6 +77,14 @@ Always:
 - Keep calls under 3 minutes when possible
 - End calls graciously`
 
+  const firstMessage = greetingTemplate
+    ? replaceVars(greetingTemplate)
+    : `Hi, you've reached ${rep.full_name} at ${rep.company}. I'm ${assistantName}. How can I help you today?`
+
+  const endCallMessage = voicemailTemplate
+    ? replaceVars(voicemailTemplate)
+    : `Thanks for calling ${rep.company}. I'll make sure ${rep.full_name} gets this message. Have a great day!`
+
   const vapiResponse = await fetch('https://api.vapi.ai/assistant', {
     method: 'POST',
     headers: {
@@ -68,8 +99,8 @@ Always:
         messages: [{ role: 'system', content: systemPrompt }],
       },
       voice: { provider: 'elevenlabs', voiceId },
-      firstMessage: `Hi, you've reached ${rep.full_name} at ${rep.company}. I'm ${assistantName}. How can I help you today?`,
-      endCallMessage: `Thanks for calling ${rep.company}. I'll make sure ${rep.full_name} gets this message. Have a great day!`,
+      firstMessage,
+      endCallMessage,
       serverUrl: 'https://clozrhq.com/api/vapi/webhook',
       serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET || 'clozr-webhook-secret',
       recordingEnabled: true,
