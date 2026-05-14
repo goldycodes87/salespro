@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
       const resend = new Resend(process.env.RESEND_API_KEY)
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://clozrhq.com'
       await resend.emails.send({
-        from: 'Clozr <onboarding@clozrhq.com>',
+        from: 'Clozr <noreply@clozrhq.com>',
         to: 'grant@goldberglawcenter.com',
         subject: `New rep joined Clozr: ${fullName}`,
         html: `<!DOCTYPE html>

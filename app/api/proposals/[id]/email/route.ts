@@ -85,7 +85,7 @@ export async function POST(
     if (process.env.RESEND_API_KEY) {
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
-        from: 'onboarding@resend.dev',
+        from: 'Clozr <noreply@clozrhq.com>',
         to: toEmail,
         subject: `Your Home Improvement Proposal — ${address || 'Your Project'}`,
         html: emailHtml,
