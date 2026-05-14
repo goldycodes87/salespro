@@ -5,6 +5,7 @@ import DashboardHero from '@/components/dashboard/dashboard-hero'
 import StatCards from '@/components/dashboard/stat-cards'
 import CalendarSyncOnLoad from '@/components/dashboard/calendar-sync'
 import WelcomeToast from '@/components/dashboard/welcome-toast'
+import AssistantChat from '@/components/dashboard/assistant-chat'
 import { getMTStartOfDay, getMTStartOfWeek, getMTHour } from '@/lib/time'
 import { getTerminology } from '@/lib/platform-registry'
 
@@ -434,41 +435,11 @@ export default async function DashboardPage() {
       )}
 
       {/* AI Assistant */}
-      <div className="rounded-2xl p-5" style={{ background: 'rgba(17,24,39,0.6)', border: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: assistantEnabled ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.06)' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={assistantEnabled ? '#10B981' : '#6B7280'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.59 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.56a16 16 0 0 0 6.37 6.37l.72-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            {assistantEnabled ? (
-              <>
-                <p className="text-sm font-semibold flex items-center gap-1.5" style={{ color: '#F9FAFB' }}>
-                  AI Assistant — Active
-                  <span className="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#10B981' }} />
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
-                  {assistantConfig?.name || 'Alex'}{(assistantConfig?.capabilities as string[] | null)?.length ? ` · ${(assistantConfig!.capabilities as string[]).length} capabilities` : ''}
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-semibold" style={{ color: '#6B7280' }}>AI Assistant</p>
-                <p className="text-xs mt-0.5" style={{ color: '#4B5563' }}>Set up your assistant</p>
-              </>
-            )}
-          </div>
-          <Link
-            href="/settings?tab=assistant"
-            className="text-xs font-semibold px-3 py-1.5 rounded-xl flex-shrink-0"
-            style={{ background: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,0.08)' }}
-          >
-            {assistantEnabled ? 'Configure →' : 'Set up →'}
-          </Link>
-        </div>
-      </div>
+      <AssistantChat
+        assistantConfig={assistantConfig}
+        assistantEnabled={assistantEnabled}
+        repName={rep?.full_name ?? ''}
+      />
     </div>
     </div>
     </div>
