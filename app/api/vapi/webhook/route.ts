@@ -14,10 +14,18 @@ export async function POST(req: NextRequest) {
 
   const admin = getSupabaseAdmin()
   const assistantId = body.call?.assistantId
-  if (!assistantId) return NextResponse.json({ received: true })
+  const metaRepId = body.call?.metadata?.rep_id
 
-  // 1. Find rep
-  const { data: rep } = await admin.from('reps').select('*').eq('vapi_assistant_id', assistantId).maybeSingle()
+  // 1. Find rep — fast path via metadata, fallback via assistant ID
+  let rep: Record<string, any> | null = null
+  if (metaRepId) {
+    const { data } = await admin.from('reps').select('*').eq('id', metaRepId).single()
+    rep = data ?? null
+  }
+  if (!rep && assistantId) {
+    const { data } = await admin.from('reps').select('*').eq('vapi_assistant_id', assistantId).maybeSingle()
+    rep = data ?? null
+  }
   if (!rep) return NextResponse.json({ received: true })
 
   const callerNumber = body.call?.customer?.number ?? ''
@@ -152,6 +160,12 @@ export async function POST(req: NextRequest) {
     endpoint: 'inbound_call',
     tokens_used: 0,
     estimated_cost_usd: (durationSeconds / 60) * 0.05,
+    metadata: {
+      rep_name: rep.full_name,
+      assistant_name: body.call?.metadata?.assistant_name ?? rep.assistant_config?.name ?? 'Assistant',
+      duration_seconds: durationSeconds,
+      caller_number: callerNumber,
+    },
   })
 
   return NextResponse.json({ received: true })

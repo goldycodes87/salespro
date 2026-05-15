@@ -92,7 +92,15 @@ Always:
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      name: `${rep.full_name} - Assistant`,
+      name: `${rep.full_name} — ${assistantName} (${rep.company})`,
+      metadata: {
+        rep_id: rep.id,
+        rep_name: rep.full_name,
+        company: rep.company,
+        assistant_name: assistantName,
+        session_type: 'business_assistant',
+        app: 'clozr',
+      },
       model: {
         provider: 'anthropic',
         model: 'claude-haiku-4-5-20251001',

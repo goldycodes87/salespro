@@ -424,6 +424,7 @@ export default function CoachPage({ repName, initialPersonaId }: CoachPageProps)
 
       // Start transient session — fresh context every call, no persistent assistant ID
       vapi.start({
+        name: `${coachConfig.repName} — ${persona.name} Voice Coach`,
         transcriber: { provider: 'deepgram', model: 'nova-2', language: 'en-US' },
         model: {
           provider: 'anthropic',
@@ -441,6 +442,14 @@ export default function CoachPage({ repName, initialPersonaId }: CoachPageProps)
         },
         firstMessage: coachConfig.firstMessage,
         endCallMessage: 'Good talk. Go close something.',
+        metadata: {
+          rep_id: coachConfig.repId,
+          rep_name: coachConfig.repName,
+          company: coachConfig.company,
+          persona: coachConfig.persona,
+          session_type: 'voice_coach',
+          app: 'clozr',
+        },
       })
     } catch (e) {
       console.error('Voice start failed:', e)

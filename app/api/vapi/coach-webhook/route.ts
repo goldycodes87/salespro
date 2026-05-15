@@ -28,9 +28,18 @@ export async function POST(req: NextRequest) {
 
   const admin = getSupabaseAdmin()
   const coachId = body.call?.assistantId
-  if (!coachId) return NextResponse.json({ received: true })
+  const metaRepId = body.call?.metadata?.rep_id
 
-  const { data: rep } = await admin.from('reps').select('id, full_name').eq('vapi_coach_id', coachId).maybeSingle()
+  // Find rep — fast path via metadata, fallback via coach ID
+  let rep: Record<string, any> | null = null
+  if (metaRepId) {
+    const { data } = await admin.from('reps').select('id, full_name').eq('id', metaRepId).single()
+    rep = data ?? null
+  }
+  if (!rep && coachId) {
+    const { data } = await admin.from('reps').select('id, full_name').eq('vapi_coach_id', coachId).maybeSingle()
+    rep = data ?? null
+  }
   if (!rep) return NextResponse.json({ received: true })
 
   const transcript = body.transcript ?? ''
@@ -63,6 +72,11 @@ export async function POST(req: NextRequest) {
     endpoint: 'voice_coach',
     tokens_used: 0,
     estimated_cost_usd: (durationSeconds / 60) * 0.05,
+    metadata: {
+      rep_name: rep.full_name,
+      persona: body.call?.metadata?.persona ?? 'unknown',
+      duration_seconds: durationSeconds,
+    },
   })
 
   return NextResponse.json({ received: true })

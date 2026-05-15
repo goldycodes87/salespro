@@ -38,5 +38,8 @@ export async function GET() {
     firstMessage: config.firstMessage,
     voiceId: config.voiceId,
     persona,
+    repId: repResult.data.id,
+    repName: repResult.data.full_name,
+    company: repResult.data.company,
   })
 }
