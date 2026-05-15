@@ -409,11 +409,17 @@ export default function CoachPage({ repName, initialPersonaId }: CoachPageProps)
       })
 
       vapi.on('error', (err: any) => {
-        console.error('Vapi error:', err)
+        console.error('VAPI ERROR:', JSON.stringify(err))
         vapiRef.current = null
         setCallStatus('idle')
         setVoiceError('Connection failed. Try again.')
         setTimeout(() => setVoiceError(null), 4000)
+      })
+
+      console.log('STARTING VOICE SESSION:', {
+        persona: personaId,
+        voiceId: coachConfig.voiceId,
+        coachName: persona.name,
       })
 
       // Start transient session — fresh context every call, no persistent assistant ID
