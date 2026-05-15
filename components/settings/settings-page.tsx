@@ -317,6 +317,8 @@ export default function SettingsPage({
   const [selectedNumber, setSelectedNumber]     = useState<string>(initConfig.business_number ?? '')
   const [dndActive, setDndActive]               = useState<boolean>(initConfig.dnd_active ?? false)
   const [dndDuringAppts, setDndDuringAppts]     = useState<boolean>(initConfig.dnd_during_appointments ?? false)
+  const initMeetingOptions = (initConfig.meeting_options ?? {}) as Record<string, boolean>
+  const [disclosureReminder, setDisclosureReminder] = useState<boolean>(initMeetingOptions.disclosure_reminder !== false)
   const [previewingVoice, setPreviewingVoice]   = useState('')
   const [showVoicePicker, setShowVoicePicker]   = useState(false)
   const [savingAssistant, setSavingAssistant]   = useState(false)
@@ -382,6 +384,7 @@ export default function SettingsPage({
           business_number: selectedNumber || null,
           dnd_active: dndActive,
           dnd_during_appointments: dndDuringAppts,
+          meeting_options: { ...initMeetingOptions, disclosure_reminder: disclosureReminder },
         },
       }),
     })
@@ -1201,6 +1204,20 @@ export default function SettingsPage({
                   <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>Auto-activates when a calendar event is active</p>
                 </div>
                 <Toggle on={dndDuringAppts} onToggle={() => setDndDuringAppts(v => !v)} />
+              </div>
+            </CollapsibleSection>
+
+            {/* Meeting Mode */}
+            <CollapsibleSection title="Meeting Mode" storageKey="meeting-mode">
+              <p className="text-xs -mt-1" style={{ color: '#6B7280' }}>
+                Record appointments and get AI analysis, coach debrief, and action items.
+              </p>
+              <div className="flex items-center justify-between py-1">
+                <div>
+                  <p className="text-sm font-medium" style={{ color: '#F9FAFB' }}>Disclosure reminder</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>Show privacy disclosure before each recording</p>
+                </div>
+                <Toggle on={disclosureReminder} onToggle={() => setDisclosureReminder(v => !v)} />
               </div>
             </CollapsibleSection>
           </div>

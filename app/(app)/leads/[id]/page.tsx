@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import LeadDetail from '@/components/leads/lead-detail'
 
 export default async function LeadDetailPage({
@@ -23,7 +24,8 @@ export default async function LeadDetailPage({
 
   if (error || !lead) notFound()
 
-  const [referrerResult, referralsResult, proposalsResult, activityResult] = await Promise.all([
+  const admin = getSupabaseAdmin()
+  const [referrerResult, referralsResult, proposalsResult, activityResult, repResult] = await Promise.all([
     lead.referred_by_lead_id
       ? supabase
           .from('leads')
@@ -46,6 +48,7 @@ export default async function LeadDetailPage({
       .select('id, event_type, description, created_at')
       .eq('lead_id', id)
       .order('created_at', { ascending: false }),
+    user ? admin.from('reps').select('id, full_name, company, phone, industry, assistant_config').eq('id', user.id).single() : Promise.resolve({ data: null }),
   ])
 
   return (
@@ -55,6 +58,7 @@ export default async function LeadDetailPage({
       referrals={referralsResult.data ?? []}
       proposals={proposalsResult.data ?? []}
       activity={activityResult.data ?? []}
+      rep={repResult.data ?? null}
       merged={merged}
     />
   )

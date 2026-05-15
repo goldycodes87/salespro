@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import FilesTab from './files-tab'
 import LeadMerge from './lead-merge'
+import MeetingsTab from '@/components/meetings/meetings-tab'
 import { useResearch } from '@/components/ui/research-context'
 import { formatPhone } from '@/hooks/usePhoneFormat'
 
@@ -60,7 +61,7 @@ function AISummary({ text }: { text: string }) {
   )
 }
 
-const TABS = ['Overview', 'Proposals', 'Activity', 'Files'] as const
+const TABS = ['Overview', 'Proposals', 'Activity', 'Files', 'Meetings'] as const
 type Tab = typeof TABS[number]
 
 export default function LeadDetail({
@@ -69,6 +70,7 @@ export default function LeadDetail({
   referrals,
   proposals: initialProposals,
   activity: initialActivity,
+  rep,
   merged,
 }: {
   lead: Lead
@@ -76,6 +78,7 @@ export default function LeadDetail({
   referrals?: Lead[]
   proposals?: Proposal[]
   activity?: Activity[]
+  rep?: Record<string, any> | null
   merged?: boolean
 }) {
   const { startResearch } = useResearch()
@@ -587,6 +590,17 @@ export default function LeadDetail({
               notes={lead.notes ?? ''}
               onNotesSave={n => setLead(prev => ({ ...prev, notes: n }))}
               activity={activity}
+            />
+          </motion.div>
+        )}
+
+        {tab === 'Meetings' && (
+          <motion.div key="meetings" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+            <MeetingsTab
+              rep={rep ?? {}}
+              leadId={lead.id}
+              leadName={`${lead.first_name} ${lead.last_name}`}
+              leadEmail={lead.email ?? null}
             />
           </motion.div>
         )}
