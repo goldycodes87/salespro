@@ -41,6 +41,14 @@ type Usage = {
   totalCost: number
   count: number
 }
+type Contact = {
+  id: string
+  name: string
+  relationship: string | null
+  phone: string | null
+  email: string | null
+  notes: string | null
+}
 
 const inputStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.05)',
@@ -214,12 +222,14 @@ export default function SettingsPage({
   usage,
   coachConfig,
   calendarConnections,
+  contacts: initialContacts = [],
   industry,
 }: {
   rep: Rep
   usage: Usage
   coachConfig?: { active_persona_id?: string } | null
   calendarConnections?: Array<{ id: string; provider: string; ical_url?: string | null; last_synced_at?: string | null }> | null
+  contacts?: Contact[]
   industry?: string | null
 }) {
   const router = useRouter()
@@ -267,6 +277,16 @@ export default function SettingsPage({
   const [savingPersona, setSavingPersona] = useState(false)
   const [personaSaved, setPersonaSaved] = useState(false)
   const [clearingPersona, setClearingPersona] = useState<string | null>(null)
+  const [pendingPersonaId, setPendingPersonaId] = useState<string | null>(null)
+  const [switchToast, setSwitchToast] = useState<string | null>(null)
+
+  // Contacts state
+  const [contacts, setContacts] = useState<Contact[]>(initialContacts)
+  const [addingContact, setAddingContact] = useState(false)
+  const [savingContact, setSavingContact] = useState(false)
+  const [editingContact, setEditingContact] = useState<Contact | null>(null)
+  const [contactDraft, setContactDraft] = useState<Omit<Contact, 'id'>>({ name: '', relationship: '', phone: '', email: '', notes: '' })
+  const [deletingContact, setDeletingContact] = useState<string | null>(null)
 
   // Calendar state
   const [connections, setConnections] = useState(calendarConnections ?? [])
@@ -476,15 +496,28 @@ export default function SettingsPage({
 
   const savePersona = async (personaId: string) => {
     setActivePersonaId(personaId)
+    setPendingPersonaId(null)
     setSavingPersona(true)
     await fetch('/api/coach/config', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ active_persona_id: personaId }),
     })
+    // Insert welcome message from new coach
+    const persona = PERSONAS.find(p => p.id === personaId)
+    if (persona) {
+      const repName = rep.full_name?.split(' ')[0] ?? 'there'
+      fetch('/api/coach/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personaId, content: `__switch_welcome__${persona.welcomeMessage(repName)}` }),
+      }).catch(() => {})
+    }
     setSavingPersona(false)
     savedFlash(setPersonaSaved)
-    // If rep had a vapi coach, create new one for the updated persona
+    const pName = PERSONAS.find(p => p.id === personaId)?.name ?? 'Coach'
+    setSwitchToast(`${pName} is ready. They know everything.`)
+    setTimeout(() => setSwitchToast(null), 3000)
     if (rep.vapi_coach_id) {
       fetch('/api/vapi/create-coach', {
         method: 'POST',
@@ -492,6 +525,60 @@ export default function SettingsPage({
         body: JSON.stringify({ persona: personaId }),
       }).catch(() => {})
     }
+  }
+
+  const addContact = async () => {
+    if (!contactDraft.name.trim()) return
+    setSavingContact(true)
+    try {
+      const res = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(contactDraft),
+      })
+      const data = await res.json()
+      if (data.contact) {
+        setContacts(prev => [data.contact, ...prev])
+        setContactDraft({ name: '', relationship: '', phone: '', email: '', notes: '' })
+        setAddingContact(false)
+      }
+    } finally {
+      setSavingContact(false)
+    }
+  }
+
+  const updateContact = async () => {
+    if (!editingContact) return
+    setSavingContact(true)
+    try {
+      const res = await fetch(`/api/contacts/${editingContact.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(contactDraft),
+      })
+      const data = await res.json()
+      if (data.contact) {
+        setContacts(prev => prev.map(c => c.id === editingContact.id ? data.contact : c))
+        setEditingContact(null)
+      }
+    } finally {
+      setSavingContact(false)
+    }
+  }
+
+  const deleteContact = async (id: string) => {
+    setDeletingContact(id)
+    try {
+      await fetch(`/api/contacts/${id}`, { method: 'DELETE' })
+      setContacts(prev => prev.filter(c => c.id !== id))
+    } finally {
+      setDeletingContact(null)
+    }
+  }
+
+  const openEditContact = (c: Contact) => {
+    setEditingContact(c)
+    setContactDraft({ name: c.name, relationship: c.relationship ?? '', phone: c.phone ?? '', email: c.email ?? '', notes: c.notes ?? '' })
   }
 
   const clearPersonaHistory = async (personaId: string) => {
@@ -847,7 +934,7 @@ export default function SettingsPage({
 
       {/* ASSISTANT TAB */}
       {activeTab === 'assistant' && (
-        <div style={{ opacity: 1 }}>
+        <>
           {!rep.vapi_assistant_id && assistantEnabled && (
             <div className="rounded-2xl p-4 mb-4 flex items-center justify-between gap-3"
               style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
@@ -1120,7 +1207,83 @@ export default function SettingsPage({
           <div className="mt-2">
             <SaveButton saving={savingAssistant} saved={assistantSaved} onClick={saveAssistant} label="Save Assistant Settings" />
           </div>
-        </div>
+
+          <CollapsibleSection title="Personal Contacts" storageKey="personal-contacts">
+          <p className="text-xs -mt-1" style={{ color: '#6B7280' }}>
+            {assistantName} can call these people on your behalf.
+          </p>
+
+          {/* Contact list */}
+          <div className="space-y-2">
+            {contacts.map(c => (
+              <div key={c.id} className="rounded-xl p-3"
+                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>{c.name}</p>
+                      {c.relationship && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full"
+                          style={{ background: 'rgba(255,255,255,0.07)', color: '#9CA3AF' }}>
+                          {c.relationship}
+                        </span>
+                      )}
+                    </div>
+                    {c.phone && <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>{c.phone}</p>}
+                    {c.email && <p className="text-xs" style={{ color: '#6B7280' }}>{c.email}</p>}
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button onClick={() => openEditContact(c)}
+                      className="px-2 py-1 rounded-lg text-xs font-medium"
+                      style={{ background: 'rgba(29,78,216,0.12)', color: '#60A5FA', border: '1px solid rgba(29,78,216,0.2)' }}>
+                      Edit
+                    </button>
+                    <button onClick={() => deleteContact(c.id)} disabled={deletingContact === c.id}
+                      className="px-2 py-1 rounded-lg text-xs font-medium"
+                      style={{ background: 'rgba(239,68,68,0.1)', color: '#F87171', border: '1px solid rgba(239,68,68,0.2)' }}>
+                      {deletingContact === c.id ? '…' : 'Delete'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Add / Edit form */}
+          {(addingContact || editingContact) && (
+            <div className="rounded-xl p-3 space-y-2.5 mt-1"
+              style={{ background: 'rgba(29,78,216,0.06)', border: '1px solid rgba(29,78,216,0.2)' }}>
+              <p className="text-xs font-semibold" style={{ color: '#60A5FA' }}>
+                {editingContact ? 'Edit contact' : 'New contact'}
+              </p>
+              <SmallInput value={contactDraft.name ?? ''} onChange={v => setContactDraft(d => ({ ...d, name: v }))} placeholder="Name" />
+              <SmallInput value={contactDraft.relationship ?? ''} onChange={v => setContactDraft(d => ({ ...d, relationship: v }))} placeholder="Relationship (e.g. wife, manager)" />
+              <SmallInput value={contactDraft.phone ?? ''} onChange={v => setContactDraft(d => ({ ...d, phone: v }))} placeholder="Phone" type="tel" />
+              <SmallInput value={contactDraft.email ?? ''} onChange={v => setContactDraft(d => ({ ...d, email: v }))} placeholder="Email" type="email" />
+              <div className="flex gap-2">
+                <button onClick={editingContact ? updateContact : addContact} disabled={savingContact}
+                  className="flex-1 h-9 rounded-xl text-sm font-semibold"
+                  style={{ background: 'rgba(29,78,216,0.2)', color: '#60A5FA', border: '1px solid rgba(29,78,216,0.3)' }}>
+                  {savingContact ? 'Saving…' : 'Save'}
+                </button>
+                <button onClick={() => { setAddingContact(false); setEditingContact(null) }}
+                  className="h-9 px-4 rounded-xl text-sm font-medium"
+                  style={{ background: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!addingContact && !editingContact && (
+            <button onClick={() => { setAddingContact(true); setContactDraft({ name: '', relationship: '', phone: '', email: '', notes: '' }) }}
+              className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 mt-1"
+              style={{ background: 'rgba(255,255,255,0.04)', color: '#9CA3AF', border: '1px dashed rgba(255,255,255,0.12)' }}>
+              + Add contact
+            </button>
+          )}
+        </CollapsibleSection>
+        </>
       )}
 
       {/* COACH TAB */}
@@ -1136,7 +1299,7 @@ export default function SettingsPage({
                 return (
                   <button
                     key={persona.id}
-                    onClick={() => savePersona(persona.id)}
+                    onClick={() => { if (!isActive) setPendingPersonaId(persona.id) }}
                     className="w-full flex items-center gap-3 p-4 rounded-xl text-left transition-all"
                     style={{
                       background: isActive ? 'rgba(29,78,216,0.12)' : 'rgba(255,255,255,0.03)',
@@ -1168,9 +1331,6 @@ export default function SettingsPage({
                 )
               })}
             </div>
-            {personaSaved && (
-              <p className="text-xs text-center mt-2" style={{ color: '#34D399' }}>Saved!</p>
-            )}
           </CollapsibleSection>
 
           <CollapsibleSection title="Conversation History" storageKey="conversation-history">
@@ -1507,6 +1667,76 @@ export default function SettingsPage({
             )
           })()}
         </>
+      )}
+
+      {/* Coach Switch Transition Modal */}
+      {pendingPersonaId && (() => {
+        const persona = PERSONAS.find(p => p.id === pendingPersonaId)
+        if (!persona) return null
+        const repFirstName = rep.full_name?.split(' ')[0] ?? 'there'
+        return (
+          <div className="fixed inset-0 z-[200] flex items-end justify-center px-4"
+            style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}
+            onClick={(e) => { if (e.target === e.currentTarget) setPendingPersonaId(null) }}>
+            <div className="w-full max-w-md rounded-t-3xl pb-8 overflow-hidden"
+              style={{ background: '#0D1117', border: '1px solid rgba(255,255,255,0.08)' }}>
+              {/* Coach header */}
+              <div className="flex items-center gap-4 px-6 pt-6 pb-5"
+                style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <PersonaPhoto personaId={persona.id} color={persona.color} />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: '#6B7280' }}>Switching to</p>
+                  <p className="text-xl font-bold" style={{ color: '#F9FAFB' }}>{persona.name}</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#9CA3AF' }}>{persona.tagline}</p>
+                </div>
+              </div>
+
+              <div className="px-6 pt-5 pb-1 space-y-4">
+                {/* Memory carry-over message */}
+                <div className="rounded-2xl px-4 py-3 flex items-start gap-3"
+                  style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                  <span className="text-lg flex-shrink-0 mt-0.5">🧠</span>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: '#34D399' }}>Memory carries over</p>
+                    <p className="text-xs mt-1" style={{ color: 'rgba(52,211,153,0.7)' }}>
+                      {persona.name} already knows your deals, customers, and selling style from previous sessions.
+                    </p>
+                  </div>
+                </div>
+
+                {/* First message preview */}
+                <div className="rounded-2xl px-4 py-3"
+                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                  <p className="text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>First message</p>
+                  <p className="text-sm italic" style={{ color: '#D1D5DB' }}>
+                    &ldquo;{persona.welcomeMessage(repFirstName)}&rdquo;
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button onClick={() => setPendingPersonaId(null)}
+                    className="flex-1 h-12 rounded-2xl text-sm font-semibold"
+                    style={{ background: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    Cancel
+                  </button>
+                  <button onClick={() => savePersona(pendingPersonaId)} disabled={savingPersona}
+                    className="flex-1 h-12 rounded-2xl text-sm font-bold"
+                    style={{ background: 'rgba(29,78,216,0.25)', color: '#60A5FA', border: '1px solid rgba(29,78,216,0.4)' }}>
+                    {savingPersona ? 'Switching…' : `Switch to ${persona.name}`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Coach switch success toast */}
+      {switchToast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] px-5 py-3 rounded-2xl text-sm font-semibold whitespace-nowrap"
+          style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.35)', color: '#34D399', backdropFilter: 'blur(8px)' }}>
+          {switchToast}
+        </div>
       )}
 
       {/* iCloud Connect Modal */}

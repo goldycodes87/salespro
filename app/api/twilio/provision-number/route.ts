@@ -27,7 +27,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const admin = getSupabaseAdmin()
-    const { data: rep } = await admin.from('reps').select('full_name, assistant_config').eq('id', user.id).single()
+    const { data: rep } = await admin
+      .from('reps')
+      .select('full_name, assistant_config, vapi_assistant_id, vapi_phone_number_id')
+      .eq('id', user.id)
+      .single()
 
     const client = twilio(accountSid, authToken)
     const purchased = await client.incomingPhoneNumbers.create({
@@ -44,6 +48,38 @@ export async function POST(request: NextRequest) {
         twilio_sid: purchased.sid,
       },
     }).eq('id', user.id)
+
+    // Auto-import to Vapi (fire-and-forget, inline to avoid cookie issues)
+    if (!rep?.vapi_phone_number_id && process.env.VAPI_API_KEY) {
+      void (async () => {
+        try {
+          const vapiRes = await fetch('https://api.vapi.ai/phone-number/import', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.VAPI_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              provider: 'twilio',
+              twilioAccountSid: accountSid,
+              twilioAuthToken: authToken,
+              twilioPhoneNumber: purchased.phoneNumber,
+              name: `${rep?.full_name ?? ''} — Clozr`,
+              ...(rep?.vapi_assistant_id ? { assistantId: rep.vapi_assistant_id } : {}),
+            }),
+          })
+          if (vapiRes.ok) {
+            const vapiPhone = await vapiRes.json()
+            await admin.from('reps').update({ vapi_phone_number_id: vapiPhone.id }).eq('id', user.id)
+          } else {
+            const err = await vapiRes.json()
+            console.error('Vapi phone import failed:', err)
+          }
+        } catch (e) {
+          console.error('Vapi import error:', e)
+        }
+      })()
+    }
 
     return NextResponse.json({ phoneNumber: purchased.phoneNumber, sid: purchased.sid })
   } catch (err) {

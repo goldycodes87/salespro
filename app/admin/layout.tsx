@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: '/admin', label: 'Overview', icon: '📊' },
   { href: '/admin/reps', label: 'Reps', icon: '👥' },
   { href: '/admin/coach-prompts', label: 'Coach Prompts', icon: '🧠' },
+  { href: '/admin/voices', label: 'Voices', icon: '🎙️' },
   { href: '/admin/defaults', label: 'Defaults', icon: '⚙️' },
   { href: '/admin/usage', label: 'Usage & Billing', icon: '💰' },
   { href: '/admin/system', label: 'System', icon: '🔧' },

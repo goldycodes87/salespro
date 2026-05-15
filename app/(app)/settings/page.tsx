@@ -13,7 +13,7 @@ export default async function Settings() {
 
   const admin = getSupabaseAdmin()
 
-  const [repResult, usageResult, coachConfigResult, calendarConnectionsResult] = await Promise.all([
+  const [repResult, usageResult, coachConfigResult, calendarConnectionsResult, contactsResult] = await Promise.all([
     supabase.from('reps').select('*').eq('id', user.id).single(),
     supabase
       .from('api_usage_log')
@@ -25,6 +25,11 @@ export default async function Settings() {
       .from('calendar_connections')
       .select('id, provider, ical_url, last_synced_at, connected_at')
       .eq('rep_id', user.id),
+    admin
+      .from('rep_contacts')
+      .select('*')
+      .eq('rep_id', user.id)
+      .order('created_at', { ascending: false }),
   ])
 
   const rep = repResult.data ?? { id: user.id, email: user.email }
@@ -46,6 +51,7 @@ export default async function Settings() {
       usage={{ byService, totalCost, count: rows.length }}
       coachConfig={coachConfigResult.data}
       calendarConnections={calendarConnectionsResult.data ?? []}
+      contacts={contactsResult.data ?? []}
       industry={rep.industry ?? null}
     />
   )
