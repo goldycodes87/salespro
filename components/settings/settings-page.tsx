@@ -287,6 +287,7 @@ export default function SettingsPage({
   const [editingContact, setEditingContact] = useState<Contact | null>(null)
   const [contactDraft, setContactDraft] = useState<Omit<Contact, 'id'>>({ name: '', relationship: '', phone: '', email: '', notes: '' })
   const [deletingContact, setDeletingContact] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   // Calendar state
   const [connections, setConnections] = useState(calendarConnections ?? [])
@@ -571,6 +572,7 @@ export default function SettingsPage({
     try {
       await fetch(`/api/contacts/${id}`, { method: 'DELETE' })
       setContacts(prev => prev.filter(c => c.id !== id))
+      setConfirmDeleteId(null)
     } finally {
       setDeletingContact(null)
     }
@@ -1208,81 +1210,110 @@ export default function SettingsPage({
             <SaveButton saving={savingAssistant} saved={assistantSaved} onClick={saveAssistant} label="Save Assistant Settings" />
           </div>
 
-          <CollapsibleSection title="Personal Contacts" storageKey="personal-contacts">
-          <p className="text-xs -mt-1" style={{ color: '#6B7280' }}>
-            {assistantName} can call these people on your behalf.
-          </p>
-
-          {/* Contact list */}
-          <div className="space-y-2">
-            {contacts.map(c => (
-              <div key={c.id} className="rounded-xl p-3"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>{c.name}</p>
-                      {c.relationship && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full"
-                          style={{ background: 'rgba(255,255,255,0.07)', color: '#9CA3AF' }}>
-                          {c.relationship}
-                        </span>
-                      )}
-                    </div>
-                    {c.phone && <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>{c.phone}</p>}
-                    {c.email && <p className="text-xs" style={{ color: '#6B7280' }}>{c.email}</p>}
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <button onClick={() => openEditContact(c)}
-                      className="px-2 py-1 rounded-lg text-xs font-medium"
-                      style={{ background: 'rgba(29,78,216,0.12)', color: '#60A5FA', border: '1px solid rgba(29,78,216,0.2)' }}>
-                      Edit
-                    </button>
-                    <button onClick={() => deleteContact(c.id)} disabled={deletingContact === c.id}
-                      className="px-2 py-1 rounded-lg text-xs font-medium"
-                      style={{ background: 'rgba(239,68,68,0.1)', color: '#F87171', border: '1px solid rgba(239,68,68,0.2)' }}>
-                      {deletingContact === c.id ? '…' : 'Delete'}
-                    </button>
-                  </div>
-                </div>
+          {/* Personal Contacts */}
+          <div className="rounded-2xl overflow-hidden mb-4"
+            style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="flex items-center justify-between px-5 pt-4 pb-3"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div>
+                <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>Personal Contacts</h2>
+                <p className="text-xs mt-0.5" style={{ color: '#4B5563' }}>
+                  {assistantName} can call these people on your command
+                </p>
               </div>
-            ))}
-          </div>
-
-          {/* Add / Edit form */}
-          {(addingContact || editingContact) && (
-            <div className="rounded-xl p-3 space-y-2.5 mt-1"
-              style={{ background: 'rgba(29,78,216,0.06)', border: '1px solid rgba(29,78,216,0.2)' }}>
-              <p className="text-xs font-semibold" style={{ color: '#60A5FA' }}>
-                {editingContact ? 'Edit contact' : 'New contact'}
-              </p>
-              <SmallInput value={contactDraft.name ?? ''} onChange={v => setContactDraft(d => ({ ...d, name: v }))} placeholder="Name" />
-              <SmallInput value={contactDraft.relationship ?? ''} onChange={v => setContactDraft(d => ({ ...d, relationship: v }))} placeholder="Relationship (e.g. wife, manager)" />
-              <SmallInput value={contactDraft.phone ?? ''} onChange={v => setContactDraft(d => ({ ...d, phone: v }))} placeholder="Phone" type="tel" />
-              <SmallInput value={contactDraft.email ?? ''} onChange={v => setContactDraft(d => ({ ...d, email: v }))} placeholder="Email" type="email" />
-              <div className="flex gap-2">
-                <button onClick={editingContact ? updateContact : addContact} disabled={savingContact}
-                  className="flex-1 h-9 rounded-xl text-sm font-semibold"
-                  style={{ background: 'rgba(29,78,216,0.2)', color: '#60A5FA', border: '1px solid rgba(29,78,216,0.3)' }}>
-                  {savingContact ? 'Saving…' : 'Save'}
-                </button>
-                <button onClick={() => { setAddingContact(false); setEditingContact(null) }}
-                  className="h-9 px-4 rounded-xl text-sm font-medium"
-                  style={{ background: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  Cancel
-                </button>
-              </div>
+              <button
+                onClick={() => { setAddingContact(true); setContactDraft({ name: '', relationship: '', phone: '', email: '', notes: '' }) }}
+                className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(29,78,216,0.15)', border: '1px solid rgba(29,78,216,0.3)', color: '#60A5FA', fontSize: '18px', lineHeight: 1 }}>
+                +
+              </button>
             </div>
-          )}
 
-          {!addingContact && !editingContact && (
-            <button onClick={() => { setAddingContact(true); setContactDraft({ name: '', relationship: '', phone: '', email: '', notes: '' }) }}
-              className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 mt-1"
-              style={{ background: 'rgba(255,255,255,0.04)', color: '#9CA3AF', border: '1px dashed rgba(255,255,255,0.12)' }}>
-              + Add contact
-            </button>
-          )}
-        </CollapsibleSection>
+            <div className="px-4 py-3">
+              {contacts.length === 0 ? (
+                <div className="flex flex-col items-center py-6 gap-3">
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                    </svg>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium" style={{ color: '#9CA3AF' }}>No contacts yet</p>
+                    <p className="text-xs mt-0.5" style={{ color: '#4B5563' }}>Add people {assistantName} can call for you</p>
+                  </div>
+                  <button
+                    onClick={() => { setAddingContact(true); setContactDraft({ name: '', relationship: '', phone: '', email: '', notes: '' }) }}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2"
+                    style={{ background: 'rgba(29,78,216,0.15)', border: '1px solid rgba(29,78,216,0.3)', color: '#60A5FA' }}>
+                    + Add Contact
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  {contacts.map(c => (
+                    <div key={c.id} className="flex items-center gap-3 rounded-xl"
+                      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '14px 16px', marginBottom: '8px' }}>
+                      {/* Initials circle */}
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
+                        style={{ background: 'linear-gradient(135deg, #1D4ED8, #06B6D4)', color: '#fff', fontSize: '14px' }}>
+                        {c.name.charAt(0).toUpperCase()}
+                      </div>
+                      {/* Name + relationship */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold truncate" style={{ color: '#F9FAFB' }}>{c.name}</p>
+                        {c.relationship && (
+                          <p className="text-xs italic" style={{ color: '#9CA3AF' }}>{c.relationship}</p>
+                        )}
+                      </div>
+                      {/* Phone */}
+                      {c.phone && (
+                        <p className="text-[13px] flex-shrink-0 hidden sm:block" style={{ color: '#6B7280' }}>{c.phone}</p>
+                      )}
+                      {/* Action icons */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {confirmDeleteId === c.id ? (
+                          <>
+                            <button onClick={() => setConfirmDeleteId(null)}
+                              className="px-2 py-1 rounded-lg text-xs font-medium"
+                              style={{ background: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              No
+                            </button>
+                            <button onClick={() => deleteContact(c.id)} disabled={deletingContact === c.id}
+                              className="px-2 py-1 rounded-lg text-xs font-semibold"
+                              style={{ background: 'rgba(239,68,68,0.15)', color: '#F87171', border: '1px solid rgba(239,68,68,0.3)' }}>
+                              {deletingContact === c.id ? '…' : 'Delete?'}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button onClick={() => openEditContact(c)}
+                              className="w-8 h-8 rounded-lg flex items-center justify-center"
+                              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}
+                              title="Edit">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                              </svg>
+                            </button>
+                            <button onClick={() => setConfirmDeleteId(c.id)}
+                              className="w-8 h-8 rounded-lg flex items-center justify-center"
+                              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)' }}
+                              title="Delete">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                                <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                              </svg>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </>
       )}
 
@@ -1667,6 +1698,90 @@ export default function SettingsPage({
             )
           })()}
         </>
+      )}
+
+      {/* Add / Edit Contact Modal */}
+      {(addingContact || editingContact) && (
+        <div className="fixed inset-0 z-[200] flex items-end justify-center px-4"
+          style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setAddingContact(false); setEditingContact(null) } }}>
+          <div className="w-full max-w-md rounded-t-3xl pb-8"
+            style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="flex items-center justify-between px-6 pt-5 pb-4"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <h3 className="text-lg font-bold" style={{ color: '#F9FAFB' }}>
+                {editingContact ? 'Edit Contact' : 'Add Contact'}
+              </h3>
+              <button onClick={() => { setAddingContact(false); setEditingContact(null) }}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-sm"
+                style={{ background: 'rgba(255,255,255,0.08)', color: '#9CA3AF' }}>
+                ✕
+              </button>
+            </div>
+            <div className="px-6 pt-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: '#9CA3AF' }}>Name *</label>
+                <input
+                  type="text"
+                  value={contactDraft.name ?? ''}
+                  onChange={e => setContactDraft(d => ({ ...d, name: e.target.value }))}
+                  placeholder="Full name"
+                  autoFocus
+                  style={{ ...inputStyle, height: '48px', fontSize: '15px' }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: '#9CA3AF' }}>Relationship</label>
+                <input
+                  type="text"
+                  value={contactDraft.relationship ?? ''}
+                  onChange={e => setContactDraft(d => ({ ...d, relationship: e.target.value }))}
+                  placeholder="wife, manager, brother, assistant…"
+                  style={{ ...inputStyle, height: '48px', fontSize: '15px', fontStyle: contactDraft.relationship ? 'italic' : 'normal' }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: '#9CA3AF' }}>Phone *</label>
+                <input
+                  type="tel"
+                  value={contactDraft.phone ?? ''}
+                  onChange={e => setContactDraft(d => ({ ...d, phone: formatPhone(e.target.value) }))}
+                  placeholder="(555) 000-0000"
+                  style={{ ...inputStyle, height: '48px', fontSize: '15px' }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: '#9CA3AF' }}>Email (optional)</label>
+                <input
+                  type="email"
+                  value={contactDraft.email ?? ''}
+                  onChange={e => setContactDraft(d => ({ ...d, email: e.target.value }))}
+                  placeholder="email@example.com"
+                  style={{ ...inputStyle, height: '48px', fontSize: '15px' }}
+                />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={() => { setAddingContact(false); setEditingContact(null) }}
+                  className="flex-1 h-12 rounded-2xl text-sm font-semibold"
+                  style={{ background: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  Cancel
+                </button>
+                <button
+                  onClick={editingContact ? updateContact : addContact}
+                  disabled={savingContact || !contactDraft.name?.trim() || !contactDraft.phone?.trim()}
+                  className="flex-1 h-12 rounded-2xl text-sm font-bold"
+                  style={{
+                    background: (contactDraft.name?.trim() && contactDraft.phone?.trim()) ? 'rgba(29,78,216,0.3)' : 'rgba(255,255,255,0.04)',
+                    color: (contactDraft.name?.trim() && contactDraft.phone?.trim()) ? '#60A5FA' : '#4B5563',
+                    border: (contactDraft.name?.trim() && contactDraft.phone?.trim()) ? '1px solid rgba(29,78,216,0.4)' : '1px solid rgba(255,255,255,0.06)',
+                  }}>
+                  {savingContact ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Coach Switch Transition Modal */}

@@ -25,7 +25,7 @@ export async function GET() {
     .from('rep_contacts')
     .select('*')
     .eq('rep_id', user.id)
-    .order('created_at', { ascending: false })
+    .order('name')
 
   return NextResponse.json({ contacts: contacts ?? [] })
 }
