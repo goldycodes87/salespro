@@ -36,13 +36,19 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
+
+  console.log('ONBOARDING API RECEIVED:', {
+    coachPersona: body.coachPersona,
+    allKeys: Object.keys(body),
+  })
+
   const {
     firstName, lastName, phone, company, position, territory, industry,
     coachPersona, headshotUrl,
     assistantEnabled, assistantName, assistantVoiceId,
     assistantCapabilities, assistantQualifyingCriteria,
     phoneNumberType, selectedPhoneNumber,
-    subscriptionTier,
+    subscriptionTier, meetingModeEnabled,
   } = body
 
   if (!firstName?.trim() || !lastName?.trim()) {
@@ -75,6 +81,7 @@ export async function POST(request: NextRequest) {
         qualifying_criteria: assistantQualifyingCriteria || null,
         phone_type: phoneNumberType || null,
         business_number: selectedPhoneNumber || null,
+        meeting_mode_enabled: meetingModeEnabled ?? false,
       },
       settings: {
         company_name: company?.trim() || null,
@@ -87,7 +94,7 @@ export async function POST(request: NextRequest) {
   if (repError) return NextResponse.json({ error: repError.message }, { status: 500 })
 
   // 2. Upsert coach_config with 11Labs voice
-  await admin.from('coach_config').upsert(
+  const coachSaveResult = await admin.from('coach_config').upsert(
     {
       rep_id: user.id,
       active_persona_id: persona,
@@ -96,6 +103,7 @@ export async function POST(request: NextRequest) {
     },
     { onConflict: 'rep_id' },
   )
+  console.log('COACH SAVED:', { persona, error: coachSaveResult.error?.message ?? null })
 
   // 3. Insert coach welcome message
   const welcomeContent = (WELCOME_MESSAGES[persona] ?? WELCOME_MESSAGES.jordan)(firstName.trim())

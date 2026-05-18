@@ -77,6 +77,20 @@ const VOICE_OPTIONS = {
   ],
 }
 
+const COACH_VOICES: Record<string, string> = {
+  jordan:    '7WggD3IoWTIPT19PNyrW',
+  victoria:  'NHRgOEwqx5WZNClv5sat',
+  coach_ray: '3jR9BuQAOPMWUjWpi0ll',
+  noel:      'X03mvPuTfprif8QBAVeJ',
+}
+
+const COACH_PREVIEW_TEXT: Record<string, string> = {
+  jordan:    "Hey [firstName]. Jordan here. Ready to help you close more deals.",
+  victoria:  "Let's get to work, [firstName]. I'm Victoria.",
+  coach_ray: "LET'S GO [firstName]! Coach Ray here!",
+  noel:      "Hello [firstName]. I'm Noel. Let's build your system.",
+}
+
 const CAPABILITIES = [
   { id: 'answer_all',    icon: '📞', label: 'Answer all calls' },
   { id: 'answer_dnd',   icon: '🔕', label: 'Answer calls on DND only' },
@@ -212,6 +226,9 @@ export default function OnboardingPage() {
   const [coach, setCoach] = useState('')
   const [coachBubble, setCoachBubble] = useState(false)
 
+  // Step 5 — meeting mode
+  const [meetingModeEnabled, setMeetingModeEnabled] = useState(false)
+
   // Step 5 — assistant
   const [assistantEnabled, setAssistantEnabled]     = useState(true)
   const [phoneType, setPhoneType]                   = useState<'business' | 'cell' | ''>('')
@@ -305,6 +322,28 @@ export default function OnboardingPage() {
     }
   }
 
+  // ── Coach voice preview ────────────────────────────────────────────────────
+  const playCoachVoice = (personaId: string) => {
+    const voiceId = COACH_VOICES[personaId]
+    if (!voiceId) return
+    const name = firstName.trim() || 'there'
+    const text = (COACH_PREVIEW_TEXT[personaId] ?? '').replace('[firstName]', name)
+    fetch('/api/voice/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voice_id: voiceId, text }),
+    })
+      .then(r => r.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob)
+        if (audioRef.current) { audioRef.current.pause(); audioRef.current = null }
+        const audio = new Audio(url)
+        audioRef.current = audio
+        audio.play().catch(() => {})
+      })
+      .catch(() => {})
+  }
+
   // ── Twilio number search ───────────────────────────────────────────────────
   const searchNumbers = async () => {
     if (areaCode.length !== 3) return
@@ -358,6 +397,16 @@ export default function OnboardingPage() {
   const handleSubmit = async () => {
     if (submitting || submitted) return
     setSubmitting(true)
+
+    console.log('ONBOARDING COMPLETE STATE:', {
+      coachPersona: coach,
+      firstName,
+      industry,
+      assistantEnabled,
+      meetingModeEnabled,
+      subscriptionTier: plan,
+    })
+
     try {
       const res = await fetch('/api/onboarding/complete', {
         method: 'POST',
@@ -375,6 +424,7 @@ export default function OnboardingPage() {
           phoneNumberType: phoneType,
           selectedPhoneNumber: selectedNumber,
           subscriptionTier: plan,
+          meetingModeEnabled,
         }),
       })
       if (res.ok) {
@@ -722,7 +772,7 @@ export default function OnboardingPage() {
                 {COACHES.map(c => (
                   <motion.button
                     key={c.id}
-                    onClick={() => setCoach(c.id)}
+                    onClick={() => { setCoach(c.id); playCoachVoice(c.id) }}
                     whileTap={{ scale: 0.97 }}
                     style={{
                       background: 'rgba(255,255,255,0.04)',
@@ -804,15 +854,29 @@ export default function OnboardingPage() {
                 ))}
               </div>
 
-              {/* Meeting Mode highlight */}
-              <div style={{ background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)', borderRadius: 16, padding: 16, margin: '0 0 20px' }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 6 }}>🎙️ Meeting Mode</div>
-                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 10px', lineHeight: 1.5 }}>
-                  Record appointments, get AI summaries, and let your coach debrief every meeting automatically.
-                </p>
-                <span style={{ background: 'rgba(6,182,212,0.15)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, color: '#06B6D4' }}>
-                  Coming soon
-                </span>
+              {/* Meeting Mode toggle */}
+              <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 16, padding: '16px 20px', margin: '0 0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>🎙️ Meeting Mode</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4, lineHeight: 1.5 }}>
+                    Record appointments, get AI summaries and coach debrief
+                  </div>
+                </div>
+                <button
+                  onClick={() => setMeetingModeEnabled(v => !v)}
+                  style={{
+                    width: 52, height: 28, borderRadius: 14, flexShrink: 0, marginLeft: 16,
+                    background: meetingModeEnabled ? 'linear-gradient(135deg, #6366F1, #8B5CF6)' : 'rgba(255,255,255,0.15)',
+                    border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s',
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute', top: 3,
+                    left: meetingModeEnabled ? 26 : 3,
+                    width: 22, height: 22, borderRadius: '50%',
+                    background: '#fff', transition: 'left 0.2s',
+                  }} />
+                </button>
               </div>
 
               {/* Enable toggle */}

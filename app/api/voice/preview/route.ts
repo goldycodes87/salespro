@@ -3,7 +3,8 @@ export const dynamic = 'force-dynamic'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function POST(request: NextRequest) {
-  const { voice_id } = await request.json()
+  const body = await request.json()
+  const { voice_id, text } = body
   if (!voice_id) return NextResponse.json({ error: 'voice_id required' }, { status: 400 })
 
   const apiKey = process.env.ELEVENLABS_API_KEY
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
           'Accept': 'audio/mpeg',
         },
         body: JSON.stringify({
-          text: "Hey there, I'm your Clozr assistant. Ready to help you close more deals.",
+          text: text || "Hey there, I'm your Clozr assistant. Ready to help you close more deals.",
           model_id: 'eleven_monolingual_v1',
           voice_settings: { stability: 0.5, similarity_boost: 0.75 },
         }),
