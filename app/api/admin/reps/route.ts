@@ -37,7 +37,7 @@ export async function GET() {
     return { rep_id: rep.id, proposal_count: repProposals.length, signed_count: signed, month_cost: monthCost }
   })
 
-  return NextResponse.json({ reps, stats })
+  return NextResponse.json({ reps, stats, current_user_id: user.id })
 }
 
 export async function POST(request: NextRequest) {

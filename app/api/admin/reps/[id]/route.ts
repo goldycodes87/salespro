@@ -53,6 +53,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const updates: Record<string, any> = {}
   if ('is_active' in body) updates.is_active = body.is_active
+  if ('active' in body) {
+    updates.active = body.active
+    updates.cancelled_at = body.active ? null : new Date().toISOString()
+  }
   if ('is_admin' in body) updates.is_admin = body.is_admin
   if ('full_name' in body) updates.full_name = body.full_name
   if ('phone' in body) updates.phone = body.phone

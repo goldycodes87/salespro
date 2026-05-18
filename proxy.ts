@@ -31,6 +31,39 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
+  // Check if rep account has been deactivated (skip on API/static routes)
+  let isDeactivated = false
+  if (
+    user &&
+    process.env.SUPABASE_SERVICE_ROLE_KEY &&
+    !pathname.startsWith('/api/') &&
+    !pathname.startsWith('/_next/') &&
+    pathname !== '/login'
+  ) {
+    try {
+      const adminSupabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY,
+        { cookies: { getAll: () => [], setAll: () => {} } },
+      )
+      const { data: rep } = await adminSupabase
+        .from('reps')
+        .select('active')
+        .eq('id', user.id)
+        .single()
+      isDeactivated = rep?.active === false
+    } catch {
+      // If check fails, don't block access
+    }
+  }
+
+  if (isDeactivated) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    url.searchParams.set('deactivated', '1')
+    return NextResponse.redirect(url)
+  }
+
   // Public paths — no auth required
   const publicPaths = ['/', '/login', '/signup']
   const isPublic =
