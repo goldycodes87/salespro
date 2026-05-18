@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse, type NextRequest } from 'next/server'
+import { createHmac } from 'crypto'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -40,22 +41,37 @@ Return this exact structure:
 }
 
 export async function POST(request: NextRequest) {
-  // Verify webhook secret
-  const secret =
-    request.headers.get('x-agentmail-secret') ||
-    request.headers.get('x-webhook-secret') ||
-    request.headers.get('authorization')?.replace('Bearer ', '')
+  // Read raw body first so we can both verify the signature and parse JSON
+  const rawBody = await request.text()
 
-  const expectedSecret = process.env.AGENTMAIL_WEBHOOK_SECRET
-  if (expectedSecret) {
-    if (!secret) {
-      console.warn('AGENTMAIL WEBHOOK: No webhook secret in headers — check AgentMail config')
-    } else if (secret !== expectedSecret) {
-      return NextResponse.json({ error: 'Invalid secret' }, { status: 401 })
+  // Check all known signature header names
+  const signature =
+    request.headers.get('x-agentmail-signature') ||
+    request.headers.get('x-webhook-signature') ||
+    request.headers.get('x-hub-signature-256') ||
+    request.headers.get('x-signature')
+
+  console.log('WEBHOOK HEADERS:', {
+    signature,
+    allHeaders: Object.fromEntries(request.headers.entries()),
+  })
+
+  // HMAC-SHA256 verification
+  const webhookSecret = process.env.AGENTMAIL_WEBHOOK_SECRET
+  if (webhookSecret && signature) {
+    const expectedSig = createHmac('sha256', webhookSecret).update(rawBody).digest('hex')
+    const sigMatches = signature === expectedSig || signature === `sha256=${expectedSig}`
+    if (!sigMatches) {
+      console.error('AGENTMAIL: Signature mismatch:', { received: signature, expected: expectedSig })
+      return new Response('Unauthorized', { status: 401 })
     }
   }
 
-  const payload = await request.json()
+  if (!signature) {
+    console.warn('AGENTMAIL: No signature header — verify AgentMail webhook config')
+  }
+
+  const payload = JSON.parse(rawBody)
 
   console.log('AGENTMAIL WEBHOOK RAW:', JSON.stringify(payload).slice(0, 500))
 
