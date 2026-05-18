@@ -323,6 +323,7 @@ export default function SettingsPage({
   const [showVoicePicker, setShowVoicePicker]   = useState(false)
   const [savingAssistant, setSavingAssistant]   = useState(false)
   const [assistantSaved, setAssistantSaved]     = useState(false)
+  const [copiedAgentmail, setCopiedAgentmail]   = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const previewVoice = async (voice_id: string) => {
@@ -1632,6 +1633,46 @@ export default function SettingsPage({
       {/* INTEGRATIONS TAB */}
       {activeTab === 'integrations' && (
         <>
+          {/* Email Lead Capture */}
+          <div className="rounded-2xl p-4 mb-4"
+            style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)' }}>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl"
+                style={{ background: 'rgba(16,185,129,0.1)' }}>
+                📧
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>Email Lead Capture</p>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                    style={{ background: 'rgba(16,185,129,0.2)', color: '#34D399', border: '1px solid rgba(16,185,129,0.3)' }}>
+                    Active
+                  </span>
+                </div>
+                <p className="text-xs mb-3" style={{ color: '#6B7280' }}>
+                  Forward appointment confirmation emails to automatically create leads in Clozr.
+                </p>
+                <p className="text-xs font-medium mb-1.5" style={{ color: '#9CA3AF' }}>Forward appointment emails to:</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 rounded-lg px-3 py-2 font-mono text-sm"
+                    style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: '#60A5FA' }}>
+                    clozrleads@agentmail.to
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText('clozrleads@agentmail.to')
+                      setCopiedAgentmail(true)
+                      setTimeout(() => setCopiedAgentmail(false), 2000)
+                    }}
+                    className="px-3 py-2 rounded-lg text-xs font-semibold flex-shrink-0"
+                    style={{ background: copiedAgentmail ? 'rgba(16,185,129,0.2)' : 'rgba(29,78,216,0.15)', color: copiedAgentmail ? '#34D399' : '#60A5FA', border: `1px solid ${copiedAgentmail ? 'rgba(16,185,129,0.3)' : 'rgba(29,78,216,0.2)'}`, transition: 'all 0.15s' }}>
+                    {copiedAgentmail ? '✓ Copied' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {(() => {
             const industryKey = industry ?? rep.industry ?? null
             const platforms = industryKey ? getPlatformsForIndustry(industryKey) : Object.values(PLATFORM_REGISTRY)

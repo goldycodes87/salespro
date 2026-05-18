@@ -13,7 +13,7 @@ const TEST_PAYLOAD = {
       address: 'eric@lifetimewindows.com',
       name: 'Eric Goldberg',
     },
-    to: [{ address: 'clozrleads@agentmail.io' }],
+    to: [{ address: 'clozrleads@agentmail.to' }],
     subject: 'Appointment scheduled for: 5/16/2026, 2:00 PM',
     text: `TYPE:
 Sales Appointment
