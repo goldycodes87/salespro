@@ -6,16 +6,16 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import Anthropic from '@anthropic-ai/sdk'
 
 const TEST_PAYLOAD = {
-  type: 'message.received',
+  event_id: 'evt_test_001',
+  event_type: 'message.received',
+  type: 'event',
   message: {
-    id: 'test_msg_001',
-    from: {
-      address: 'eric@lifetimewindows.com',
-      name: 'Eric Goldberg',
-    },
-    to: [{ address: 'clozrleads@agentmail.to' }],
+    message_id: 'test_msg_001',
+    inbox_id: 'clozrleads@agentmail.to',
+    from: 'Eric Goldberg <eric@lifetimewindows.com>',
+    to: ['clozrleads@agentmail.to'],
     subject: 'Appointment scheduled for: 5/16/2026, 2:00 PM',
-    text: `TYPE:
+    extracted_text: `TYPE:
 Sales Appointment
 DATE/TIME:
 5/16/2026, 2:00 PM
@@ -32,6 +32,18 @@ ADDRESS:
 4817 S Elk Way, Aurora, CO 80016
 PHONE:
 Phone: (719) 433-3902`,
+    text: '',
+    html: '',
+    preview: 'TYPE: Sales Appointment DATE/TIME: 5/16/2026, 2:00 PM',
+    created_at: new Date().toISOString(),
+    timestamp: new Date().toISOString(),
+  },
+  thread: {
+    thread_id: 'thread_test_001',
+    subject: 'Appointment scheduled for: 5/16/2026, 2:00 PM',
+    senders: ['Eric Goldberg <eric@lifetimewindows.com>'],
+    recipients: ['clozrleads@agentmail.to'],
+    preview: 'TYPE: Sales Appointment DATE/TIME: 5/16/2026, 2:00 PM',
   },
 }
 
@@ -79,8 +91,11 @@ export async function GET(request: NextRequest) {
 
   const message = TEST_PAYLOAD.message
   const subject = message.subject
-  const emailContent = message.text
-  const fromEmail = message.from.address
+  const emailContent = message.extracted_text || message.text || ''
+  const fromRaw: string = message.from
+  const fromEmail = fromRaw.includes('<')
+    ? (fromRaw.match(/<(.+)>/)?.[1] ?? fromRaw)
+    : fromRaw.trim()
 
   // Run AI parsing
   let parsed: Record<string, any> = {}
@@ -91,22 +106,15 @@ export async function GET(request: NextRequest) {
     parseError = e.message
   }
 
-  // Find rep
+  // Find rep by sender email (matches live webhook logic)
   const admin = getSupabaseAdmin()
   let rep: Record<string, any> | null = null
-  if (parsed.rep_name) {
-    const firstName = String(parsed.rep_name).split(' ')[0]
-    const { data: reps } = await admin
-      .from('reps')
-      .select('id, full_name, phone, email')
-      .ilike('full_name', `%${firstName}%`)
-      .limit(5)
-    if (reps && reps.length > 0) {
-      rep = reps.find(r =>
-        r.full_name?.toLowerCase() === String(parsed.rep_name).toLowerCase()
-      ) ?? reps[0]
-    }
-  }
+  const { data: repByEmail } = await admin
+    .from('reps')
+    .select('id, full_name, phone, email')
+    .ilike('email', fromEmail)
+    .single()
+  rep = repByEmail ?? null
 
   const wouldCreate = {
     rep_id: rep?.id ?? null,

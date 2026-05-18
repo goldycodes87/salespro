@@ -50,33 +50,50 @@ export async function POST(request: NextRequest) {
   if (expectedSecret) {
     if (!secret) {
       console.warn('AGENTMAIL WEBHOOK: No webhook secret in headers — check AgentMail config')
-      // Don't reject — just warn
     } else if (secret !== expectedSecret) {
       return NextResponse.json({ error: 'Invalid secret' }, { status: 401 })
     }
   }
 
-  // Parse payload — handle both possible structures
   const payload = await request.json()
 
-  const message = payload.message || payload
-  const fromEmail = message.from?.address || message.from || ''
-  const subject = message.subject || ''
-  const textBody = message.text || message.body || message.content || ''
-  const htmlBody = message.html || ''
-  const emailContent = textBody || htmlBody
+  console.log('AGENTMAIL WEBHOOK RAW:', JSON.stringify(payload).slice(0, 500))
 
-  console.log('AGENTMAIL WEBHOOK:', {
-    type: payload.type,
-    from: fromEmail,
-    subject: subject,
-    hasText: !!textBody,
-    textLength: textBody?.length,
+  // AgentMail's actual structure: event_type at top level, message.from is a plain string
+  const message = payload.message || {}
+
+  // from is a direct string: "Name <email>" or just "email"
+  const fromRaw: string = message.from || ''
+  const fromEmail = fromRaw.includes('<')
+    ? (fromRaw.match(/<(.+)>/)?.[1] ?? fromRaw)
+    : fromRaw.trim()
+  const fromName = fromRaw.includes('<') ? fromRaw.split('<')[0].trim() : ''
+
+  const subject: string = message.subject || ''
+
+  // extracted_text is cleanest; fall back through available fields
+  const emailContent: string =
+    message.extracted_text ||
+    message.text ||
+    message.extracted_html ||
+    message.html ||
+    message.preview ||
+    ''
+
+  console.log('AGENTMAIL PARSED:', {
+    eventType: payload.event_type,
+    fromRaw,
+    fromEmail,
+    fromName,
+    subject,
+    contentLength: emailContent.length,
+    contentPreview: emailContent.slice(0, 200),
   })
 
-  // Only process message.received events (ignore others like message.sent)
-  if (payload.type && payload.type !== 'message.received') {
-    return NextResponse.json({ received: true, skipped: `event type ${payload.type}` })
+  // Check event type — field is event_type, not type
+  if (payload.event_type !== 'message.received') {
+    console.log('Ignoring event type:', payload.event_type)
+    return NextResponse.json({ received: true, skipped: true })
   }
 
   if (!emailContent) {
@@ -86,45 +103,31 @@ export async function POST(request: NextRequest) {
 
   const admin = getSupabaseAdmin()
 
+  // Identify rep by the sender's email address
+  const { data: rep } = await admin
+    .from('reps')
+    .select('*')
+    .ilike('email', fromEmail)
+    .single()
+
+  if (!rep) {
+    console.log('AGENTMAIL: No rep found for:', fromEmail)
+    return NextResponse.json({ received: true, error: `Rep not found: ${fromEmail}` })
+  }
+
+  if (rep.email_parsing_enabled === false) {
+    console.log('AGENTMAIL: Email parsing disabled for rep:', rep.email)
+    return NextResponse.json({ received: true, skipped: 'parsing disabled' })
+  }
+
   // Parse lead data from email content
   let parsed: Record<string, any> = {}
   try {
     parsed = await parseLeadWithAI(emailContent, subject)
-    console.log('AGENTMAIL PARSED:', parsed)
+    console.log('AGENTMAIL AI RESULT:', parsed)
   } catch (e) {
     console.error('AGENTMAIL: AI parsing failed:', e)
     return NextResponse.json({ received: true, error: 'Parsing failed' })
-  }
-
-  // Find rep by name from parsed data
-  let rep: Record<string, any> | null = null
-  if (parsed.rep_name) {
-    const firstName = String(parsed.rep_name).split(' ')[0]
-    const { data: reps } = await admin
-      .from('reps')
-      .select('*')
-      .ilike('full_name', `%${firstName}%`)
-      .limit(5)
-    if (reps && reps.length > 0) {
-      rep = reps.find(r =>
-        r.full_name?.toLowerCase() === String(parsed.rep_name).toLowerCase()
-      ) ?? reps[0]
-    }
-  }
-
-  // Fallback: assign to first active admin
-  if (!rep) {
-    const { data: admins } = await admin
-      .from('reps')
-      .select('*')
-      .eq('is_admin', true)
-      .limit(1)
-    rep = admins?.[0] ?? null
-  }
-
-  if (!rep) {
-    console.error('AGENTMAIL: No rep found to assign lead to')
-    return NextResponse.json({ received: true, error: 'No rep found' })
   }
 
   // Try to get street view photo
@@ -180,7 +183,7 @@ export async function POST(request: NextRequest) {
     rep_id: rep.id,
     event_type: 'lead_created',
     description: `Lead created via AgentMail — "${subject}"`,
-    metadata: { from_email: fromEmail, subject, parsed },
+    metadata: { from_email: fromEmail, from_name: fromName, subject, parsed },
   })
 
   // Log street view usage
