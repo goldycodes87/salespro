@@ -57,7 +57,7 @@ export default function SignupPage() {
       email,
       password,
       options: {
-        emailRedirectTo: 'https://clozrhq.com/onboarding',
+        emailRedirectTo: 'https://www.clozrhq.com/onboarding',
       },
     })
 

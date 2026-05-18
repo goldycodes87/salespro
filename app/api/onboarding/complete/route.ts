@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
           voice: { provider: 'elevenlabs', voiceId: COACH_VOICES_VAPI[persona] ?? COACH_VOICES_VAPI.jordan },
           firstMessage: (COACH_FIRST_MSGS[persona] ?? COACH_FIRST_MSGS.jordan)(fn),
           endCallMessage: `Good talk, ${fn}. Go close something.`,
-          serverUrl: 'https://clozrhq.com/api/vapi/coach-webhook',
+          serverUrl: 'https://www.clozrhq.com/api/vapi/coach-webhook',
           recordingEnabled: false,
           silenceTimeoutSeconds: 15,
           maxDurationSeconds: 3600,
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
             voice: { provider: 'elevenlabs', voiceId: assistantVoice },
             firstMessage: `Hi, you've reached ${fullName} at ${company?.trim() || 'us'}. I'm ${aName}. How can I help you today?`,
             endCallMessage: `Thanks for calling. I'll make sure ${fullName} gets this message. Have a great day!`,
-            serverUrl: 'https://clozrhq.com/api/vapi/webhook',
+            serverUrl: 'https://www.clozrhq.com/api/vapi/webhook',
             serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET || 'clozr-webhook-secret',
             recordingEnabled: true,
             hipaaEnabled: false,
@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
     if (!process.env.RESEND_API_KEY) return
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://clozrhq.com'
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.clozrhq.com'
       await resend.emails.send({
         from: 'Clozr <noreply@clozrhq.com>',
         to: 'grant@goldberglawcenter.com',

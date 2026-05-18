@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
   // Send welcome email
   if (sendWelcomeEmail && process.env.RESEND_API_KEY) {
     const resend = new Resend(process.env.RESEND_API_KEY)
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://clozrhq.com'
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.clozrhq.com'
     await resend.emails.send({
       from: 'Clozr <noreply@clozrhq.com>',
       to: email,

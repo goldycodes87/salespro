@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get('state') // rep_id
   const error = searchParams.get('error')
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://clozrhq.com'
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.clozrhq.com'
 
   if (error || !code || !state) {
     return NextResponse.redirect(

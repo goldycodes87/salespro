@@ -196,7 +196,7 @@ Return ONLY valid JSON (no markdown, no explanation):
         await twilio.messages.create({
           to: rep.phone,
           from: rep.assistant_config.business_number,
-          body: `🎙️ Meeting summary ready!\n\n${leadName} — ${durationMins} min\n\n${String(summary.executive_summary ?? '').slice(0, 160) || 'Summary ready in Clozr'}\n\nView: clozrhq.com/leads/${meeting.lead_id}`,
+          body: `🎙️ Meeting summary ready!\n\n${leadName} — ${durationMins} min\n\n${String(summary.executive_summary ?? '').slice(0, 160) || 'Summary ready in Clozr'}\n\nView: https://www.clozrhq.com/leads/${meeting.lead_id}`,
         })
         await admin.from('meeting_recordings').update({ sms_sent: true }).eq('id', id)
       } catch (e) {

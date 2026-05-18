@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 
   // Fire AI research (fire-and-forget)
   if (leadId) {
-    void fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://clozrhq.com'}/api/leads/${leadId}/research`, {
+    void fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.clozrhq.com'}/api/leads/${leadId}/research`, {
       method: 'POST',
     }).catch(() => {})
   }

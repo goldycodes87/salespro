@@ -223,7 +223,7 @@ export async function POST(request: Request) {
         await twilio.messages.create({
           to: rep.phone,
           from: rep.assistant_config.business_number,
-          body: `📅 New appointment!\n\n${leadName}\n${[parsed.address, parsed.city].filter(Boolean).join(', ')}\n${apptDate}\n\nView: clozrhq.com/leads/${lead.id}`,
+          body: `📅 New appointment!\n\n${leadName}\n${[parsed.address, parsed.city].filter(Boolean).join(', ')}\n${apptDate}\n\nView: https://www.clozrhq.com/leads/${lead.id}`,
         })
       } catch (e) {
         console.error('AGENTMAIL SMS error:', e)

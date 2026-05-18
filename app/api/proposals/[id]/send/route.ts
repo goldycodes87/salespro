@@ -85,7 +85,7 @@ export async function POST(
 
   const firstName = proposal.customer_first_name || proposal.customer_name?.split(' ')[0] || 'there'
   const address = [proposal.customer_address, proposal.customer_city, proposal.customer_state].filter(Boolean).join(', ')
-  const publicUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://clozrhq.com'}/p/${proposal.public_token}`
+  const publicUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.clozrhq.com'}/p/${proposal.public_token}`
   const proposalNum = proposal.proposal_number ?? ('SP-' + (proposal.id ?? '').slice(-4).toUpperCase())
 
   const pricing = proposal.pricing_data ?? {}

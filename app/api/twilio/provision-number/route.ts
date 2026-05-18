@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     const client = twilio(accountSid, authToken)
     const purchased = await client.incomingPhoneNumbers.create({
       phoneNumber,
-      voiceUrl: 'https://clozrhq.com/api/vapi/inbound',
+      voiceUrl: 'https://www.clozrhq.com/api/vapi/inbound',
       friendlyName: `Clozr - ${rep?.full_name ?? user.email}`,
     })
 

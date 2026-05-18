@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     if (!process.env.RESEND_API_KEY || !rep.email) return
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://clozrhq.com'
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.clozrhq.com'
       const mins = Math.round(durationSeconds / 60)
       const subjectSuffix = lead ? ` · ${lead.first_name} ${lead.last_name}` : ''
       await resend.emails.send({

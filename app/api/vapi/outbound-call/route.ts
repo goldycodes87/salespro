@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
       firstMessage: callScript,
       endCallMessage: `I'll let ${rep.full_name} know. Have a great day!`,
       maxDurationSeconds: 300,
-      serverUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://clozrhq.com'}/api/vapi/outbound-webhook`,
+      serverUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.clozrhq.com'}/api/vapi/outbound-webhook`,
       serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET,
       metadata: {
         rep_id: rep.id,

@@ -16,7 +16,7 @@ async function getUser() {
   return user
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://clozrhq.com'
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.clozrhq.com'
 
 export async function POST(_req: NextRequest) {
   const user = await getUser()

@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
       voice: { provider: 'elevenlabs', voiceId: COACH_VOICES[persona] ?? COACH_VOICES.jordan },
       firstMessage: getFirstMessage(persona, firstName),
       endCallMessage: `Good talk, ${firstName}. Go close something.`,
-      serverUrl: 'https://clozrhq.com/api/vapi/coach-webhook',
+      serverUrl: 'https://www.clozrhq.com/api/vapi/coach-webhook',
       recordingEnabled: false,
       silenceTimeoutSeconds: 15,
       maxDurationSeconds: 3600,

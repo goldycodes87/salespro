@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Fire-and-forget memory extraction
-  void fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://clozrhq.com'}/api/coach/extract-memory`, {
+  void fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.clozrhq.com'}/api/coach/extract-memory`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages: turns }),
