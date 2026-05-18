@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
-import { NextResponse, type NextRequest } from 'next/server'
-import { createHmac } from 'crypto'
+import { NextResponse } from 'next/server'
+import { Webhook } from 'svix'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -40,35 +40,30 @@ Return this exact structure:
   return JSON.parse(rawText.replace(/```json|```/g, '').trim())
 }
 
-export async function POST(request: NextRequest) {
-  // Read raw body first so we can both verify the signature and parse JSON
+export async function POST(request: Request) {
+  console.log('=== AGENTMAIL HIT ===', new Date().toISOString())
+
   const rawBody = await request.text()
 
-  // Check all known signature header names
-  const signature =
-    request.headers.get('x-agentmail-signature') ||
-    request.headers.get('x-webhook-signature') ||
-    request.headers.get('x-hub-signature-256') ||
-    request.headers.get('x-signature')
+  const svixId        = request.headers.get('svix-id')
+  const svixTimestamp = request.headers.get('svix-timestamp')
+  const svixSignature = request.headers.get('svix-signature')
 
-  console.log('WEBHOOK HEADERS:', {
-    signature,
-    allHeaders: Object.fromEntries(request.headers.entries()),
-  })
+  console.log('SVIX HEADERS:', { svixId, svixTimestamp, hasSignature: !!svixSignature })
 
-  // HMAC-SHA256 verification
-  const webhookSecret = process.env.AGENTMAIL_WEBHOOK_SECRET
-  if (webhookSecret && signature) {
-    const expectedSig = createHmac('sha256', webhookSecret).update(rawBody).digest('hex')
-    const sigMatches = signature === expectedSig || signature === `sha256=${expectedSig}`
-    if (!sigMatches) {
-      console.error('AGENTMAIL: Signature mismatch:', { received: signature, expected: expectedSig })
+  if (process.env.AGENTMAIL_WEBHOOK_SECRET) {
+    try {
+      const wh = new Webhook(process.env.AGENTMAIL_WEBHOOK_SECRET)
+      wh.verify(rawBody, {
+        'svix-id':        svixId        ?? '',
+        'svix-timestamp': svixTimestamp ?? '',
+        'svix-signature': svixSignature ?? '',
+      })
+      console.log('AGENTMAIL: Svix signature verified')
+    } catch (err) {
+      console.error('AGENTMAIL: Svix verification failed:', err)
       return new Response('Unauthorized', { status: 401 })
     }
-  }
-
-  if (!signature) {
-    console.warn('AGENTMAIL: No signature header — verify AgentMail webhook config')
   }
 
   const payload = JSON.parse(rawBody)
