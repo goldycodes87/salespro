@@ -2,9 +2,8 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { PricingInputs, SidingScopeData, DiscountOptionSetting, FinancingOptionSetting } from '@/lib/pricing'
-import { FINANCING_LABELS, DEFAULT_DISCOUNT_SETTINGS, DEFAULT_FINANCING_SETTINGS } from '@/lib/pricing'
-import type { FinancingOption, Promotion, BNSN } from '@/lib/pricing'
+import type { PricingInputs, SidingScopeData, SidingFinancingOption } from '@/lib/pricing'
+import { SIDING_FINANCING } from '@/lib/pricing'
 
 const inputStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.05)',
@@ -28,10 +27,14 @@ const cardStyle: React.CSSProperties = {
   borderRadius: '16px',
 }
 
-function Toggle({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
+function Toggle({ on, onToggle, label, disabled, disabledReason }: {
+  on: boolean; onToggle: () => void; label: string; disabled?: boolean; disabledReason?: string
+}) {
   return (
-    <label className="flex items-center gap-3 cursor-pointer py-1">
-      <div onClick={onToggle} className="relative flex-shrink-0" style={{ width: '40px', height: '24px' }}>
+    <label className="flex items-center gap-3 py-1" title={disabled ? disabledReason : undefined}
+      style={{ opacity: disabled ? 0.4 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>
+      <div onClick={disabled ? undefined : onToggle} className="relative flex-shrink-0"
+        style={{ width: '40px', height: '24px', cursor: disabled ? 'not-allowed' : 'pointer' }}>
         <div className="absolute inset-0 rounded-full transition-all"
           style={{ background: on ? '#1D4ED8' : 'rgba(255,255,255,0.10)' }} />
         <div className="absolute top-[3px] rounded-full transition-all"
@@ -231,81 +234,32 @@ export default function SidingStep({
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
   const toggleSection = (id: string) => setOpenSections(s => ({ ...s, [id]: !s[id] }))
 
-  // Settings-based discount/financing options
-  const useSettingsDiscounts = !!(repSettings?.discount_options?.length)
-  const discountOpts: DiscountOptionSetting[] = useSettingsDiscounts
-    ? repSettings!.discount_options
-    : DEFAULT_DISCOUNT_SETTINGS
-  const activePromos = discountOpts.filter(o => o.active && o.type === 'promotion')
-  const activeBnsn = discountOpts.filter(o => o.active && o.type === 'bnsn')
-  const activeCash = discountOpts.filter(o => o.active && o.type === 'cash')
+  // Siding financing
+  const selectedFinId = value.siding_financing_id ?? 'cash'
+  const cashAllowed = selectedFinId === 'cash' || selectedFinId === '9.99_10yr'
 
-  const useSettingsFinancing = !!(repSettings?.financing_options?.length)
-  const financingOpts: FinancingOptionSetting[] = useSettingsFinancing
-    ? repSettings!.financing_options.filter((o: FinancingOptionSetting) => o.active)
-    : DEFAULT_FINANCING_SETTINGS.filter(o => o.active)
-
-  // Promotion display
-  const selectedPromoId = value.selected_promo_id ??
-    (value.promotion === '20_off' ? '20pct_promo' : value.promotion === '25_off' ? '25pct_promo' : 'none')
-  const promoOptions = [
-    { value: 'none', label: 'None' },
-    ...activePromos.map(o => ({ value: o.id, label: o.name })),
-  ]
-  const handlePromoChange = (id: string) => {
-    if (id === 'none') {
-      onChange({ ...value, promotion: 'none', promotion_pct: undefined, selected_promo_id: 'none' })
-    } else {
-      const opt = activePromos.find(o => o.id === id)
-      if (opt) {
-        const enumKey = opt.pct === 20 ? '20_off' : opt.pct === 25 ? '25_off' : 'none'
-        onChange({ ...value, promotion: enumKey, promotion_pct: opt.pct, selected_promo_id: id })
-      }
-    }
-  }
-
-  // BNSN display
-  const selectedBnsnId = value.selected_bnsn_id ??
-    (value.bnsn === '30_combined' ? 'bnsn_30' : value.bnsn === '10_off' ? 'bnsn_10' : value.bnsn === '5_off' ? 'bnsn_5' : 'none')
-  const bnsnOptions = [
-    { value: 'none', label: 'None' },
-    ...activeBnsn.map(o => ({ value: o.id, label: o.name })),
-  ]
-  const handleBnsnChange = (id: string) => {
-    if (id === 'none') {
-      onChange({ ...value, bnsn: 'none', bnsn_pct: undefined, bnsn_is_combined: undefined, selected_bnsn_id: 'none' })
-    } else {
-      const opt = activeBnsn.find(o => o.id === id)
-      if (opt) {
-        const enumKey = opt.is_combined ? '30_combined' : opt.pct === 10 ? '10_off' : opt.pct === 5 ? '5_off' : 'none'
-        onChange({ ...value, bnsn: enumKey, bnsn_pct: opt.pct, bnsn_is_combined: opt.is_combined, selected_bnsn_id: id })
-      }
-    }
-  }
-
-  // Cash display
-  const cashOpt = activeCash[0]
-
-  // Financing display
-  const selectedFinancingId = value.selected_financing_id ?? value.financing
-  const handleFinancingSelect = (opt: FinancingOptionSetting) => {
+  const handleSidingFinancingSelect = (fin: SidingFinancingOption) => {
+    const allowed = fin.id === 'cash' || fin.id === '9.99_10yr'
     onChange({
       ...value,
-      financing: opt.id as FinancingOption,
-      financing_factor: opt.method === 'factor' ? opt.factor : undefined,
-      financing_months: opt.method === 'months' ? opt.months : undefined,
-      selected_financing_id: opt.id,
+      siding_financing_id: fin.id,
+      ...(!allowed ? { cash_incentive: false } : {}),
     })
+  }
+
+  const formatFeePct = (fee: number) => {
+    const pct = Math.round(fee * 10000) / 100
+    return pct % 1 === 0 ? `${pct}%` : `${pct}%`
   }
 
   return (
     <div>
-      <h2 className="text-lg font-bold mb-1" style={{ color: '#F9FAFB' }}>Siding Proposal</h2>
-      <p className="text-sm mb-4" style={{ color: '#6B7280' }}>Pricing, discounts, and scope of work</p>
+      <h2 className="text-lg font-bold mb-1" style={{ color: '#F9FAFB' }}>Siding Pricing</h2>
+      <p className="text-sm mb-4" style={{ color: '#6B7280' }}>Base price, financing, and scope of work</p>
 
-      {/* Project Value */}
+      {/* Base Price */}
       <div className="p-4 mb-3" style={cardStyle}>
-        <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6B7280' }}>Project Value</p>
+        <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6B7280' }}>Base Price</p>
         <div className="relative">
           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-medium" style={{ color: '#9CA3AF' }}>$</span>
           <input
@@ -320,45 +274,12 @@ export default function SidingStep({
 
       {/* Discounts */}
       <SectionCard title="Discounts">
-        <div>
-          <p className="text-xs font-medium mb-2" style={{ color: '#9CA3AF' }}>Promotion</p>
-          <div className="grid grid-cols-2 gap-2">
-            {promoOptions.map(o => (
-              <button key={o.value} type="button" onClick={() => handlePromoChange(o.value)}
-                className="h-10 rounded-xl text-sm font-medium transition-all"
-                style={{
-                  background: selectedPromoId === o.value ? 'rgba(29,78,216,0.2)' : 'rgba(255,255,255,0.04)',
-                  border: selectedPromoId === o.value ? '1.5px solid rgba(29,78,216,0.5)' : '1px solid rgba(255,255,255,0.08)',
-                  color: selectedPromoId === o.value ? '#60A5FA' : '#9CA3AF',
-                }}>
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <p className="text-xs font-medium mb-2" style={{ color: '#9CA3AF' }}>Buy Now Save Now</p>
-          <div className="grid grid-cols-2 gap-2">
-            {bnsnOptions.map(o => (
-              <button key={o.value} type="button" onClick={() => handleBnsnChange(o.value)}
-                className="h-10 rounded-xl text-sm font-medium transition-all"
-                style={{
-                  background: selectedBnsnId === o.value ? 'rgba(29,78,216,0.2)' : 'rgba(255,255,255,0.04)',
-                  border: selectedBnsnId === o.value ? '1.5px solid rgba(29,78,216,0.5)' : '1px solid rgba(255,255,255,0.08)',
-                  color: selectedBnsnId === o.value ? '#60A5FA' : '#9CA3AF',
-                }}>
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </div>
         <Toggle
           on={value.cash_incentive}
-          onToggle={() => {
-            const pct = cashOpt?.pct ?? 6
-            onChange({ ...value, cash_incentive: !value.cash_incentive, cash_pct: pct })
-          }}
-          label={cashOpt ? `${cashOpt.name} (−${cashOpt.pct}%)` : 'Cash incentive (−6%)'}
+          onToggle={() => onChange({ ...value, cash_incentive: !value.cash_incentive })}
+          label="Cash Incentive"
+          disabled={!cashAllowed}
+          disabledReason="Cash incentive not available with this financing option"
         />
       </SectionCard>
 
@@ -384,50 +305,30 @@ export default function SidingStep({
         )}
       </SectionCard>
 
-      {/* Costco */}
-      <SectionCard title="Costco">
-        <Toggle on={value.costco_revealed} onToggle={() => set('costco_revealed', !value.costco_revealed)} label="Reveal Costco benefit" />
-        {value.costco_revealed && (
-          <div className="space-y-2 pt-1">
-            <Toggle on={value.costco_member} onToggle={() => set('costco_member', !value.costco_member)} label="Member (10% off)" />
-            <Toggle on={value.costco_executive} onToggle={() => set('costco_executive', !value.costco_executive)} label="Executive (2% reward, max $1,250)" />
-          </div>
-        )}
-      </SectionCard>
-
       {/* Financing */}
       <SectionCard title="Financing">
         <div className="space-y-2">
-          {/* No Financing option */}
-          <button type="button"
-            onClick={() => onChange({ ...value, financing: 'none', financing_factor: undefined, financing_months: undefined, selected_financing_id: 'none' })}
-            className="w-full h-10 rounded-xl px-4 flex items-center justify-between text-sm transition-all"
-            style={{
-              background: (selectedFinancingId === 'none' || selectedFinancingId === undefined) ? 'rgba(29,78,216,0.12)' : 'rgba(255,255,255,0.03)',
-              border: (selectedFinancingId === 'none' || selectedFinancingId === undefined) ? '1.5px solid rgba(29,78,216,0.4)' : '1px solid rgba(255,255,255,0.06)',
-              color: (selectedFinancingId === 'none' || selectedFinancingId === undefined) ? '#60A5FA' : '#9CA3AF',
-            }}>
-            No Financing
-            {(selectedFinancingId === 'none' || selectedFinancingId === undefined) && (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            )}
-          </button>
-          {financingOpts.map(opt => (
-            <button key={opt.id} type="button" onClick={() => handleFinancingSelect(opt)}
+          {SIDING_FINANCING.map(fin => (
+            <button key={fin.id} type="button" onClick={() => handleSidingFinancingSelect(fin)}
               className="w-full h-10 rounded-xl px-4 flex items-center justify-between text-sm transition-all"
               style={{
-                background: selectedFinancingId === opt.id ? 'rgba(29,78,216,0.12)' : 'rgba(255,255,255,0.03)',
-                border: selectedFinancingId === opt.id ? '1.5px solid rgba(29,78,216,0.4)' : '1px solid rgba(255,255,255,0.06)',
-                color: selectedFinancingId === opt.id ? '#60A5FA' : '#9CA3AF',
+                background: selectedFinId === fin.id ? 'rgba(29,78,216,0.12)' : 'rgba(255,255,255,0.03)',
+                border: selectedFinId === fin.id ? '1.5px solid rgba(29,78,216,0.4)' : '1px solid rgba(255,255,255,0.06)',
+                color: selectedFinId === fin.id ? '#60A5FA' : '#9CA3AF',
               }}>
-              {opt.label}
-              {selectedFinancingId === opt.id && (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              )}
+              <span>{fin.label}</span>
+              <div className="flex items-center gap-2">
+                {fin.fee > 0 && (
+                  <span className="text-xs" style={{ color: selectedFinId === fin.id ? '#93C5FD' : '#4B5563' }}>
+                    +{formatFeePct(fin.fee)}
+                  </span>
+                )}
+                {selectedFinId === fin.id && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
             </button>
           ))}
         </div>

@@ -106,6 +106,23 @@ export const DEFAULT_DISCOUNT_SETTINGS: DiscountOptionSetting[] = [
   { id: 'cash_7', name: 'Cash Incentive', pct: 7, type: 'cash', active: true },
 ]
 
+export interface SidingFinancingOption {
+  id: string
+  label: string
+  fee: number  // decimal (0.105 = 10.5%)
+}
+
+export const SIDING_FINANCING: SidingFinancingOption[] = [
+  { id: 'cash',        label: 'Cash',                fee: 0 },
+  { id: '9.99_10yr',  label: '9.99% / 10 Years',    fee: 0 },
+  { id: '6.99_10yr',  label: '6.99% / 10 Years',    fee: 0.0525 },
+  { id: '6.99_5yr',   label: '6.99% / 5 Years',     fee: 0.06 },
+  { id: '0pct_24mo',  label: '0% / 24 Months',      fee: 0.105 },
+  { id: '0pct_18mo',  label: '0% / 18 Months',      fee: 0.085 },
+  { id: '0pct_12mo',  label: '0% / 12 Months',      fee: 0.055 },
+  { id: 'credit_card', label: 'Credit Card',         fee: 0.035 },
+]
+
 export interface PricingInputs {
   line_items: LineItem[]        // windows only; for siding use project_value
   project_value: number         // siding only
@@ -140,6 +157,8 @@ export interface PricingInputs {
   windows_project_value?: number
   num_windows?: number
   num_doors?: number
+  // Siding financing
+  siding_financing_id?: string
 }
 
 export interface PricingResult {
@@ -159,6 +178,10 @@ export interface PricingResult {
   costco_exec_savings: number
   costco_city_visa_savings: number
   total_windows: number
+  // Siding-specific
+  siding_financing_fee: number
+  siding_financing_label: string
+  siding_is_credit_card: boolean
 }
 
 const FINANCING_FACTORS: Record<FinancingOption, (p: number) => number> = {
@@ -183,16 +206,49 @@ export const FINANCING_LABELS: Record<FinancingOption, string> = {
   '9.99_10yr': '9.99% / 10-Year',
 }
 
+function calcSidingPrice(inputs: PricingInputs): PricingResult {
+  const base_price = inputs.project_value
+  const fin = SIDING_FINANCING.find(f => f.id === (inputs.siding_financing_id ?? 'cash')) ?? SIDING_FINANCING[0]
+  const cashAllowed = fin.id === 'cash' || fin.id === '9.99_10yr'
+  const applyFee = !(inputs.cash_incentive && cashAllowed)
+  const siding_financing_fee = applyFee ? Math.floor(base_price * fin.fee) : 0
+  const siding_price = base_price + siding_financing_fee
+  const admin_fee = inputs.admin_fee_enabled ? inputs.admin_fee_amount : 0
+  const lead_paint = inputs.lead_paint_enabled ? inputs.lead_paint_amount : 0
+  const your_price = siding_price + admin_fee + lead_paint
+  return {
+    package_price: base_price,
+    discountable_base: base_price,
+    discount_pct: 0,
+    discount_amount: 0,
+    cash_discount: 0,
+    you_save: 0,
+    subtotal: siding_price,
+    admin_fee,
+    lead_paint,
+    your_price,
+    net_after_costco: your_price,
+    monthly_payment: 0,
+    costco_member_savings: 0,
+    costco_exec_savings: 0,
+    costco_city_visa_savings: 0,
+    total_windows: 0,
+    siding_financing_fee,
+    siding_financing_label: fin.label,
+    siding_is_credit_card: fin.id === 'credit_card',
+  }
+}
+
 export function calcPrice(inputs: PricingInputs): PricingResult {
-  const { line_items, project_value, proposal_type } = inputs
+  if (inputs.proposal_type === 'siding') return calcSidingPrice(inputs)
+
+  const { line_items } = inputs
 
   let package_price = 0
   let non_disc_line_total = 0
   let total_windows = 0
 
-  if (proposal_type === 'siding') {
-    package_price = project_value
-  } else if (inputs.windows_project_value != null && inputs.windows_project_value > 0) {
+  if (inputs.windows_project_value != null && inputs.windows_project_value > 0) {
     package_price = inputs.windows_project_value
     total_windows = inputs.num_windows ?? 0
   } else {
@@ -266,6 +322,9 @@ export function calcPrice(inputs: PricingInputs): PricingResult {
     costco_exec_savings,
     costco_city_visa_savings,
     total_windows,
+    siding_financing_fee: 0,
+    siding_financing_label: '',
+    siding_is_credit_card: false,
   }
 }
 
@@ -295,4 +354,5 @@ export const DEFAULT_PRICING: PricingInputs = {
   costco_city_visa_amount: 0,
   financing: 'none',
   deposit: 0,
+  siding_financing_id: 'cash',
 }
