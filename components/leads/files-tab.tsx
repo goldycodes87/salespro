@@ -90,18 +90,34 @@ const cardStyle: React.CSSProperties = {
   borderRadius: '16px',
 }
 
+const HARDIE_COLORS = [
+  { name: 'Arctic White',    hex: '#F4F4F0' },
+  { name: 'Autumn Tan',      hex: '#C4A882' },
+  { name: 'Countrylane Red', hex: '#8B3A3A' },
+  { name: 'Evening Blue',    hex: '#4A5568' },
+  { name: 'Monterey Taupe',  hex: '#8B7355' },
+  { name: 'Mountain Sage',   hex: '#7B9E87' },
+  { name: 'Navajo Beige',    hex: '#D4B896' },
+  { name: 'Night Gray',      hex: '#4A4A4A' },
+  { name: 'Sail Cloth',      hex: '#E8DCC8' },
+  { name: 'Timber Bark',     hex: '#5C4A3A' },
+  { name: 'Woodstock Brown', hex: '#6B4E3D' },
+]
+
 export default function FilesTab({
   leadId,
   repId,
   notes: initialNotes,
   onNotesSave,
   activity,
+  streetViewUrl,
 }: {
   leadId: string
   repId: string
   notes: string
   onNotesSave: (notes: string) => void
   activity: Activity[]
+  streetViewUrl?: string | null
 }) {
   const supabase = createClient()
   const [notes, setNotes] = useState(initialNotes)
@@ -125,6 +141,17 @@ export default function FilesTab({
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [photosLoaded, setPhotosLoaded] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
+
+  // Siding visualizer
+  const [vizPhotoPreview, setVizPhotoPreview] = useState<string | null>(null)
+  const [vizPhotoPayload, setVizPhotoPayload] = useState<{ imageUrl?: string; imageBase64?: string } | null>(null)
+  const [selectedHardieColor, setSelectedHardieColor] = useState<typeof HARDIE_COLORS[0] | null>(null)
+  const [vizGenerating, setVizGenerating] = useState(false)
+  const [vizResult, setVizResult] = useState<{ url: string; colorName: string; path: string | null } | null>(null)
+  const [vizError, setVizError] = useState<string | null>(null)
+  const [vizToast, setVizToast] = useState<string | null>(null)
+  const [vizSaved, setVizSaved] = useState(false)
+  const vizInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch(`/api/leads/${leadId}/files`)
@@ -246,6 +273,67 @@ export default function FilesTab({
   const deletePhoto = async (path: string) => {
     await supabase.storage.from('lead-photos').remove([path])
     setPhotos(prev => prev.filter(p => p.path !== path))
+  }
+
+  // ── Siding visualizer handlers ──────────────────────────────────────────────
+  const handleVizFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      setVizPhotoPreview(dataUrl)
+      setVizPhotoPayload({ imageBase64: dataUrl.split(',')[1] })
+      setVizResult(null)
+      setSelectedHardieColor(null)
+      setVizSaved(false)
+      setVizError(null)
+    }
+    reader.readAsDataURL(file)
+    if (vizInputRef.current) vizInputRef.current.value = ''
+  }
+
+  const handleUseSatellitePhoto = () => {
+    if (!streetViewUrl) return
+    setVizPhotoPreview(streetViewUrl)
+    setVizPhotoPayload({ imageUrl: streetViewUrl })
+    setVizResult(null)
+    setSelectedHardieColor(null)
+    setVizSaved(false)
+    setVizError(null)
+  }
+
+  const handleColorSelect = async (color: typeof HARDIE_COLORS[0]) => {
+    if (!vizPhotoPayload || vizGenerating) return
+    setSelectedHardieColor(color)
+    setVizGenerating(true)
+    setVizResult(null)
+    setVizError(null)
+    setVizSaved(false)
+    try {
+      const res = await fetch(`/api/leads/${leadId}/visualize-siding`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...vizPhotoPayload, color }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Generation failed, try again')
+      setVizResult({ url: data.generatedUrl, colorName: data.colorName, path: data.storagePath ?? null })
+    } catch (err: any) {
+      setVizError(err.message || 'Generation failed, try again')
+      setSelectedHardieColor(null)
+    } finally {
+      setVizGenerating(false)
+    }
+  }
+
+  const handleVizSave = () => {
+    if (!vizResult || vizSaved) return
+    const name = `siding_${vizResult.colorName.replace(/\s+/g, '_').toLowerCase()}_${Date.now()}.jpg`
+    setPhotos(prev => [...prev, { name, url: vizResult.url, path: vizResult.path ?? name }])
+    setVizSaved(true)
+    setVizToast('Saved to photos')
+    setTimeout(() => setVizToast(null), 3000)
   }
 
   const saveNotes = async () => {
@@ -599,6 +687,176 @@ export default function FilesTab({
           </>
         )}
       </div>
+
+      {/* ── SIDING VISUALIZER ── */}
+      <div className="p-5 mb-4" style={cardStyle}>
+        <div className="flex items-center gap-2 mb-1">
+          <span style={{ fontSize: 15, fontWeight: 600, color: '#F9FAFB' }}>Siding Visualizer</span>
+        </div>
+        <p className="text-xs mb-4" style={{ color: '#6B7280' }}>
+          See this home with James Hardie siding colors.
+        </p>
+
+        {/* Input buttons */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          <input
+            ref={vizInputRef}
+            type="file"
+            accept="image/*"
+            capture={'environment' as unknown as boolean}
+            className="hidden"
+            onChange={handleVizFileSelect}
+          />
+          <button
+            onClick={() => vizInputRef.current?.click()}
+            className="flex items-center gap-2 rounded-xl text-sm font-semibold"
+            style={{
+              height: 44, padding: '0 16px',
+              background: 'linear-gradient(135deg, #1D4ED8, #0F766E)',
+              color: '#fff', border: 'none', cursor: 'pointer',
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+            Visualize Siding
+          </button>
+          {streetViewUrl && (
+            <button
+              onClick={handleUseSatellitePhoto}
+              className="rounded-xl text-sm font-medium"
+              style={{
+                height: 44, padding: '0 14px',
+                background: vizPhotoPayload?.imageUrl === streetViewUrl ? 'rgba(6,182,212,0.1)' : 'rgba(255,255,255,0.06)',
+                color: vizPhotoPayload?.imageUrl === streetViewUrl ? '#06B6D4' : '#9CA3AF',
+                border: vizPhotoPayload?.imageUrl === streetViewUrl ? '1px solid rgba(6,182,212,0.4)' : '1px solid rgba(255,255,255,0.10)',
+                cursor: 'pointer',
+              }}
+            >
+              Use Satellite Photo
+            </button>
+          )}
+        </div>
+
+        {/* Thumbnail preview */}
+        {vizPhotoPreview && (
+          <div className="rounded-xl overflow-hidden mb-4" style={{ height: 140 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={vizPhotoPreview} alt="Selected" className="w-full h-full object-cover" />
+          </div>
+        )}
+
+        {/* Color swatches */}
+        {vizPhotoPreview && (
+          <div className="mb-4" style={{ opacity: vizGenerating ? 0.5 : 1, pointerEvents: vizGenerating ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
+            <p className="text-xs font-medium mb-3" style={{ color: '#9CA3AF' }}>
+              {vizGenerating ? 'Generating…' : 'Tap a color to visualize'}
+            </p>
+            <div className="grid grid-cols-4 gap-3">
+              {HARDIE_COLORS.map(c => (
+                <button
+                  key={c.name}
+                  onClick={() => handleColorSelect(c)}
+                  className="flex flex-col items-center gap-1"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}
+                >
+                  <div style={{
+                    width: 48, height: 48, borderRadius: '50%',
+                    background: c.hex,
+                    border: selectedHardieColor?.name === c.name
+                      ? '3px solid #fff'
+                      : '2px solid rgba(255,255,255,0.18)',
+                    boxShadow: selectedHardieColor?.name === c.name
+                      ? '0 0 0 2px rgba(255,255,255,0.25)'
+                      : 'none',
+                    flexShrink: 0,
+                  }} />
+                  <span style={{ fontSize: 9, color: '#6B7280', textAlign: 'center', lineHeight: 1.3, maxWidth: 60 }}>
+                    {c.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Generating spinner */}
+        {vizGenerating && (
+          <div className="flex flex-col items-center py-6">
+            <div className="w-8 h-8 border-2 rounded-full animate-spin mb-4"
+              style={{ borderColor: 'rgba(29,78,216,0.3)', borderTopColor: '#1D4ED8' }} />
+            <p className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>Generating your render...</p>
+            <p className="text-xs mt-1" style={{ color: '#6B7280' }}>This takes 15–20 seconds</p>
+          </div>
+        )}
+
+        {/* Side-by-side result */}
+        {vizResult && !vizGenerating && (
+          <div className="mt-1">
+            <div className="grid grid-cols-1 gap-3 mb-4 sm:grid-cols-2">
+              <div>
+                <p className="text-xs mb-1.5" style={{ color: '#6B7280' }}>Current</p>
+                <div className="rounded-xl overflow-hidden" style={{ height: 180 }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={vizPhotoPreview!} alt="Current" className="w-full h-full object-cover" />
+                </div>
+              </div>
+              <div>
+                <p className="text-xs mb-1.5" style={{ color: '#6B7280' }}>{vizResult.colorName}</p>
+                <div className="rounded-xl overflow-hidden" style={{ height: 180 }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={vizResult.url} alt={vizResult.colorName} className="w-full h-full object-cover" />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleVizSave}
+                disabled={vizSaved}
+                style={{
+                  flex: 1, height: 44, borderRadius: 12,
+                  background: vizSaved ? 'rgba(16,185,129,0.15)' : 'rgba(29,78,216,0.2)',
+                  border: vizSaved ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(29,78,216,0.4)',
+                  color: vizSaved ? '#34D399' : '#60A5FA',
+                  fontSize: 14, fontWeight: 600,
+                  cursor: vizSaved ? 'default' : 'pointer',
+                }}
+              >
+                {vizSaved ? 'Saved ✓' : 'Save to Lead'}
+              </button>
+              <button
+                onClick={() => { setVizToast('Coming soon'); setTimeout(() => setVizToast(null), 3000) }}
+                style={{
+                  flex: 1, height: 44, borderRadius: 12,
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.10)',
+                  color: '#9CA3AF',
+                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                Add to Proposal
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Error */}
+        {vizError && (
+          <div className="mt-3 px-4 py-3 rounded-xl text-sm"
+            style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444' }}>
+            {vizError}
+          </div>
+        )}
+      </div>
+
+      {/* Toast */}
+      {vizToast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-xl text-sm font-medium z-50 whitespace-nowrap"
+          style={{ background: '#1F2937', color: '#F9FAFB', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
+          {vizToast}
+        </div>
+      )}
 
       {/* ── NOTES ── */}
       <div className="p-5 mb-4" style={cardStyle}>

@@ -590,6 +590,7 @@ export default function LeadDetail({
               notes={lead.notes ?? ''}
               onNotesSave={n => setLead(prev => ({ ...prev, notes: n }))}
               activity={activity}
+              streetViewUrl={lead.street_view_url ?? null}
             />
           </motion.div>
         )}
