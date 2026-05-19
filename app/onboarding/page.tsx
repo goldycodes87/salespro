@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import confetti from 'canvas-confetti'
+import Cropper from 'react-easy-crop'
+import type { Area } from 'react-easy-crop'
 import ClozrLogo from '@/components/ui/clozr-logo'
 import AnimatedGradientBackground from '@/components/ui/animated-gradient-background'
 import { Spotlight } from '@/components/ui/spotlight'
@@ -16,6 +18,7 @@ const TOTAL_STEPS = 8
 const INDUSTRIES = [
   { id: 'windows_doors', icon: '🪟', name: 'Windows & Doors' },
   { id: 'roofing',       icon: '🏠', name: 'Roofing' },
+  { id: 'siding',        icon: '🏗️', name: 'Siding' },
   { id: 'solar',         icon: '☀️', name: 'Solar' },
   { id: 'hvac',          icon: '❄️', name: 'HVAC' },
   { id: 'insurance',     icon: '🛡️', name: 'Insurance' },
@@ -219,8 +222,15 @@ export default function OnboardingPage() {
   const [photoUploading, setPhotoUploading]   = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
 
-  // Step 4 — industry
-  const [industry, setIndustry] = useState('')
+  // Step 3 — crop modal
+  const [showCropModal, setShowCropModal]         = useState(false)
+  const [rawPhotoUrl, setRawPhotoUrl]             = useState('')
+  const [cropState, setCropState]                 = useState({ x: 0, y: 0 })
+  const [cropZoom, setCropZoom]                   = useState(1)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
+
+  // Step 4 — industry (multi-select)
+  const [industries, setIndustries] = useState<string[]>([])
 
   // Step 4 — coach
   const [coach, setCoach] = useState('')
@@ -344,6 +354,40 @@ export default function OnboardingPage() {
       .catch(() => {})
   }
 
+  // ── Crop helpers ──────────────────────────────────────────────────────────
+  const getCroppedImage = (): Promise<Blob> => new Promise((resolve, reject) => {
+    if (!croppedAreaPixels) return reject(new Error('No crop area'))
+    const image = new Image()
+    image.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 400
+      canvas.height = 400
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return reject(new Error('No canvas context'))
+      ctx.drawImage(
+        image,
+        croppedAreaPixels.x, croppedAreaPixels.y,
+        croppedAreaPixels.width, croppedAreaPixels.height,
+        0, 0, 400, 400,
+      )
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Blob failed')), 'image/jpeg', 0.9)
+    }
+    image.onerror = reject
+    image.src = rawPhotoUrl
+  })
+
+  const handleCropSave = async () => {
+    try {
+      const blob = await getCroppedImage()
+      const croppedFile = new File([blob], 'headshot.jpg', { type: 'image/jpeg' })
+      setPhotoFile(croppedFile)
+      setPhotoPreviewUrl(URL.createObjectURL(blob))
+      setShowCropModal(false)
+    } catch {
+      setShowCropModal(false)
+    }
+  }
+
   // ── Twilio number search ───────────────────────────────────────────────────
   const searchNumbers = async () => {
     if (areaCode.length !== 3) return
@@ -401,7 +445,7 @@ export default function OnboardingPage() {
     console.log('ONBOARDING COMPLETE STATE:', {
       coachPersona: coach,
       firstName,
-      industry,
+      industries,
       assistantEnabled,
       meetingModeEnabled,
       subscriptionTier: plan,
@@ -413,7 +457,7 @@ export default function OnboardingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           firstName, lastName, phone, company,
-          position: role, territory, industry,
+          position: role, territory, industries,
           coachPersona: coach,
           headshotUrl: headshotUrl || undefined,
           assistantEnabled,
@@ -648,7 +692,8 @@ export default function OnboardingPage() {
                   style={{ display: 'none' }}
                   onChange={e => {
                     const file = e.target.files?.[0]
-                    if (file) { setPhotoFile(file); setPhotoPreviewUrl(URL.createObjectURL(file)) }
+                    if (file) { setCropZoom(1); setCropState({ x: 0, y: 0 }); setRawPhotoUrl(URL.createObjectURL(file)); setShowCropModal(true) }
+                    e.target.value = ''
                   }}
                 />
                 <button
@@ -680,7 +725,8 @@ export default function OnboardingPage() {
                   style={{ display: 'none' }}
                   onChange={e => {
                     const file = e.target.files?.[0]
-                    if (file) { setPhotoFile(file); setPhotoPreviewUrl(URL.createObjectURL(file)) }
+                    if (file) { setCropZoom(1); setCropState({ x: 0, y: 0 }); setRawPhotoUrl(URL.createObjectURL(file)); setShowCropModal(true) }
+                    e.target.value = ''
                   }}
                 />
               </div>
@@ -709,41 +755,52 @@ export default function OnboardingPage() {
                 What do you sell?
               </h2>
               <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', marginBottom: 32 }}>
-                We&apos;ll customize Clozr for your industry.
+                Select all that apply. We&apos;ll customize Clozr for your industries.
               </p>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {INDUSTRIES.map(ind => (
-                  <motion.button
-                    key={ind.id}
-                    onClick={() => setIndustry(ind.id)}
-                    whileTap={{ scale: 0.97 }}
-                    animate={{ scale: industry === ind.id ? 1.03 : 1 }}
-                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                    style={{
-                      background: industry === ind.id ? 'rgba(6,182,212,0.1)' : 'rgba(255,255,255,0.04)',
-                      border: industry === ind.id
-                        ? '1px solid #06B6D4'
-                        : '1px solid rgba(255,255,255,0.08)',
-                      borderRadius: 16,
-                      padding: '20px 16px',
-                      textAlign: 'center',
-                      minHeight: 100,
-                      cursor: 'pointer',
-                      boxShadow: industry === ind.id
-                        ? '0 0 0 1px #06B6D4, 0 0 20px rgba(6,182,212,0.15)'
-                        : 'none',
-                    }}
-                  >
-                    <div style={{ fontSize: 28 }}>{ind.icon}</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#F9FAFB', marginTop: 8 }}>
-                      {ind.name}
-                    </div>
-                  </motion.button>
-                ))}
+                {INDUSTRIES.map(ind => {
+                  const selected = industries.includes(ind.id)
+                  return (
+                    <motion.button
+                      key={ind.id}
+                      onClick={() => setIndustries(prev =>
+                        prev.includes(ind.id) ? prev.filter(i => i !== ind.id) : [...prev, ind.id]
+                      )}
+                      whileTap={{ scale: 0.97 }}
+                      animate={{ scale: selected ? 1.03 : 1 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                      style={{
+                        background: selected ? 'rgba(6,182,212,0.1)' : 'rgba(255,255,255,0.04)',
+                        border: selected ? '1px solid #06B6D4' : '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 16,
+                        padding: '20px 16px',
+                        textAlign: 'center',
+                        minHeight: 100,
+                        cursor: 'pointer',
+                        position: 'relative',
+                        boxShadow: selected ? '0 0 0 1px #06B6D4, 0 0 20px rgba(6,182,212,0.15)' : 'none',
+                      }}
+                    >
+                      {selected && (
+                        <span style={{
+                          position: 'absolute', top: 8, right: 8,
+                          width: 18, height: 18, borderRadius: '50%',
+                          background: '#06B6D4', color: '#fff',
+                          fontSize: 11, fontWeight: 700,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>✓</span>
+                      )}
+                      <div style={{ fontSize: 28 }}>{ind.icon}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#F9FAFB', marginTop: 8 }}>
+                        {ind.name}
+                      </div>
+                    </motion.button>
+                  )
+                })}
               </div>
 
-              {industry && (
+              {industries.length > 0 && (
                 <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 20px', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))', background: 'linear-gradient(to top, #0A0F1E 60%, transparent)', zIndex: 40 }}>
                   <div style={{ maxWidth: 480, margin: '0 auto' }}>
                     <GradientBtn onClick={goNext} fullWidth>Continue →</GradientBtn>
@@ -1257,6 +1314,65 @@ export default function OnboardingPage() {
 
         </motion.div>
       </AnimatePresence>
+
+      {/* ── CROP MODAL ───────────────────────────────────────────────────── */}
+      {showCropModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 200,
+          background: 'rgba(0,0,0,0.92)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          padding: '20px',
+        }}>
+          <h3 style={{ color: '#F9FAFB', fontWeight: 700, fontSize: 18, marginBottom: 16 }}>
+            Crop your photo
+          </h3>
+          <div style={{ position: 'relative', width: '100%', maxWidth: 360, height: 360, borderRadius: 16, overflow: 'hidden' }}>
+            <Cropper
+              image={rawPhotoUrl}
+              crop={cropState}
+              zoom={cropZoom}
+              aspect={1}
+              cropShape="round"
+              showGrid={false}
+              onCropChange={setCropState}
+              onZoomChange={setCropZoom}
+              onCropComplete={(_, pixels) => setCroppedAreaPixels(pixels)}
+            />
+          </div>
+          <div style={{ marginTop: 20, width: '100%', maxWidth: 360 }}>
+            <label style={{ color: '#9CA3AF', fontSize: 12, display: 'block', marginBottom: 8 }}>Zoom</label>
+            <input
+              type="range"
+              min={1} max={3} step={0.05}
+              value={cropZoom}
+              onChange={e => setCropZoom(Number(e.target.value))}
+              style={{ width: '100%', accentColor: '#06B6D4' }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 12, marginTop: 24, width: '100%', maxWidth: 360 }}>
+            <button
+              onClick={() => setShowCropModal(false)}
+              style={{
+                flex: 1, height: 48, borderRadius: 12,
+                background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
+                color: '#F9FAFB', fontSize: 15, cursor: 'pointer', fontWeight: 600,
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCropSave}
+              style={{
+                flex: 2, height: 48, borderRadius: 12,
+                background: 'linear-gradient(135deg, #1D4ED8, #06B6D4)',
+                border: 'none', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              Save Photo
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

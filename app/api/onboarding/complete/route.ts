@@ -43,13 +43,20 @@ export async function POST(request: NextRequest) {
   })
 
   const {
-    firstName, lastName, phone, company, position, territory, industry,
+    firstName, lastName, phone, company, position, territory,
+    industries,
     coachPersona, headshotUrl,
     assistantEnabled, assistantName, assistantVoiceId,
     assistantCapabilities, assistantQualifyingCriteria,
     phoneNumberType, selectedPhoneNumber,
     subscriptionTier, meetingModeEnabled,
   } = body
+
+  // Primary industry for backward-compat with any code reading reps.industry
+  const industry = Array.isArray(industries) ? industries[0] ?? null : null
+  const industryLabel = Array.isArray(industries) && industries.length > 0
+    ? industries.join(', ')
+    : 'sales'
 
   if (!firstName?.trim() || !lastName?.trim()) {
     return NextResponse.json({ error: 'First and last name are required' }, { status: 400 })
@@ -69,7 +76,8 @@ export async function POST(request: NextRequest) {
       company: company?.trim() || null,
       position: position?.trim() || null,
       territory: territory?.trim() || null,
-      industry: industry || null,
+      industry: industry,
+      industries: Array.isArray(industries) ? industries : [],
       headshot_url: headshotUrl || null,
       subscription_tier: subscriptionTier || 'payg',
       trial_started_at: new Date().toISOString(),
@@ -103,7 +111,8 @@ export async function POST(request: NextRequest) {
     },
     { onConflict: 'rep_id' },
   )
-  console.log('COACH SAVED:', { persona, error: coachSaveResult.error?.message ?? null })
+  const active_persona_id = persona
+  console.log('COACH SAVED:', { persona, active_persona_id, error: coachSaveResult.error?.message ?? null })
 
   // 3. Insert coach welcome message
   const welcomeContent = (WELCOME_MESSAGES[persona] ?? WELCOME_MESSAGES.jordan)(firstName.trim())
@@ -131,12 +140,12 @@ export async function POST(request: NextRequest) {
         noel: (n) => `Hello ${n}. I've been thinking about your sales patterns. Walk me through your most recent appointment. Every detail matters.`,
       }
       const COACH_SYSTEM_PROMPTS: Record<string, (rep: any) => string> = {
-        jordan: (r) => `You are Jordan, an experienced sales mentor with 25 years in home improvement and professional sales.\n\nYou are speaking with ${r.full_name}, a sales rep at ${r.company}.\nTheir territory: ${r.territory || 'not specified'}. Their industry: ${r.industry || 'sales'}.\n\nYour personality:\n- Calm, wise, measured\n- Ask powerful single questions\n- Never overwhelming with advice\n- Celebrate wins quietly\n\nThis is a voice conversation. Keep responses 2-4 sentences. Ask one follow-up question at a time.`,
-        victoria: (r) => `You are Victoria, a sharp and direct sales closer.\n\nYou are speaking with ${r.full_name} at ${r.company}.\n\nYour personality:\n- Direct, confident, high standards\n- No excuses but celebrate hard wins\n\nThis is a voice conversation. Keep responses 2-4 sentences. Ask one sharp follow-up question.`,
-        coach_ray: (r) => `You are Coach Ray, a high-energy sales coach.\n\nYou are speaking with ${r.full_name} at ${r.company}.\n\nYour personality:\n- Enthusiastic and motivating\n- Use sports analogies\n- Every appointment is a game to win\n\nThis is a voice conversation. Keep it energetic but concise. 2-4 sentences, then ask a question.`,
-        noel: (r) => `You are Noel, a data-driven sales strategist.\n\nYou are speaking with ${r.full_name} at ${r.company}.\n\nYour personality:\n- Precise and analytical\n- Reference specific data points\n\nThis is a voice conversation. Be precise but conversational. 2-4 sentences, one analytical question.`,
+        jordan: (r) => `You are Jordan, an experienced sales mentor with 25 years in home improvement and professional sales.\n\nYou are speaking with ${r.full_name}, a sales rep at ${r.company}.\nTheir territory: ${r.territory || 'not specified'}. Their industry: ${r.industry}.\n\nYour personality:\n- Calm, wise, measured\n- Ask powerful single questions\n- Never overwhelming with advice\n- Celebrate wins quietly\n\nThis is a voice conversation. Keep responses 2-4 sentences. Ask one follow-up question at a time.`,
+        victoria: (r) => `You are Victoria, a sharp and direct sales closer.\n\nYou are speaking with ${r.full_name} at ${r.company}. Industry: ${r.industry}.\n\nYour personality:\n- Direct, confident, high standards\n- No excuses but celebrate hard wins\n\nThis is a voice conversation. Keep responses 2-4 sentences. Ask one sharp follow-up question.`,
+        coach_ray: (r) => `You are Coach Ray, a high-energy sales coach.\n\nYou are speaking with ${r.full_name} at ${r.company}. Industry: ${r.industry}.\n\nYour personality:\n- Enthusiastic and motivating\n- Use sports analogies\n- Every appointment is a game to win\n\nThis is a voice conversation. Keep it energetic but concise. 2-4 sentences, then ask a question.`,
+        noel: (r) => `You are Noel, a data-driven sales strategist.\n\nYou are speaking with ${r.full_name} at ${r.company}. Industry: ${r.industry}.\n\nYour personality:\n- Precise and analytical\n- Reference specific data points\n\nThis is a voice conversation. Be precise but conversational. 2-4 sentences, one analytical question.`,
       }
-      const repForVapi = { full_name: fullName, company: company?.trim() || 'their company', territory: territory?.trim() || 'not specified', industry: industry || 'sales' }
+      const repForVapi = { full_name: fullName, company: company?.trim() || 'their company', territory: territory?.trim() || 'not specified', industry: industryLabel }
       const fn = firstName.trim()
       const coachRes = await fetch('https://api.vapi.ai/assistant', {
         method: 'POST',
@@ -222,7 +231,7 @@ export async function POST(request: NextRequest) {
     <table style="width:100%;border-collapse:collapse;">
       <tr><td style="padding:8px 0;color:#9CA3AF;width:140px;">Name</td><td style="padding:8px 0;font-weight:600;">${fullName}</td></tr>
       <tr><td style="padding:8px 0;color:#9CA3AF;">Company</td><td style="padding:8px 0;">${company || '—'}</td></tr>
-      <tr><td style="padding:8px 0;color:#9CA3AF;">Industry</td><td style="padding:8px 0;">${industry || '—'}</td></tr>
+      <tr><td style="padding:8px 0;color:#9CA3AF;">Industry</td><td style="padding:8px 0;">${industryLabel}</td></tr>
       <tr><td style="padding:8px 0;color:#9CA3AF;">Plan</td><td style="padding:8px 0;font-weight:600;color:#06B6D4;">${subscriptionTier === 'unlimited' ? 'Unlimited' : 'Pay As You Go'}</td></tr>
       <tr><td style="padding:8px 0;color:#9CA3AF;">Coach</td><td style="padding:8px 0;">${persona}</td></tr>
       <tr><td style="padding:8px 0;color:#9CA3AF;">Phone type</td><td style="padding:8px 0;">${phoneNumberType || '—'}</td></tr>
