@@ -16,6 +16,14 @@ import ClozrLogo from '@/components/ui/clozr-logo'
 
 type Proposal = Record<string, any>
 
+export interface ProposalRender {
+  id: string
+  image_url: string
+  color_name: string | null
+  color_hex: string | null
+  created_at: string
+}
+
 export interface RepSettings {
   discount_options?: DiscountOptionSetting[]
   financing_options?: FinancingOptionSetting[]
@@ -359,11 +367,12 @@ function NewPriceRow({ value }: { value: number }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function PresentView({ proposal, backHref, repSettings, downloadPdfUrl }: {
+export default function PresentView({ proposal, backHref, repSettings, downloadPdfUrl, renders = [] }: {
   proposal: Proposal
   backHref?: string
   repSettings?: RepSettings
   downloadPdfUrl?: string
+  renders?: ProposalRender[]
 }) {
   const rawPd = proposal.pricing_data || {}
 
@@ -441,8 +450,9 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
     if (financingOpts.length > 0) cards.push('financing')
     if (hasCostco) cards.push('costco')
     cards.push('final_price')
+    if (renders.length > 0) cards.push('renders')
     return cards
-  }, [hasFees, promoOpts.length, bnsnOpts.length, cashOpt, financingOpts.length, hasCostco])
+  }, [hasFees, promoOpts.length, bnsnOpts.length, cashOpt, financingOpts.length, hasCostco, renders.length])
 
   const totalCards = cardOrder.length
   const fullyRevealed = revealedCount >= totalCards
@@ -928,6 +938,53 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
             </div>
           </div>
         </motion.div>
+        )}
+
+        {/* ── CARD 9: VISUALIZATIONS ── */}
+        {renders.length > 0 && shown('renders') && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(11)}
+            style={{ position: 'relative' }}>
+            <CardGlow color="rgba(139,92,246,0.4)" />
+            <div style={{ ...glassCard, border: '1px solid rgba(139,92,246,0.15)', padding: '20px', position: 'relative', zIndex: 1 }}>
+              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '16px' }}>
+                See Your Home Transformed
+              </p>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: renders.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+                gap: '10px',
+              }}>
+                {renders.map(r => (
+                  <div key={r.id} style={{ borderRadius: '12px', overflow: 'hidden', background: 'rgba(0,0,0,0.3)' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={r.image_url}
+                      alt={r.color_name ?? 'Visualization'}
+                      style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }}
+                    />
+                    {r.color_name && (
+                      <div style={{ padding: '8px 10px' }}>
+                        <div className="flex items-center gap-1.5">
+                          {r.color_hex && (
+                            <div style={{
+                              width: 10, height: 10, borderRadius: '50%',
+                              background: r.color_hex,
+                              border: '1px solid rgba(255,255,255,0.2)',
+                              flexShrink: 0,
+                            }} />
+                          )}
+                          <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', lineHeight: 1 }}>{r.color_name}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', textAlign: 'center', marginTop: '14px', letterSpacing: '0.08em' }}>
+                Powered by Clozr AI
+              </p>
+            </div>
+          </motion.div>
         )}
 
       </div>

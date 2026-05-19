@@ -9,6 +9,7 @@ import WindowsStep from './windows-step'
 import SidingStep from './siding-step'
 import PriceSummary from './price-summary'
 import { calcPrice, DEFAULT_PRICING, type PricingInputs } from '@/lib/pricing'
+import type { ProposalRender } from './present-view'
 
 const STEPS = ['Type', 'Customer', 'Pricing'] as const
 const DRAFT_KEY = 'proposal_draft'
@@ -72,6 +73,9 @@ export default function ProposalWizard({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pricePanelOpen, setPricePanelOpen] = useState(false)
+  const [renders, setRenders] = useState<ProposalRender[]>([])
+  const [rendersLoaded, setRendersLoaded] = useState(false)
+  const [removingRenderId, setRemovingRenderId] = useState<string | null>(null)
 
   // Restore draft from sessionStorage (skip when editing existing proposal)
   useEffect(() => {
@@ -91,6 +95,26 @@ export default function ProposalWizard({
       setStep(draft.step)
     } catch {}
   }, [restored, editId])
+
+  // Fetch renders for existing proposal
+  useEffect(() => {
+    if (!editId || rendersLoaded) return
+    setRendersLoaded(true)
+    fetch(`/api/proposals/${editId}/renders`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setRenders(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [editId, rendersLoaded])
+
+  const handleRemoveRender = async (renderId: string) => {
+    setRemovingRenderId(renderId)
+    try {
+      const res = await fetch(`/api/proposals/${editId}/renders/${renderId}`, { method: 'DELETE' })
+      if (res.ok) setRenders(prev => prev.filter(r => r.id !== renderId))
+    } finally {
+      setRemovingRenderId(null)
+    }
+  }
 
   // When a lead is linked from the search, fetch full lead data to pre-fill customer
   const handleLinkLead = async (lead: { id: string; name: string } | null) => {
@@ -248,6 +272,47 @@ export default function ProposalWizard({
           </div>
         )}
       </div>
+
+      {/* Visualizations section (edit mode only) */}
+      {editId && renders.length > 0 && step === 2 && (
+        <div className="mt-4 rounded-2xl p-4" style={{ background: 'rgba(17,24,39,0.7)', border: '1px solid rgba(139,92,246,0.15)' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6B7280' }}>Visualizations</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+            {renders.map(r => (
+              <div key={r.id} style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', background: 'rgba(0,0,0,0.3)' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={r.image_url}
+                  alt={r.color_name ?? 'Render'}
+                  style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }}
+                />
+                {r.color_name && (
+                  <div style={{ padding: '5px 8px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    {r.color_hex && (
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: r.color_hex, border: '1px solid rgba(255,255,255,0.2)', flexShrink: 0 }} />
+                    )}
+                    <p style={{ fontSize: '10px', color: '#9CA3AF', lineHeight: 1 }}>{r.color_name}</p>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveRender(r.id)}
+                  disabled={removingRenderId === r.id}
+                  style={{
+                    position: 'absolute', top: 5, right: 5,
+                    width: 22, height: 22, borderRadius: '50%',
+                    background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.15)',
+                    color: '#9CA3AF', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, lineHeight: 1,
+                    opacity: removingRenderId === r.id ? 0.4 : 1,
+                  }}
+                >×</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="fixed left-0 right-0 z-50 px-4"

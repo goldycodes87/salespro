@@ -18,16 +18,16 @@ export default async function PublicProposalPage({
 
   if (error || !proposal) notFound()
 
-  const repResult = await admin
-    .from('reps')
-    .select('settings')
-    .eq('id', proposal.rep_id)
-    .single()
+  const [repResult, rendersResult] = await Promise.all([
+    admin.from('reps').select('settings').eq('id', proposal.rep_id).single(),
+    admin.from('proposal_renders').select('*').eq('proposal_id', proposal.id).order('created_at', { ascending: true }),
+  ])
 
   return (
     <PresentView
       proposal={proposal}
       repSettings={repResult.data?.settings ?? {}}
+      renders={rendersResult.data ?? []}
       downloadPdfUrl={`/api/proposals/public/${token}/pdf`}
     />
   )

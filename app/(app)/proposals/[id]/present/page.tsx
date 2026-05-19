@@ -16,7 +16,7 @@ export default async function PresentPage({
 
   const admin = getSupabaseAdmin()
 
-  const [proposalResult, repResult] = await Promise.all([
+  const [proposalResult, repResult, rendersResult] = await Promise.all([
     supabase
       .from('proposals')
       .select('*')
@@ -24,6 +24,7 @@ export default async function PresentPage({
       .eq('rep_id', user.id)
       .single(),
     admin.from('reps').select('settings').eq('id', user.id).single(),
+    admin.from('proposal_renders').select('*').eq('proposal_id', id).order('created_at', { ascending: true }),
   ])
 
   if (proposalResult.error || !proposalResult.data) notFound()
@@ -33,6 +34,7 @@ export default async function PresentPage({
       proposal={proposalResult.data}
       backHref={`/proposals/${id}`}
       repSettings={repResult.data?.settings ?? {}}
+      renders={rendersResult.data ?? []}
     />
   )
 }

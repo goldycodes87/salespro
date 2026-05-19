@@ -152,6 +152,10 @@ export default function FilesTab({
   const [vizToast, setVizToast] = useState<string | null>(null)
   const [vizSaved, setVizSaved] = useState(false)
   const vizInputRef = useRef<HTMLInputElement>(null)
+  // Add to proposal
+  type LeadProposal = { id: string; customer_first_name: string | null; customer_last_name: string | null; type: string; status: string; created_at: string }
+  const [proposalPicker, setProposalPicker] = useState<LeadProposal[] | null>(null)
+  const [addingToProposal, setAddingToProposal] = useState(false)
 
   useEffect(() => {
     fetch(`/api/leads/${leadId}/files`)
@@ -334,6 +338,57 @@ export default function FilesTab({
     setVizSaved(true)
     setVizToast('Saved to photos')
     setTimeout(() => setVizToast(null), 3000)
+  }
+
+  const handleAddToProposal = async () => {
+    if (!vizResult) return
+    setAddingToProposal(true)
+    try {
+      const res = await fetch(`/api/leads/${leadId}/proposals`)
+      const proposals: LeadProposal[] = res.ok ? await res.json() : []
+      if (proposals.length === 0) {
+        setVizToast('No proposals yet — create one first')
+        setTimeout(() => setVizToast(null), 3000)
+        return
+      }
+      if (proposals.length === 1) {
+        await attachRenderToProposal(proposals[0].id)
+      } else {
+        setProposalPicker(proposals)
+      }
+    } catch {
+      setVizToast('Error fetching proposals')
+      setTimeout(() => setVizToast(null), 3000)
+    } finally {
+      setAddingToProposal(false)
+    }
+  }
+
+  const attachRenderToProposal = async (proposalId: string) => {
+    if (!vizResult) return
+    setProposalPicker(null)
+    try {
+      const res = await fetch(`/api/proposals/${proposalId}/renders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_url: vizResult.url,
+          color_name: vizResult.colorName,
+          color_hex: selectedHardieColor?.hex ?? null,
+          lead_photo_path: vizResult.path ?? null,
+        }),
+      })
+      if (res.ok) {
+        setVizToast('Added to proposal!')
+        setTimeout(() => setVizToast(null), 3000)
+      } else {
+        setVizToast('Failed to add — try again')
+        setTimeout(() => setVizToast(null), 3000)
+      }
+    } catch {
+      setVizToast('Failed to add — try again')
+      setTimeout(() => setVizToast(null), 3000)
+    }
   }
 
   const saveNotes = async () => {
@@ -826,16 +881,18 @@ export default function FilesTab({
                 {vizSaved ? 'Saved ✓' : 'Save to Lead'}
               </button>
               <button
-                onClick={() => { setVizToast('Coming soon'); setTimeout(() => setVizToast(null), 3000) }}
+                onClick={handleAddToProposal}
+                disabled={addingToProposal}
                 style={{
                   flex: 1, height: 44, borderRadius: 12,
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.10)',
-                  color: '#9CA3AF',
-                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                  background: addingToProposal ? 'rgba(139,92,246,0.08)' : 'rgba(139,92,246,0.15)',
+                  border: '1px solid rgba(139,92,246,0.3)',
+                  color: addingToProposal ? 'rgba(167,139,250,0.5)' : '#A78BFA',
+                  fontSize: 14, fontWeight: 600,
+                  cursor: addingToProposal ? 'default' : 'pointer',
                 }}
               >
-                Add to Proposal
+                {addingToProposal ? 'Adding…' : 'Add to Proposal'}
               </button>
             </div>
           </div>
@@ -849,6 +906,52 @@ export default function FilesTab({
           </div>
         )}
       </div>
+
+      {/* Proposal picker modal */}
+      {proposalPicker && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center pb-8 px-4"
+          style={{ background: 'rgba(0,0,0,0.7)' }}
+          onClick={() => setProposalPicker(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl p-5 space-y-3"
+            style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.1)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <p className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>Add to which proposal?</p>
+            {proposalPicker.map(p => {
+              const name = [p.customer_first_name, p.customer_last_name].filter(Boolean).join(' ') || 'Unnamed'
+              const label = `${name} — ${p.type}`
+              const date = new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => attachRenderToProposal(p.id)}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm"
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    color: '#D1D5DB',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <span style={{ fontWeight: 500 }}>{label}</span>
+                  <span style={{ color: '#6B7280', fontSize: 12 }}>{date}</span>
+                </button>
+              )
+            })}
+            <button
+              onClick={() => setProposalPicker(null)}
+              className="w-full h-10 rounded-xl text-sm"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#6B7280', cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       {vizToast && (
