@@ -88,10 +88,10 @@ const COACH_VOICES: Record<string, string> = {
 }
 
 const COACH_PREVIEW_TEXT: Record<string, string> = {
-  jordan:    "Hey [firstName]. Jordan here. Ready to help you close more deals.",
-  victoria:  "Let's get to work, [firstName]. I'm Victoria.",
-  coach_ray: "LET'S GO [firstName]! Coach Ray here!",
-  noel:      "Hello [firstName]. I'm Noel. Let's build your system.",
+  jordan:    "Hey [name], I'm Jordan. Let's build something great together.",
+  victoria:  "[name]. Victoria here. Time to close.",
+  coach_ray: "LET'S GO [name]! Coach Ray is IN. Let's get after it!",
+  noel:      "Hi [name], I'm Noel. Let's build your strategy.",
 }
 
 const CAPABILITIES = [
@@ -235,6 +235,7 @@ export default function OnboardingPage() {
   // Step 4 — coach
   const [coach, setCoach] = useState('')
   const [coachBubble, setCoachBubble] = useState(false)
+  const [coachAudioLoading, setCoachAudioLoading] = useState('')
 
   // Step 5 — meeting mode
   const [meetingModeEnabled, setMeetingModeEnabled] = useState(false)
@@ -337,7 +338,8 @@ export default function OnboardingPage() {
     const voiceId = COACH_VOICES[personaId]
     if (!voiceId) return
     const name = firstName.trim() || 'there'
-    const text = (COACH_PREVIEW_TEXT[personaId] ?? '').replace('[firstName]', name)
+    const text = (COACH_PREVIEW_TEXT[personaId] ?? '').replace('[name]', name)
+    setCoachAudioLoading(personaId)
     fetch('/api/voice/preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -349,9 +351,10 @@ export default function OnboardingPage() {
         if (audioRef.current) { audioRef.current.pause(); audioRef.current = null }
         const audio = new Audio(url)
         audioRef.current = audio
+        setCoachAudioLoading('')
         audio.play().catch(() => {})
       })
-      .catch(() => {})
+      .catch(() => { setCoachAudioLoading('') })
   }
 
   // ── Crop helpers ──────────────────────────────────────────────────────────
@@ -832,6 +835,7 @@ export default function OnboardingPage() {
                     onClick={() => { setCoach(c.id); playCoachVoice(c.id) }}
                     whileTap={{ scale: 0.97 }}
                     style={{
+                      position: 'relative',
                       background: 'rgba(255,255,255,0.04)',
                       border: coach === c.id
                         ? `2px solid ${c.color}`
@@ -847,6 +851,17 @@ export default function OnboardingPage() {
                       transition: 'border 0.15s, box-shadow 0.15s',
                     }}
                   >
+                    {coachAudioLoading === c.id && (
+                      <motion.div
+                        style={{
+                          position: 'absolute', inset: -2, borderRadius: 22,
+                          border: `2px solid ${c.color}`,
+                          pointerEvents: 'none',
+                        }}
+                        animate={{ opacity: [0.3, 1, 0.3] }}
+                        transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
+                      />
+                    )}
                     <img
                       src={c.photo}
                       alt={c.name}
