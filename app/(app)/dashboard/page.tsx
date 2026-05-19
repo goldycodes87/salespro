@@ -257,7 +257,7 @@ export default async function DashboardPage() {
               return (
                 <div
                   key={ev.id}
-                  className="flex items-center gap-3 p-3 rounded-2xl"
+                  className="flex items-center gap-3 p-4 md:p-3 rounded-2xl min-h-[56px]"
                   style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderLeft: '3px solid #3B82F6' }}
                 >
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -305,7 +305,7 @@ export default async function DashboardPage() {
                 <Link
                   key={p.id}
                   href={`/proposals/${p.id}`}
-                  className="flex items-center gap-3 p-3 rounded-2xl overflow-hidden"
+                  className="flex items-center gap-3 p-4 md:p-3 rounded-2xl overflow-hidden"
                   style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderLeft: `3px solid ${sc.border}` }}
                 >
                   <div className="flex-1 min-w-0">
@@ -350,7 +350,7 @@ export default async function DashboardPage() {
                 <Link
                   key={lead.id}
                   href={`/leads/${lead.id}`}
-                  className="flex items-center gap-3 p-3 rounded-2xl overflow-hidden"
+                  className="flex items-center gap-3 p-4 md:p-3 rounded-2xl overflow-hidden"
                   style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderLeft: `3px solid ${leadBorderColor(lead.status)}` }}
                 >
                   <div
@@ -392,7 +392,7 @@ export default async function DashboardPage() {
               const label = isOverdue ? `${Math.abs(daysUntil)}d overdue` : daysUntil === 0 ? 'Today' : `In ${daysUntil}d`
               return (
                 <Link key={fu.id} href={`/proposals/${fu.id}`}
-                  className="flex items-center gap-3 p-3 rounded-2xl"
+                  className="flex items-center gap-3 p-4 md:p-3 rounded-2xl"
                   style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
                   <div className="flex-1 min-w-0">
@@ -413,19 +413,21 @@ export default async function DashboardPage() {
       {/* AI Coach */}
       {coachMeta && (
         <div className="rounded-2xl p-4 mb-4" style={{ background: 'rgba(17,24,39,0.6)', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <div className="flex items-center gap-3">
-            <img
-              src={coachMeta.photo}
-              alt={coachMeta.name}
-              style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', objectPosition: 'top', flexShrink: 0 }}
-            />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>Your coach is {coachMeta.name}</p>
-              <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>AI Sales Coach</p>
+          <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <img
+                src={coachMeta.photo}
+                alt={coachMeta.name}
+                style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', objectPosition: 'top', flexShrink: 0 }}
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>Your coach is {coachMeta.name}</p>
+                <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>AI Sales Coach</p>
+              </div>
             </div>
             <Link
               href="/coach"
-              className="text-xs font-semibold px-3 py-1.5 rounded-xl flex-shrink-0"
+              className="text-xs font-semibold px-3 py-2.5 rounded-xl text-center md:flex-shrink-0 md:py-1.5"
               style={{ background: `${coachMeta.color}20`, color: coachMeta.color, border: `1px solid ${coachMeta.color}40` }}
             >
               Chat now →

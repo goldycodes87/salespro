@@ -61,7 +61,7 @@ export default function StatCards({ stats }: { stats: Stat[] }) {
         >
           <Link
             href={stat.href}
-            className="block rounded-2xl p-5 h-full cursor-pointer"
+            className="block rounded-2xl p-4 md:p-5 h-full cursor-pointer"
             style={{
               background: 'rgba(15, 118, 110, 0.12)',
               border: '1px solid rgba(20, 184, 166, 0.25)',
@@ -82,7 +82,7 @@ export default function StatCards({ stats }: { stats: Stat[] }) {
               </div>
             </div>
             <p
-              className="text-3xl font-bold"
+              className="text-4xl md:text-3xl font-bold"
               style={{
                 color: stat.accent,
                 fontFamily: stat.mono ? "'JetBrains Mono', monospace" : 'inherit',

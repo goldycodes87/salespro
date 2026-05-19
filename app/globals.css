@@ -53,3 +53,10 @@ body {
 .animate-spotlight {
   animation: spotlight 2s ease 0.75s 1 forwards;
 }
+
+@media (max-width: 767px) {
+  .nav-icon svg {
+    width: 28px;
+    height: 28px;
+  }
+}

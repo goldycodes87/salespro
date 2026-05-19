@@ -243,7 +243,7 @@ export default function AdminRepsPage() {
         {loading ? (
           <div className="p-8 text-center text-sm" style={{ color: '#6B7280' }}>Loading…</div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>

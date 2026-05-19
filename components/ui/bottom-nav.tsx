@@ -100,13 +100,11 @@ export default function BottomNav() {
   return (
     <div
       className="fixed bottom-0 left-0 right-0 z-40"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 16px)' }}
     >
       <div
-        className="relative mx-4 my-2 overflow-hidden"
+        className="relative md:mx-4 md:my-2 overflow-hidden h-16 md:h-[60px] md:rounded-[20px]"
         style={{
-          height: '60px',
-          borderRadius: '20px',
           background: 'rgba(0,0,0,0.75)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
@@ -152,7 +150,7 @@ export default function BottomNav() {
         )}
 
         {/* Nav items */}
-        <div className="flex h-full px-2">
+        <div className="flex h-full justify-around md:justify-start md:px-2">
           {navItems.map((item) => {
             const isActive =
               pathname === item.href || pathname.startsWith(item.href + '/')
@@ -165,6 +163,7 @@ export default function BottomNav() {
                 style={{ gap: '2px' }}
               >
                 <div
+                  className="nav-icon"
                   style={{
                     color: isActive ? '#06B6D4' : 'rgba(255,255,255,0.4)',
                     transition: 'color 0.2s',
@@ -173,7 +172,7 @@ export default function BottomNav() {
                   {item.icon(isActive)}
                 </div>
                 <span
-                  className="text-[9px] font-semibold tracking-wide transition-all"
+                  className="text-[9px] font-semibold tracking-wide transition-all hidden md:inline"
                   style={{
                     color: isActive ? '#06B6D4' : 'rgba(255,255,255,0)',
                     height: '11px',
