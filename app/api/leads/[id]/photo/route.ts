@@ -63,29 +63,25 @@ export async function POST(
 
   const locationStr = encodeURIComponent(addressStr)
 
-  // Check Street View metadata first
-  const metaUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${locationStr}&key=${googleKey}`
-
   let photoUrl: string
   let photoType: 'street_view' | 'satellite'
 
   try {
-    const metaRes = await fetch(metaUrl)
-    const metaJson = await metaRes.json()
-    console.log('META STATUS:', metaJson.status)
-
-    if (metaJson.status === 'OK') {
-      photoUrl = `https://maps.googleapis.com/maps/api/streetview?size=640x400&location=${locationStr}&key=${googleKey}&fov=90&pitch=0`
+    const svCheckUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x600&location=${locationStr}&key=${googleKey}&return_error_code=true`
+    const svResponse = await fetch(svCheckUrl)
+    if (svResponse.ok && svResponse.status === 200) {
+      console.log('Street View found')
+      photoUrl = svCheckUrl
       photoType = 'street_view'
     } else {
+      console.log('No Street View — falling back to satellite')
       photoUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=19&size=640x400&maptype=satellite&key=${googleKey}`
       photoType = 'satellite'
     }
   } catch (err: any) {
-    console.error('Failed to fetch Street View metadata:', err.message)
+    console.error('Street View check failed:', err.message)
     photoUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=19&size=640x400&maptype=satellite&key=${googleKey}`
     photoType = 'satellite'
-    console.log('META STATUS: fetch_error — falling back to satellite')
   }
 
   console.log('SAVED URL:', photoUrl)

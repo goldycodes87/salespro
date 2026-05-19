@@ -1,0 +1,8 @@
+const fs = require('fs')
+const path = require('path')
+const swPath = path.join(__dirname, '../public/sw.js')
+let sw = fs.readFileSync(swPath, 'utf8')
+const version = Date.now()
+sw = sw.replace(/clozr-v[\d]+/, `clozr-v${version}`)
+fs.writeFileSync(swPath, sw)
+console.log(`SW version bumped to clozr-v${version}`)

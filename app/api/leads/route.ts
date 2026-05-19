@@ -104,18 +104,18 @@ export async function POST(request: NextRequest) {
     let streetViewUrl: string | null = null
     let photoType = 'street_view'
     try {
-      const metaRes = await fetch(`https://maps.googleapis.com/maps/api/streetview/metadata?location=${locationStr}&key=${googleKey}`)
-      const metaJson = await metaRes.json()
-      if (metaJson.status === 'OK') {
-        streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${locationStr}&key=${googleKey}`
+      const svCheckUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x600&location=${locationStr}&key=${googleKey}&return_error_code=true`
+      const svResponse = await fetch(svCheckUrl)
+      if (svResponse.ok && svResponse.status === 200) {
+        streetViewUrl = svCheckUrl
         photoType = 'street_view'
       } else {
         streetViewUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=19&size=800x400&maptype=satellite&key=${googleKey}`
         photoType = 'satellite'
       }
     } catch {
-      streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${locationStr}&key=${googleKey}`
-      photoType = 'street_view'
+      streetViewUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=19&size=800x400&maptype=satellite&key=${googleKey}`
+      photoType = 'satellite'
     }
     if (!streetViewUrl) return
     await admin.from('leads').update({ street_view_url: streetViewUrl, photo_type: photoType }).eq('id', lead.id)

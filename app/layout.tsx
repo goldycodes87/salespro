@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import UpdateBanner from "@/components/UpdateBanner";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -51,7 +52,10 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
         />
       </head>
-      <body className={`${inter.className} h-full antialiased`}>{children}</body>
+      <body className={`${inter.className} h-full antialiased`}>
+        {children}
+        <UpdateBanner />
+      </body>
     </html>
   );
 }
