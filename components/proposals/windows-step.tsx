@@ -296,6 +296,23 @@ export default function WindowsStep({
           <div className="space-y-2 pt-1">
             <Toggle on={value.costco_member} onToggle={() => set('costco_member', !value.costco_member)} label="Member (10% off)" />
             <Toggle on={value.costco_executive} onToggle={() => set('costco_executive', !value.costco_executive)} label="Executive (2% reward, max $1,250)" />
+            <Toggle
+              on={value.costco_city_visa_enabled ?? false}
+              onToggle={() => set('costco_city_visa_enabled', !value.costco_city_visa_enabled)}
+              label="Costco City Visa 2%"
+            />
+            {value.costco_city_visa_enabled && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm" style={{ color: '#6B7280' }}>Amount charged $</span>
+                <input
+                  type="number"
+                  value={value.costco_city_visa_amount ?? ''}
+                  onChange={e => set('costco_city_visa_amount', Number(e.target.value))}
+                  placeholder="0"
+                  style={{ ...inputStyle, height: '40px', padding: '0 12px', fontSize: '14px', borderRadius: '10px', flex: 1 }}
+                />
+              </div>
+            )}
           </div>
         )}
       </SectionCard>

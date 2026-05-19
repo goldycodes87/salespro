@@ -15,21 +15,28 @@ async function parseLeadWithAI(emailContent: string, subject: string): Promise<R
       role: 'user',
       content: `Extract lead information from this appointment email. Return ONLY valid JSON, no markdown.
 
+CRITICAL RULES:
+- Extract ONLY appointment/lead data from the structured fields in the email body.
+- IGNORE all email footers, signatures, and sender information entirely.
+- REP = the assigned sales rep named in the body content (e.g. "REP 1:" field), NOT the From: address.
+- NAME, ADDRESS, PHONE come only from the structured body fields (e.g. "Customer:", "Address:", "Phone:").
+- Never use the sender's name or email as the customer name.
+
 Email subject: ${subject}
 Email body:
 ${emailContent.slice(0, 4000)}
 
 Return this exact structure:
 {
-  "first_name": "first name only",
-  "last_name": "last name only",
+  "first_name": "customer first name from body fields only",
+  "last_name": "customer last name from body fields only",
   "phone": "10 digits only, no formatting, empty string if none",
   "address": "street address only (no city/state/zip)",
   "city": "city name",
   "state": "2-letter state code",
   "zip": "5 digit zip",
   "appointment_date": "ISO 8601 datetime string or null if not found",
-  "rep_name": "rep name from REP 1 field, empty string if none",
+  "rep_name": "rep name from REP 1 field in body, empty string if none",
   "notes": "comments or notes about the appointment",
   "appointment_type": "type such as Sales Appointment"
 }`,
@@ -141,27 +148,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ received: true, error: 'Parsing failed' })
   }
 
-  // Try to get street view photo
-  const googleKey = process.env.GOOGLE_MAPS_API_KEY
-  let streetViewUrl: string | null = null
-  let photoType = 'street_view'
-  if (googleKey && parsed.address && parsed.city) {
-    const parts = [parsed.address, parsed.city, parsed.state, parsed.zip].filter(Boolean)
-    const locationStr = encodeURIComponent(parts.join(' '))
-    try {
-      const metaRes = await fetch(`https://maps.googleapis.com/maps/api/streetview/metadata?location=${locationStr}&key=${googleKey}`)
-      const metaJson = await metaRes.json()
-      if (metaJson.status === 'OK') {
-        streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${locationStr}&key=${googleKey}`
-        photoType = 'street_view'
-      } else {
-        streetViewUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=19&size=800x400&maptype=satellite&key=${googleKey}`
-        photoType = 'satellite'
-      }
-    } catch {}
-  }
-
-  // Create lead
+  // Create lead immediately (no photo blocking the response)
   const { data: lead, error: leadError } = await admin
     .from('leads')
     .insert({
@@ -177,8 +164,8 @@ export async function POST(request: Request) {
       notes: parsed.notes || null,
       lead_source: 'agentmail',
       status: 'new',
-      street_view_url: streetViewUrl,
-      photo_type: photoType,
+      street_view_url: null,
+      photo_type: null,
     })
     .select()
     .single()
@@ -197,8 +184,27 @@ export async function POST(request: Request) {
     metadata: { from_email: fromEmail, from_name: fromName, subject, parsed },
   })
 
-  // Log street view usage
-  if (streetViewUrl) {
+  // Fetch photo after responding (fire-and-forget)
+  void (async () => {
+    const googleKey = process.env.GOOGLE_MAPS_API_KEY
+    if (!googleKey || !parsed.address || !parsed.city) return
+    const parts = [parsed.address, parsed.city, parsed.state, parsed.zip].filter(Boolean)
+    const locationStr = encodeURIComponent(parts.join(' '))
+    let streetViewUrl: string | null = null
+    let photoType = 'street_view'
+    try {
+      const metaRes = await fetch(`https://maps.googleapis.com/maps/api/streetview/metadata?location=${locationStr}&key=${googleKey}`)
+      const metaJson = await metaRes.json()
+      if (metaJson.status === 'OK') {
+        streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${locationStr}&key=${googleKey}`
+        photoType = 'street_view'
+      } else {
+        streetViewUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=19&size=800x400&maptype=satellite&key=${googleKey}`
+        photoType = 'satellite'
+      }
+    } catch {}
+    if (!streetViewUrl) return
+    await admin.from('leads').update({ street_view_url: streetViewUrl, photo_type: photoType }).eq('id', lead.id)
     await admin.from('api_usage_log').insert({
       rep_id: rep.id,
       service: 'google_maps',
@@ -206,7 +212,7 @@ export async function POST(request: Request) {
       tokens_used: 0,
       estimated_cost_usd: 0.007,
     })
-  }
+  })()
 
   // SMS to rep (fire-and-forget)
   if (rep.phone && rep.assistant_config?.business_number) {

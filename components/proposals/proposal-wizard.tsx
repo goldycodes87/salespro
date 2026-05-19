@@ -71,6 +71,7 @@ export default function ProposalWizard({
   const [scopeNotes, setScopeNotes] = useState(ep?.internal_notes ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pricePanelOpen, setPricePanelOpen] = useState(false)
 
   // Restore draft from sessionStorage (skip when editing existing proposal)
   useEffect(() => {
@@ -177,7 +178,7 @@ export default function ProposalWizard({
   const showPriceSummary = step === 2
 
   return (
-    <div className="relative">
+    <div className={`relative ${showPriceSummary ? 'lg:pr-[352px]' : ''}`}>
       {/* Progress */}
       <div className="flex items-center gap-1 mb-6">
         {STEPS.map((s, i) => (
@@ -239,12 +240,61 @@ export default function ProposalWizard({
         </div>
       )}
 
-      {/* Price summary strip (step 2 only) */}
+      {/* Live pricing panel (step 2 only) */}
       {showPriceSummary && (
-        <div className="fixed left-0 right-0 z-50"
-          style={{ bottom: 'calc(72px + env(safe-area-inset-bottom) + 72px)', background: 'rgba(17,24,39,0.98)', borderTop: '1px solid rgba(255,255,255,0.08)', padding: '12px 16px' }}>
-          <PriceSummary result={result} inputs={activePricing} compact />
-        </div>
+        <>
+          {/* Mobile: collapsible panel fixed above action bar */}
+          <div className="lg:hidden fixed left-0 right-0 z-50"
+            style={{ bottom: 'calc(72px + env(safe-area-inset-bottom))', background: 'rgba(10,15,30,0.98)', borderTop: '1px solid rgba(255,255,255,0.10)', backdropFilter: 'blur(20px)' }}>
+            <button
+              type="button"
+              onClick={() => setPricePanelOpen(o => !o)}
+              className="w-full flex items-center justify-between px-4 py-3"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>Your Price</span>
+                {result.discount_pct > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: 'rgba(16,185,129,0.15)', color: '#34D399' }}>
+                    Save {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(result.you_save)}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xl font-bold" style={{ color: '#F9FAFB', fontFamily: "'JetBrains Mono', monospace" }}>
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(result.your_price)}
+                </span>
+                <motion.div animate={{ rotate: pricePanelOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
+                    <polyline points="18 15 12 9 6 15" />
+                  </svg>
+                </motion.div>
+              </div>
+            </button>
+            <AnimatePresence>
+              {pricePanelOpen && (
+                <motion.div
+                  key="price-breakdown"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  style={{ overflow: 'hidden' }}
+                >
+                  <div className="px-4 pb-4 pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <PriceSummary result={result} inputs={activePricing} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Desktop: fixed right sidebar */}
+          <div className="hidden lg:block fixed z-40 w-80 overflow-y-auto rounded-2xl p-5"
+            style={{ top: '80px', right: '16px', bottom: '80px', background: 'rgba(17,24,39,0.97)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: '#6B7280' }}>Live Pricing</p>
+            <PriceSummary result={result} inputs={activePricing} />
+          </div>
+        </>
       )}
 
       {/* Action bar */}

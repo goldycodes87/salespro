@@ -42,6 +42,24 @@ export async function POST(
     return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
   }
 
+  // Fetch property elevation (fire geocode → elevation, best-effort)
+  let elevationFeet: number | null = null
+  const googleKey = process.env.GOOGLE_MAPS_API_KEY
+  if (googleKey && lead.address && lead.city) {
+    try {
+      const addrParts = [lead.address, lead.city, lead.state, lead.zip].filter(Boolean).join(' ')
+      const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addrParts)}&key=${googleKey}`)
+      const geoJson = await geoRes.json()
+      const loc = geoJson.results?.[0]?.geometry?.location
+      if (loc?.lat != null && loc?.lng != null) {
+        const elevRes = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${loc.lat},${loc.lng}`)
+        const elevJson = await elevRes.json()
+        const meters = elevJson.results?.[0]?.elevation
+        if (typeof meters === 'number') elevationFeet = Math.round(meters * 3.28084)
+      }
+    } catch {}
+  }
+
   try {
     const summary = await researchLead({
       firstName: lead.first_name,
@@ -55,6 +73,7 @@ export async function POST(
       spouseFirstName: lead.is_married ? lead.spouse_first_name : null,
       spouseLastName: lead.is_married ? lead.spouse_last_name : null,
       industry: repRow?.industry ?? null,
+      elevation: elevationFeet,
     })
 
     await admin

@@ -36,6 +36,7 @@ export interface ResearchParams {
   spouseFirstName?: string | null
   spouseLastName?: string | null
   industry?: string | null
+  elevation?: number | null
 }
 
 export async function researchLead(params: ResearchParams): Promise<string> {
@@ -55,7 +56,8 @@ export async function researchLead(params: ResearchParams): Promise<string> {
       ? ` and spouse ${params.spouseFirstName} ${params.spouseLastName}`
       : ''
 
-  const userMessage = `Research this lead: ${params.firstName} ${params.lastName}${spouseInfo}, ${params.address}, ${params.city}, ${params.state} ${params.zip}. Appointment date: ${params.appointmentDate}. Lead source: ${params.leadSource}.`
+  const elevationInfo = params.elevation != null ? ` Property elevation: ${Math.round(params.elevation)} feet.` : ''
+  const userMessage = `Research this lead: ${params.firstName} ${params.lastName}${spouseInfo}, ${params.address}, ${params.city}, ${params.state} ${params.zip}. Appointment date: ${params.appointmentDate}. Lead source: ${params.leadSource}.${elevationInfo}`
 
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: userMessage }]
   let finalText = ''

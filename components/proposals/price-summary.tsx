@@ -16,7 +16,7 @@ export default function PriceSummary({
 }) {
   const hasDiscount = result.discount_pct > 0 || result.cash_discount > 0
   const hasFinancing = inputs.financing !== 'none' && result.monthly_payment > 0
-  const hasCostco = inputs.costco_revealed && (result.costco_member_savings > 0 || result.costco_exec_savings > 0)
+  const hasCostco = inputs.costco_revealed && (result.costco_member_savings > 0 || result.costco_exec_savings > 0 || result.costco_city_visa_savings > 0)
 
   if (compact) {
     return (
@@ -109,6 +109,12 @@ export default function PriceSummary({
             <div className="flex justify-between text-sm">
               <span style={{ color: '#60A5FA' }}>Executive reward (2%)</span>
               <span className="font-semibold" style={{ color: '#60A5FA' }}>−{fmt(result.costco_exec_savings)}</span>
+            </div>
+          )}
+          {result.costco_city_visa_savings > 0 && (
+            <div className="flex justify-between text-sm">
+              <span style={{ color: '#60A5FA' }}>City Visa (2%)</span>
+              <span className="font-semibold" style={{ color: '#60A5FA' }}>−{fmt(result.costco_city_visa_savings)}</span>
             </div>
           )}
         </div>

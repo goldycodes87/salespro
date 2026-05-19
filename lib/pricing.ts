@@ -120,6 +120,8 @@ export interface PricingInputs {
   costco_revealed: boolean
   costco_member: boolean
   costco_executive: boolean
+  costco_city_visa_enabled?: boolean
+  costco_city_visa_amount?: number
   financing: FinancingOption
   deposit: number
   // Settings-based overrides (used instead of enum keys when set)
@@ -154,6 +156,7 @@ export interface PricingResult {
   monthly_payment: number
   costco_member_savings: number
   costco_exec_savings: number
+  costco_city_visa_savings: number
   total_windows: number
 }
 
@@ -245,6 +248,9 @@ export function calcPrice(inputs: PricingInputs): PricingResult {
   const costco_exec_savings = inputs.costco_revealed && inputs.costco_executive
     ? Math.min(your_price * 0.02, 1250)
     : 0
+  const costco_city_visa_savings = inputs.costco_city_visa_enabled && inputs.costco_city_visa_amount
+    ? Math.floor(inputs.costco_city_visa_amount * 0.02)
+    : 0
 
   return {
     package_price,
@@ -260,6 +266,7 @@ export function calcPrice(inputs: PricingInputs): PricingResult {
     monthly_payment,
     costco_member_savings,
     costco_exec_savings,
+    costco_city_visa_savings,
     total_windows,
   }
 }
@@ -286,6 +293,8 @@ export const DEFAULT_PRICING: PricingInputs = {
   costco_revealed: false,
   costco_member: false,
   costco_executive: false,
+  costco_city_visa_enabled: false,
+  costco_city_visa_amount: 0,
   financing: 'none',
   deposit: 0,
 }

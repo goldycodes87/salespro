@@ -60,33 +60,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const admin = getSupabaseAdmin()
 
-  // Build photo URL — try Street View first, fall back to satellite
-  const googleKey = process.env.GOOGLE_MAPS_API_KEY
-  let streetViewUrl: string | null = null
-  let photoType: string = 'street_view'
-  if (googleKey && googleKey.length > 10) {
-    const parts = [body.address, body.city, body.state, body.zip].filter(Boolean)
-    const locationStr = encodeURIComponent(parts.join(' '))
-    const metaUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${locationStr}&key=${googleKey}`
-    try {
-      const metaRes = await fetch(metaUrl)
-      const metaJson = await metaRes.json()
-      if (metaJson.status === 'OK') {
-        streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${locationStr}&key=${googleKey}`
-        photoType = 'street_view'
-      } else {
-        streetViewUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=19&size=800x400&maptype=satellite&key=${googleKey}`
-        photoType = 'satellite'
-      }
-    } catch {
-      streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${locationStr}&key=${googleKey}`
-      photoType = 'street_view'
-    }
-  } else {
-    console.log('[Photo] GOOGLE_MAPS_API_KEY not set — skipping')
-  }
-
-  // Insert lead row
+  // Insert lead immediately (no photo blocking the response)
   const { data: lead, error: insertError } = await admin
     .from('leads')
     .insert({
@@ -107,8 +81,8 @@ export async function POST(request: NextRequest) {
       appointment_date: body.appointment_date || null,
       lead_source: body.lead_source || null,
       notes: body.notes || null,
-      street_view_url: streetViewUrl,
-      photo_type: photoType,
+      street_view_url: null,
+      photo_type: null,
       status: 'new',
     })
     .select()
@@ -121,7 +95,30 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  if (streetViewUrl) {
+  // Fetch photo after responding (fire-and-forget)
+  void (async () => {
+    const googleKey = process.env.GOOGLE_MAPS_API_KEY
+    if (!googleKey || googleKey.length <= 10 || !body.address || !body.city) return
+    const parts = [body.address, body.city, body.state, body.zip].filter(Boolean)
+    const locationStr = encodeURIComponent(parts.join(' '))
+    let streetViewUrl: string | null = null
+    let photoType = 'street_view'
+    try {
+      const metaRes = await fetch(`https://maps.googleapis.com/maps/api/streetview/metadata?location=${locationStr}&key=${googleKey}`)
+      const metaJson = await metaRes.json()
+      if (metaJson.status === 'OK') {
+        streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${locationStr}&key=${googleKey}`
+        photoType = 'street_view'
+      } else {
+        streetViewUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=19&size=800x400&maptype=satellite&key=${googleKey}`
+        photoType = 'satellite'
+      }
+    } catch {
+      streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${locationStr}&key=${googleKey}`
+      photoType = 'street_view'
+    }
+    if (!streetViewUrl) return
+    await admin.from('leads').update({ street_view_url: streetViewUrl, photo_type: photoType }).eq('id', lead.id)
     await admin.from('api_usage_log').insert({
       rep_id: user.id,
       service: 'google_maps',
@@ -129,7 +126,7 @@ export async function POST(request: NextRequest) {
       tokens_used: 0,
       estimated_cost_usd: 0.007,
     })
-  }
+  })()
 
   return NextResponse.json({ id: lead.id }, { status: 201 })
 }
