@@ -103,7 +103,7 @@ export const DEFAULT_DISCOUNT_SETTINGS: DiscountOptionSetting[] = [
   { id: 'bnsn_10', name: 'Buy Now Save Now 10%', pct: 10, type: 'bnsn', active: true },
   { id: 'bnsn_5', name: 'Buy Now Save Now 5%', pct: 5, type: 'bnsn', active: true },
   { id: 'bnsn_30', name: 'Full 30% Combined', pct: 30, type: 'bnsn', is_combined: true, active: true },
-  { id: 'cash_6', name: 'Cash Incentive', pct: 7, type: 'cash', active: true },
+  { id: 'cash_7', name: 'Cash Incentive', pct: 7, type: 'cash', active: true },
 ]
 
 export interface PricingInputs {
@@ -212,17 +212,23 @@ export function calcPrice(inputs: PricingInputs): PricingResult {
     discount_pct = promo + bnsn
   }
 
-  // Admin fee and lead paint are excluded from the discountable base
+  // 9.99/10yr financing adds 7% (offsets the built-in rate cost — stacks with other discounts)
+  if (inputs.financing === '9.99_10yr' || inputs.selected_financing_id === '9.99_10yr') {
+    discount_pct += 7
+  }
+
   const admin_fee = inputs.admin_fee_enabled ? inputs.admin_fee_amount : 0
   const lead_paint = inputs.lead_paint_enabled ? inputs.lead_paint_amount : 0
-  const discountable_base = package_price - admin_fee - lead_paint
+  const discountable_base = package_price  // admin_fee and lead_paint are never discounted
 
-  const discount_amount = Math.round(discountable_base * (discount_pct / 100))
-  const cash_pct = inputs.cash_pct ?? 7
-  const cash_discount = inputs.cash_incentive ? Math.round(discountable_base * (cash_pct / 100)) : 0
-  const you_save = discount_amount + cash_discount
+  // Cash rolls into the combined discount so floor() is applied once across the full pct
+  const cash_pct_val = inputs.cash_pct ?? 7
+  const cash_component = inputs.cash_incentive ? cash_pct_val : 0
+  const discount_amount = Math.floor(package_price * ((discount_pct + cash_component) / 100))
+  const cash_discount = inputs.cash_incentive ? Math.floor(package_price * (cash_pct_val / 100)) : 0
 
-  const subtotal = discountable_base - discount_amount - cash_discount + non_disc_line_total
+  const you_save = discount_amount
+  const subtotal = package_price - discount_amount + non_disc_line_total
   const your_price = subtotal + admin_fee + lead_paint
 
   // Financing — settings overrides take priority over enum keys

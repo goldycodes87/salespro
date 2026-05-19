@@ -144,9 +144,10 @@ CRITICAL RULES:
   }
 
   // Compute actual discount percentage from line items
-  const packagePrice: number = parsed.package_price ?? 0
+  const rawPackagePrice: number = parsed.package_price ?? 0
   const adminFee: number = parsed.admin_fee || 850
-  const discountableBase = packagePrice - adminFee
+  // Vendo bakes admin fee into package_price; strip it so lib/pricing.ts receives product-only price
+  const cleanPackagePrice = rawPackagePrice - adminFee
 
   let itemDiscountPct = 0
   const lineItems: Array<{ unit_price: number; discounted_price: number }> = parsed.line_items ?? []
@@ -154,8 +155,8 @@ CRITICAL RULES:
   if (firstItem) {
     // discounted_price < unit_price; pct = 1 - (discounted_price / unit_price)
     itemDiscountPct = 1 - (firstItem.discounted_price / firstItem.unit_price)
-  } else if (parsed.discount_amount && discountableBase > 0) {
-    itemDiscountPct = parsed.discount_amount / discountableBase
+  } else if (parsed.discount_amount && cleanPackagePrice > 0) {
+    itemDiscountPct = parsed.discount_amount / cleanPackagePrice
   }
 
   const toggleState = mapToToggles(itemDiscountPct)
@@ -170,7 +171,7 @@ CRITICAL RULES:
   const pricingData = {
     // PricingInputs-compatible shape for present-view
     proposal_type: parsed.project_type ?? 'windows',
-    windows_project_value: packagePrice,
+    windows_project_value: cleanPackagePrice,
     num_windows: parsed.num_windows ?? 0,
     num_doors: parsed.num_doors ?? 0,
     line_items: [],
@@ -187,7 +188,7 @@ CRITICAL RULES:
     // Stored toggle state for pre-selecting discounts in present-view
     toggle_state: toggleState,
     // Vendo metadata
-    package_price: packagePrice,
+    package_price: cleanPackagePrice,
     your_price: parsed.your_price ?? 0,
     vendo_quote_number: parsed.quote_number ?? null,
     vendo_imported: true,
@@ -235,9 +236,9 @@ CRITICAL RULES:
   void admin
     .from('proposals')
     .update({
-      package_price: packagePrice || null,
+      package_price: cleanPackagePrice || null,
       your_price: parsed.your_price ?? 0,
-      windows_project_value: packagePrice || null,
+      windows_project_value: cleanPackagePrice || null,
       num_windows: parsed.num_windows ?? 0,
       num_doors: parsed.num_doors ?? 0,
       pricing_data: { ...pricingData, vendo_pdf_storage_path: vendoPdfStoragePath },
