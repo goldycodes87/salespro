@@ -12,10 +12,13 @@ const inputStyle: React.CSSProperties = {
   outline: 'none',
 }
 
-function Toggle({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
+function Toggle({ on, onToggle, label, disabled, disabledReason }: {
+  on: boolean; onToggle: () => void; label: string; disabled?: boolean; disabledReason?: string
+}) {
   return (
-    <label className="flex items-center gap-3 cursor-pointer py-1">
-      <div onClick={onToggle} className="relative flex-shrink-0" style={{ width: '40px', height: '24px' }}>
+    <label className="flex items-center gap-3 py-1" title={disabled ? disabledReason : undefined}
+      style={{ opacity: disabled ? 0.4 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>
+      <div onClick={disabled ? undefined : onToggle} className="relative flex-shrink-0" style={{ width: '40px', height: '24px', cursor: disabled ? 'not-allowed' : 'pointer' }}>
         <div className="absolute inset-0 rounded-full transition-all"
           style={{ background: on ? '#1D4ED8' : 'rgba(255,255,255,0.12)' }} />
         <div className="absolute top-[3px] rounded-full transition-all"
@@ -130,13 +133,17 @@ export default function WindowsStep({
   }
 
   const selectedFinancingId = value.selected_financing_id ?? value.financing
+  const cashDisabled = !!selectedFinancingId && selectedFinancingId !== 'none' && selectedFinancingId !== '9.99_10yr'
+
   const handleFinancingSelect = (opt: FinancingOptionSetting) => {
+    const cashAllowed = opt.id === '9.99_10yr'
     onChange({
       ...value,
       financing: opt.id as FinancingOption,
       financing_factor: opt.method === 'factor' ? opt.factor : undefined,
       financing_months: opt.method === 'months' ? opt.months : undefined,
       selected_financing_id: opt.id,
+      ...(!cashAllowed ? { cash_incentive: false } : {}),
     })
   }
 
@@ -254,10 +261,12 @@ export default function WindowsStep({
         <Toggle
           on={value.cash_incentive}
           onToggle={() => {
-            const pct = cashOpt?.pct ?? 6
+            const pct = cashOpt?.pct ?? 7
             onChange({ ...value, cash_incentive: !value.cash_incentive, cash_pct: pct })
           }}
-          label={cashOpt ? `${cashOpt.name} (−${cashOpt.pct}%)` : 'Cash incentive (−6%)'}
+          label={cashOpt ? `${cashOpt.name} (−${cashOpt.pct}%)` : 'Cash incentive (−7%)'}
+          disabled={cashDisabled}
+          disabledReason="Cash incentive not available with this financing option"
         />
       </SectionCard>
 

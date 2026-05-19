@@ -153,6 +153,7 @@ export interface PricingResult {
   admin_fee: number
   lead_paint: number
   your_price: number
+  net_after_costco: number
   monthly_payment: number
   costco_member_savings: number
   costco_exec_savings: number
@@ -215,11 +216,6 @@ export function calcPrice(inputs: PricingInputs): PricingResult {
     discount_pct = promo + bnsn
   }
 
-  // 9.99/10yr financing adds 7% (offsets the built-in rate cost — stacks with other discounts)
-  if (inputs.financing === '9.99_10yr' || inputs.selected_financing_id === '9.99_10yr') {
-    discount_pct += 7
-  }
-
   const admin_fee = inputs.admin_fee_enabled ? inputs.admin_fee_amount : 0
   const lead_paint = inputs.lead_paint_enabled ? inputs.lead_paint_amount : 0
   const discountable_base = package_price  // admin_fee and lead_paint are never discounted
@@ -251,6 +247,7 @@ export function calcPrice(inputs: PricingInputs): PricingResult {
   const costco_city_visa_savings = inputs.costco_city_visa_enabled && inputs.costco_city_visa_amount
     ? Math.floor(inputs.costco_city_visa_amount * 0.02)
     : 0
+  const net_after_costco = your_price - costco_member_savings - costco_exec_savings - costco_city_visa_savings
 
   return {
     package_price,
@@ -263,6 +260,7 @@ export function calcPrice(inputs: PricingInputs): PricingResult {
     admin_fee,
     lead_paint,
     your_price,
+    net_after_costco,
     monthly_payment,
     costco_member_savings,
     costco_exec_savings,

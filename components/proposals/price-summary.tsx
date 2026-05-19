@@ -16,7 +16,8 @@ export default function PriceSummary({
 }) {
   const hasDiscount = result.discount_pct > 0 || result.cash_discount > 0
   const hasFinancing = inputs.financing !== 'none' && result.monthly_payment > 0
-  const hasCostco = inputs.costco_revealed && (result.costco_member_savings > 0 || result.costco_exec_savings > 0 || result.costco_city_visa_savings > 0)
+  const hasCostco = result.net_after_costco < result.your_price
+  const displayPrice = hasCostco ? result.net_after_costco : result.your_price
 
   if (compact) {
     return (
@@ -26,7 +27,7 @@ export default function PriceSummary({
             <p className="text-xs line-through" style={{ color: '#6B7280' }}>{fmt(result.package_price)}</p>
           )}
           <p className="text-xl font-bold" style={{ color: '#F9FAFB', fontFamily: "'JetBrains Mono', monospace" }}>
-            {fmt(result.your_price)}
+            {fmt(displayPrice)}
           </p>
           {hasFinancing && (
             <p className="text-xs" style={{ color: '#9CA3AF' }}>
@@ -60,7 +61,7 @@ export default function PriceSummary({
       )}
       {result.cash_discount > 0 && (
         <div className="flex justify-between text-sm">
-          <span style={{ color: '#9CA3AF' }}>Cash incentive (6%)</span>
+          <span style={{ color: '#9CA3AF' }}>Cash incentive (7%)</span>
           <span style={{ color: '#34D399' }}>−{fmt(result.cash_discount)}</span>
         </div>
       )}
@@ -84,7 +85,7 @@ export default function PriceSummary({
       <div className="flex justify-between items-baseline pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.10)' }}>
         <span className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>Your Price</span>
         <span className="text-2xl font-bold" style={{ color: '#F9FAFB', fontFamily: "'JetBrains Mono', monospace" }}>
-          {fmt(result.your_price)}
+          {fmt(displayPrice)}
         </span>
       </div>
 
