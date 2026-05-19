@@ -11,10 +11,18 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Clozr",
   description: "Built for closers.",
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Clozr",
+  },
+  icons: {
+    apple: [
+      { url: "/icons/icon-180.png", sizes: "180x180" },
+      { url: "/icons/icon-152.png", sizes: "152x152" },
+      { url: "/icons/icon-167.png", sizes: "167x167" },
+    ],
   },
 };
 
@@ -23,7 +31,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#0A0F1E",
+  themeColor: "#0f172a",
 };
 
 export default function RootLayout({
