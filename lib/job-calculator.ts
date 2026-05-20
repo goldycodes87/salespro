@@ -43,7 +43,10 @@ export interface RebateProgram {
 
 export interface JobTypeConfig {
   id: string
+  rep_id?: string
   name: string
+  icon?: string
+  is_default?: boolean
   pricing_model: 'financed_down' | 'cash_up'
   admin_fee: number
   max_discount_pct: number
