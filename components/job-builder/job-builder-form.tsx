@@ -648,7 +648,7 @@ export default function JobBuilderForm({
                   Financing options show payment terms. The cash incentive removes the financing fee from the price.
                 </p>
               )}
-              <div ref={finDropRef} style={{ position: 'relative' }}>
+              <div ref={finDropRef} style={{ position: 'relative', overflow: 'visible' }}>
                 <button
                   type="button"
                   style={{ ...INPUT, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
@@ -665,7 +665,8 @@ export default function JobBuilderForm({
                 </button>
                 {finDropOpen && (
                   <div style={{
-                    position: 'absolute', top: '52px', left: 0, right: 0, zIndex: 50,
+                    position: 'absolute', bottom: '100%', left: 0, right: 0, zIndex: 9999,
+                    marginBottom: '4px',
                     background: '#1E293B', border: '1px solid rgba(255,255,255,0.12)',
                     borderRadius: '12px', overflow: 'hidden',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.6)',

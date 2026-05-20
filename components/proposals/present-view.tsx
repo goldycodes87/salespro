@@ -549,7 +549,7 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
   return (
     <div
       className="fixed inset-0 z-[200]"
-      style={{ background: 'radial-gradient(ellipse at top, #1a1f35 0%, #0a0d1a 100%)', color: '#fff', userSelect: 'none' }}
+      style={{ background: 'linear-gradient(135deg, #0f172a 0%, #0d2137 25%, #0a3d2e 50%, #0d2137 75%, #0f172a 100%)', color: '#fff', userSelect: 'none' }}
       onClick={handleTap}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}>
@@ -565,13 +565,6 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
           onClick={e => { e.stopPropagation(); window.history.back() }}>×</button>
       )}
 
-      {/* Customer first name — top left every screen */}
-      {first && (
-        <div className="fixed z-[250]"
-          style={{ top: 'max(22px, env(safe-area-inset-top, 0px) + 14px)', left: '20px', fontSize: '14px', color: 'rgba(255,255,255,0.35)', fontWeight: 500 }}>
-          {first}
-        </div>
-      )}
 
       {/* Screens */}
       <div className="fixed inset-0 overflow-hidden">
@@ -595,6 +588,11 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                   Your Investment
                 </motion.h2>
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                  {first && (
+                    <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '48px', fontWeight: 800, color: 'white', letterSpacing: '-1px', display: 'block' }}>{first}</span>
+                    </div>
+                  )}
                   <AnimatedPrice value={calcResult.base_price + config.admin_fee} />
                 </motion.div>
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
@@ -637,6 +635,11 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                 </div>
 
                 <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                  {first && (
+                    <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '48px', fontWeight: 800, color: 'white', letterSpacing: '-1px', display: 'block' }}>{first}</span>
+                    </div>
+                  )}
                   <AnimatedPrice value={tierPrice} />
                   <motion.p key={Math.round(tierDiscountTotal)} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
                     style={{ fontSize: '18px', fontWeight: 600, color: '#10b981', marginTop: '8px' }}>
@@ -690,7 +693,7 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                 <button type="button"
                   onClick={e => { e.stopPropagation(); setConfirmPrice(tierPrice) }}
                   style={{ width: '100%', height: '48px', background: 'transparent', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '12px', color: 'rgba(255,255,255,0.55)', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>
-                  Send at {fmt(tierPrice)}
+                  Send Job
                 </button>
               </div>
             )}
@@ -702,6 +705,11 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                   <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '12px' }}>
                     {config.cash_incentive?.label ?? 'Cash Incentive'}
                   </p>
+                  {first && (
+                    <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '48px', fontWeight: 800, color: 'white', letterSpacing: '-1px', display: 'block' }}>{first}</span>
+                    </div>
+                  )}
                   <AnimatedPrice value={liveResult.customer_price} />
                   {cashEnabled && liveResult.cash_discount > 0 && (
                     <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
@@ -729,7 +737,7 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                 <button type="button"
                   onClick={e => { e.stopPropagation(); setConfirmPrice(liveResult.customer_price) }}
                   style={{ width: '100%', height: '48px', background: 'transparent', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '12px', color: 'rgba(255,255,255,0.55)', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>
-                  Send at {fmt(liveResult.customer_price)}
+                  Send Job
                 </button>
               </div>
             )}
@@ -741,6 +749,11 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                   <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '12px' }}>
                     Your Price
                   </p>
+                  {first && (
+                    <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '48px', fontWeight: 800, color: 'white', letterSpacing: '-1px', display: 'block' }}>{first}</span>
+                    </div>
+                  )}
                   <AnimatedPrice value={liveResult.customer_price} />
                   {totalSavings > 0 && (
                     <motion.p key={Math.round(totalSavings)} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
