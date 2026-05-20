@@ -13,6 +13,7 @@ import {
 import Link from 'next/link'
 import AnimatedGradientBackground from '@/components/ui/animated-gradient-background'
 import ClozrLogo from '@/components/ui/clozr-logo'
+import { calculateJob, type JobTypeConfig, type JobCalculatorResult } from '@/lib/job-calculator'
 
 type Proposal = Record<string, any>
 
@@ -389,6 +390,252 @@ function NewPriceRow({ value }: { value: number }) {
   )
 }
 
+// ─── Job Builder Present View ─────────────────────────────────────────────────
+
+function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
+  proposal: Proposal
+  config: JobTypeConfig
+  calcResult: JobCalculatorResult
+  backHref?: string
+}) {
+  const [booking, setBooking] = useState(false)
+  const [emailing, setEmailing] = useState(false)
+  const [actionDone, setActionDone] = useState<string | null>(null)
+
+  const rawPd = proposal.pricing_data || {}
+  const financingId: string | null = rawPd.financing_id ?? null
+  const selectedFin = financingId
+    ? (config.financing_options ?? []).find((f: any) => f.id === financingId)
+    : null
+
+  const first = proposal.customer_first_name || proposal.customer_name?.split(' ')[0] || ''
+  const last = proposal.customer_last_name || proposal.customer_name?.split(' ').slice(1).join(' ') || ''
+  const displayName = `${first} ${last}`.trim().toUpperCase()
+  const addressLine: string = proposal.customer_address ?? ''
+  const totalSavings = calcResult.total_discount_amount + calcResult.cash_discount
+
+  const handleEmail = async () => {
+    setEmailing(true)
+    try {
+      const res = await fetch(`/api/proposals/${proposal.id}/email`, { method: 'POST' })
+      if (res.ok) {
+        const d = await res.json()
+        setActionDone(`Emailed to ${d.to} ✓`)
+        setTimeout(() => setActionDone(null), 4000)
+      }
+    } finally { setEmailing(false) }
+  }
+
+  const handleBooked = async () => {
+    setBooking(true)
+    try {
+      const res = await fetch(`/api/proposals/${proposal.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'signed', lead_id: proposal.lead_id }),
+      })
+      if (res.ok) {
+        const confetti = (await import('canvas-confetti')).default
+        confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#1D4ED8', '#34D399', '#60A5FA', '#FCD34D'] })
+        setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.5 } }), 300)
+        setActionDone('Booked! 🎉')
+      }
+    } finally { setBooking(false) }
+  }
+
+  const ExitBtn = () => backHref ? (
+    <Link href={backHref} className="flex items-center justify-center w-8 h-8 rounded-full text-xl font-light"
+      style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)' }}>×</Link>
+  ) : (
+    <button type="button" className="flex items-center justify-center w-8 h-8 rounded-full text-xl font-light"
+      style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)' }}
+      onClick={() => window.history.back()}>×</button>
+  )
+
+  return (
+    <div className="fixed inset-0 z-[200] overflow-y-auto" style={{ background: '#000', color: '#fff' }}>
+      <AnimatedGradientBackground
+        gradientColors={['#000000', '#0A0F1E', '#0D1F3C', '#0A1628', '#000000']}
+        gradientStops={[0, 25, 50, 75, 100]}
+        Breathing={true} animationSpeed={0.008} breathingRange={3}
+      />
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '120px', background: 'linear-gradient(to bottom, transparent, #000000)', pointerEvents: 'none', zIndex: 10 }} />
+
+      <div className="sticky top-0 z-20 px-5 flex items-center justify-between"
+        style={{ paddingTop: 'max(20px, env(safe-area-inset-top, 0px) + 12px)', paddingBottom: '12px', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.7 }} transition={{ duration: 0.8 }}>
+          <ClozrLogo variant="icon" height={28} />
+        </motion.div>
+        <ExitBtn />
+      </div>
+
+      <div className="relative z-10 flex flex-col gap-4 px-4 pt-2 max-w-sm mx-auto" style={{ paddingBottom: '120px' }}>
+
+        {/* Hero */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(0)}
+          style={{ textAlign: 'center', padding: '20px 8px 8px' }}>
+          {config.icon && <div style={{ fontSize: '48px', marginBottom: '8px' }}>{config.icon}</div>}
+          <h1 style={{ fontSize: 'clamp(22px, 5vw, 42px)', fontWeight: 800, color: '#fff', letterSpacing: '0.05em', lineHeight: 1.15, marginBottom: '6px' }}>
+            {displayName}
+          </h1>
+          {addressLine && (
+            <p className="uppercase" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.12em', marginBottom: '4px' }}>
+              {addressLine}
+            </p>
+          )}
+          <p style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>{config.name} Project</p>
+        </motion.div>
+
+        {/* Price Breakdown */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(1)} style={{ position: 'relative' }}>
+          <CardGlow color="rgba(255,255,255,0.3)" />
+          <div style={{ ...glassCard, padding: '20px', position: 'relative', zIndex: 1 }}>
+            <SectionLabel>Price Breakdown</SectionLabel>
+            <BreakdownRow label="Base Price" value={fmt(calcResult.base_price)} />
+            {calcResult.tiers_applied.map(t => (
+              <BreakdownRow key={t.id} label={`${t.name} (${t.pct}%)`} value={`-${fmt(t.amount)}`} color="#2DD4BF" />
+            ))}
+            {calcResult.hidden_tier_amount > 0 && (
+              <BreakdownRow label="Additional Discount" value={`-${fmt(calcResult.hidden_tier_amount)}`} color="#2DD4BF" />
+            )}
+            {calcResult.cash_discount > 0 && (
+              <BreakdownRow
+                label={`${config.cash_incentive?.label ?? 'Cash Incentive'} (${config.cash_incentive?.pct ?? 0}%)`}
+                value={`-${fmt(calcResult.cash_discount)}`}
+                color="#2DD4BF"
+              />
+            )}
+            {calcResult.admin_fee > 0 && <BreakdownRow label="Admin Fee" value={`+${fmt(calcResult.admin_fee)}`} />}
+            {calcResult.financing_fee > 0 && <BreakdownRow label="Financing Fee" value={`+${fmt(calcResult.financing_fee)}`} />}
+
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px', marginTop: '8px', position: 'relative', zIndex: 1 }}>
+              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', letterSpacing: '0.3em', textTransform: 'uppercase', marginBottom: '12px' }}>
+                Your Price
+              </p>
+              <motion.p
+                key={calcResult.customer_price}
+                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 100, damping: 15 }}
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 'clamp(36px, 7vw, 64px)', fontWeight: 800, lineHeight: 1, marginBottom: '12px',
+                  letterSpacing: '-0.02em', overflow: 'visible',
+                  background: 'linear-gradient(135deg, #60A5FA 0%, #06B6D4 40%, #34D399 100%)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                }}>
+                {fmt(calcResult.customer_price)}
+              </motion.p>
+              {totalSavings > 0 && (
+                <p style={{ fontSize: '17px', fontWeight: 700, color: '#2DD4BF', marginBottom: '4px' }}>
+                  Total Savings: {fmt(totalSavings)}
+                </p>
+              )}
+              {calcResult.monthly_payment && calcResult.monthly_payment > 0 && (
+                <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>
+                  Or as low as {fmt(calcResult.monthly_payment)}/mo
+                </p>
+              )}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Financing */}
+        {calcResult.monthly_payment && calcResult.monthly_payment > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(2)} style={{ position: 'relative' }}>
+            <CardGlow color="rgba(99,102,241,0.4)" />
+            <div style={{ ...glassCard, border: '1px solid rgba(99,102,241,0.15)', padding: '20px', position: 'relative', zIndex: 1 }}>
+              <SectionLabel>Financing</SectionLabel>
+              {selectedFin && (
+                <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', marginBottom: '16px' }}>
+                  {(selectedFin as any).display_name ?? (selectedFin as any).name ?? financingId}
+                </p>
+              )}
+              <div className="text-center" style={{ padding: '8px 0' }}>
+                <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  As low as{' '}
+                </span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '28px', color: '#60A5FA', fontWeight: 700 }}>
+                  {fmt(calcResult.monthly_payment)}/mo
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Rebates */}
+        {calcResult.rebates && (calcResult.total_rebate ?? 0) > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(3)} style={{ position: 'relative' }}>
+            <CardGlow color="rgba(251,191,36,0.4)" />
+            <div style={{ ...glassCard, background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.2)', padding: '20px', position: 'relative', zIndex: 1 }}>
+              <SectionLabel color="#F59E0B">{config.rebate_program?.name ?? 'Rebate'} Benefits</SectionLabel>
+              {calcResult.rebates.filter(r => r.amount > 0).map(r => (
+                <BreakdownRow key={r.id} label={r.name} value={fmt(r.amount)} color="#F59E0B" />
+              ))}
+              <div style={{ borderTop: '1px solid rgba(251,191,36,0.15)', marginTop: '12px', paddingTop: '12px' }}>
+                <div className="flex justify-between items-center">
+                  <span style={{ fontSize: '15px', fontWeight: 600, color: '#F9FAFB' }}>Total Rebate</span>
+                  <motion.span
+                    key={Math.round(calcResult.total_rebate!)}
+                    initial={{ opacity: 0.6 }} animate={{ opacity: 1 }}
+                    transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                    style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '22px', color: '#FCD34D', fontWeight: 700 }}>
+                    {fmt(calcResult.total_rebate!)}
+                  </motion.span>
+                </div>
+                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', marginTop: '6px' }}>
+                  Net after rebates:{' '}
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#FCD34D', fontWeight: 600 }}>
+                    {fmt(calcResult.customer_price - calcResult.total_rebate!)}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+      </div>
+
+      {/* Bottom action bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pt-3"
+        style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))', background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        <AnimatePresence>
+          {actionDone && (
+            <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="text-center text-sm mb-2" style={{ color: '#34D399' }}>
+              {actionDone}
+            </motion.p>
+          )}
+        </AnimatePresence>
+        <div className="flex gap-2 max-w-sm mx-auto">
+          {backHref ? (
+            <Link href={backHref}
+              className="flex-1 h-12 rounded-2xl flex items-center justify-center text-sm font-semibold"
+              style={{ border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.6)', background: 'transparent' }}>
+              Follow Up
+            </Link>
+          ) : (
+            <button type="button"
+              className="flex-1 h-12 rounded-2xl flex items-center justify-center text-sm font-semibold"
+              style={{ border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.6)', background: 'transparent' }}
+              onClick={() => window.history.back()}>
+              Follow Up
+            </button>
+          )}
+          <button type="button" onClick={handleEmail} disabled={emailing}
+            className="flex-1 h-12 rounded-2xl flex items-center justify-center text-sm font-semibold"
+            style={{ border: '1px solid rgba(29,78,216,0.5)', color: emailing ? 'rgba(96,165,250,0.4)' : '#60A5FA', background: 'rgba(29,78,216,0.08)' }}>
+            {emailing ? 'Sending…' : 'Email Job'}
+          </button>
+          <button type="button" onClick={handleBooked} disabled={booking}
+            className="flex-1 h-12 rounded-2xl flex items-center justify-center text-sm font-bold"
+            style={{ background: booking ? 'rgba(29,78,216,0.3)' : 'linear-gradient(135deg, #1D4ED8, #06B6D4)', color: '#fff', boxShadow: booking ? 'none' : '0 4px 20px rgba(29,78,216,0.35)' }}>
+            {booking ? 'Saving…' : 'Booked! 🎉'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function PresentView({ proposal, backHref, repSettings, downloadPdfUrl, renders = [] }: {
@@ -399,6 +646,7 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
   renders?: ProposalRender[]
 }) {
   const rawPd = proposal.pricing_data || {}
+  const isJobBuilder = rawPd?.source === 'job_builder'
   const pricingData: PricingInputs | null = rawPd.proposal_type ? (rawPd as PricingInputs) : null
 
   const discountOpts = useMemo(
@@ -489,6 +737,41 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
 
   const toggleCostcoShop = () => setTs(prev => ({ ...prev, costcoShopOn: !prev.costcoShopOn }))
   const toggleCostcoExec = () => setTs(prev => ({ ...prev, costcoExecOn: !prev.costcoExecOn }))
+
+  // Job Builder path — branch after all hooks
+  if (isJobBuilder) {
+    const snapshot = proposal.job_type_snapshot as JobTypeConfig | null
+    let calcResult = (rawPd?.calculator_result ?? null) as JobCalculatorResult | null
+
+    if (snapshot && !calcResult) {
+      try {
+        calcResult = calculateJob(snapshot, {
+          base_price: rawPd.base_price ?? 0,
+          enabled_tier_ids: rawPd.enabled_tier_ids ?? [],
+          cash_enabled: rawPd.cash_enabled ?? false,
+          financing_id: rawPd.financing_id ?? null,
+          charged_amount: rawPd.charged_amount ?? 0,
+        })
+      } catch { /* leave null */ }
+    }
+
+    if (snapshot && calcResult) {
+      return (
+        <JobBuilderPresentView
+          proposal={proposal}
+          config={snapshot}
+          calcResult={calcResult}
+          backHref={backHref}
+        />
+      )
+    }
+
+    return (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center" style={{ background: '#000', color: '#fff' }}>
+        <p style={{ color: 'rgba(255,255,255,0.4)' }}>No pricing data available.</p>
+      </div>
+    )
+  }
 
   const handleEmail = async () => {
     setEmailing(true)

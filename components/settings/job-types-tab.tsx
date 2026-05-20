@@ -80,6 +80,9 @@ function SI({
   style?: React.CSSProperties
 }) {
   const [focused, setFocused] = useState(false)
+  const numStyles: React.CSSProperties = type === 'number'
+    ? { fontSize: '16px', padding: '8px 12px', minWidth: '80px', height: 'auto', textAlign: 'center' }
+    : {}
   return (
     <input
       type={type}
@@ -88,6 +91,7 @@ function SI({
       placeholder={placeholder}
       style={{
         ...BASE_INPUT,
+        ...numStyles,
         ...(focused ? { border: '1px solid rgba(29,78,216,0.5)', background: 'rgba(29,78,216,0.08)' } : {}),
         ...style,
       }}
@@ -515,23 +519,32 @@ export default function JobTypesTab() {
                 {draft.discount_tiers.length > 0 && (
                   <div className="space-y-2">
                     {draft.discount_tiers.map((tier, idx) => (
-                      <div key={tier.id} className="flex items-center gap-2 p-2.5 rounded-xl"
+                      <div key={tier.id} className="rounded-xl p-3 space-y-2"
                         style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                        <Tog on={tier.enabled !== false} onToggle={() => updateTier(idx, { enabled: !(tier.enabled !== false) })} />
-                        <div className="flex flex-col gap-0.5">
-                          <button type="button" onClick={() => moveTier(idx, -1)} disabled={idx === 0}
-                            style={{ color: idx === 0 ? '#2D3748' : '#6B7280', fontSize: 9, lineHeight: 1 }}>▲</button>
-                          <button type="button" onClick={() => moveTier(idx, 1)} disabled={idx === draft.discount_tiers.length - 1}
-                            style={{ color: idx === draft.discount_tiers.length - 1 ? '#2D3748' : '#6B7280', fontSize: 9, lineHeight: 1 }}>▼</button>
+                        {/* Line 1: enable toggle + reorder + name + delete */}
+                        <div className="flex items-center gap-2">
+                          <Tog on={tier.enabled !== false} onToggle={() => updateTier(idx, { enabled: !(tier.enabled !== false) })} />
+                          <div className="flex flex-col gap-0.5">
+                            <button type="button" onClick={() => moveTier(idx, -1)} disabled={idx === 0}
+                              style={{ color: idx === 0 ? '#2D3748' : '#6B7280', fontSize: 9, lineHeight: 1 }}>▲</button>
+                            <button type="button" onClick={() => moveTier(idx, 1)} disabled={idx === draft.discount_tiers.length - 1}
+                              style={{ color: idx === draft.discount_tiers.length - 1 ? '#2D3748' : '#6B7280', fontSize: 9, lineHeight: 1 }}>▼</button>
+                          </div>
+                          <SI value={tier.name} onChange={v => updateTier(idx, { name: v })} placeholder="Tier name" style={{ flex: 1 }} />
+                          <button type="button" onClick={() => removeTier(idx)} style={{ color: '#4B5563', fontSize: 14, flexShrink: 0 }}>🗑</button>
                         </div>
-                        <SI value={tier.name} onChange={v => updateTier(idx, { name: v })} placeholder="Name" style={{ flex: 1 }} />
-                        <SI type="number" value={String(tier.pct)} onChange={v => updateTier(idx, { pct: Number(v) })} style={{ width: 48 }} />
-                        <span style={{ color: '#6B7280', fontSize: 12 }}>%</span>
-                        <div className="flex items-center gap-1">
-                          <Tog on={tier.visible !== false} onToggle={() => updateTier(idx, { visible: !(tier.visible !== false) })} />
-                          <span style={{ color: '#6B7280', fontSize: 10 }}>Vis</span>
+                        {/* Line 2: percentage + visible toggle */}
+                        <div className="flex items-center gap-4 pl-10 flex-wrap">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm" style={{ color: '#9CA3AF' }}>Percentage:</span>
+                            <SI type="number" value={String(tier.pct)} onChange={v => updateTier(idx, { pct: Number(v) })} style={{ width: 80 }} />
+                            <span style={{ color: '#6B7280', fontSize: 14 }}>%</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Tog on={tier.visible !== false} onToggle={() => updateTier(idx, { visible: !(tier.visible !== false) })} />
+                            <span className="text-sm" style={{ color: '#9CA3AF' }}>Visible to customer</span>
+                          </div>
                         </div>
-                        <button type="button" onClick={() => removeTier(idx)} style={{ color: '#4B5563', fontSize: 14 }}>🗑</button>
                       </div>
                     ))}
                   </div>
@@ -546,9 +559,10 @@ export default function JobTypesTab() {
                     <Tog on={draft.hidden_tier.enabled} onToggle={() => setD(d => ({ ...d, hidden_tier: { ...d.hidden_tier, enabled: !d.hidden_tier.enabled } }))} />
                     <span className="text-xs font-medium" style={{ color: '#9CA3AF' }}>Enable hidden tier</span>
                     {draft.hidden_tier.enabled && (
-                      <div className="flex items-center gap-1 ml-auto">
-                        <SI type="number" value={String(draft.hidden_tier.pct)} onChange={v => setD(d => ({ ...d, hidden_tier: { ...d.hidden_tier, pct: Number(v) } }))} style={{ width: 52 }} />
-                        <span style={{ color: '#6B7280', fontSize: 12 }}>%</span>
+                      <div className="flex items-center gap-1.5 ml-auto">
+                        <span className="text-sm" style={{ color: '#9CA3AF' }}>Percentage:</span>
+                        <SI type="number" value={String(draft.hidden_tier.pct)} onChange={v => setD(d => ({ ...d, hidden_tier: { ...d.hidden_tier, pct: Number(v) } }))} style={{ width: 80 }} />
+                        <span style={{ color: '#6B7280', fontSize: 14 }}>%</span>
                       </div>
                     )}
                   </div>
@@ -607,43 +621,43 @@ export default function JobTypesTab() {
                         {/* Line 2: rate / term / fee inputs */}
                         {!fin.is_special_case ? (
                           <div className="flex items-center flex-wrap gap-3">
-                            <div className="flex items-center gap-1">
-                              <span className="text-xs" style={{ color: '#6B7280' }}>Rate</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm" style={{ color: '#9CA3AF' }}>Rate:</span>
                               <SI type="number" value={String(fin.rate_pct ?? 0)}
                                 onChange={v => {
                                   const rate = parseFloat(v) || 0
                                   updateFin(idx, { rate_pct: rate, display_name: formatFinancingName(rate, fin.term_months ?? 0) })
                                 }}
-                                style={{ width: 54 }} placeholder="0" />
-                              <span className="text-xs" style={{ color: '#6B7280' }}>%</span>
+                                style={{ width: 80 }} placeholder="0" />
+                              <span className="text-sm" style={{ color: '#6B7280' }}>%</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                              <span className="text-xs" style={{ color: '#6B7280' }}>Term</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm" style={{ color: '#9CA3AF' }}>Term:</span>
                               <SI type="number" value={String(fin.term_months ?? 0)}
                                 onChange={v => {
                                   const term = parseInt(v) || 0
                                   updateFin(idx, { term_months: term, display_name: formatFinancingName(fin.rate_pct ?? 0, term) })
                                 }}
-                                style={{ width: 54 }} placeholder="24" />
-                              <span className="text-xs" style={{ color: '#6B7280' }}>mo</span>
+                                style={{ width: 80 }} placeholder="24" />
+                              <span className="text-sm" style={{ color: '#6B7280' }}>mo</span>
                             </div>
                             {draft.pricing_model === 'cash_up' && (
-                              <div className="flex items-center gap-1">
-                                <span className="text-xs" style={{ color: '#6B7280' }}>Fee</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-sm" style={{ color: '#9CA3AF' }}>Fee:</span>
                                 <SI type="number" value={String(Number(((fin.fee_pct ?? 0) * 100).toFixed(2)))}
                                   onChange={v => updateFin(idx, { fee_pct: parseFloat(v) / 100 || 0 })}
-                                  style={{ width: 54 }} placeholder="0" />
-                                <span className="text-xs" style={{ color: '#6B7280' }}>%</span>
+                                  style={{ width: 80 }} placeholder="0" />
+                                <span className="text-sm" style={{ color: '#6B7280' }}>%</span>
                               </div>
                             )}
                           </div>
                         ) : draft.pricing_model === 'cash_up' ? (
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs" style={{ color: '#6B7280' }}>Fee</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm" style={{ color: '#9CA3AF' }}>Fee:</span>
                             <SI type="number" value={String(Number(((fin.fee_pct ?? 0) * 100).toFixed(2)))}
                               onChange={v => updateFin(idx, { fee_pct: parseFloat(v) / 100 || 0 })}
-                              style={{ width: 54 }} placeholder="0" />
-                            <span className="text-xs" style={{ color: '#6B7280' }}>%</span>
+                              style={{ width: 80 }} placeholder="0" />
+                            <span className="text-sm" style={{ color: '#6B7280' }}>%</span>
                           </div>
                         ) : null}
                       </div>
