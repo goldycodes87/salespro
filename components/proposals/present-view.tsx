@@ -421,7 +421,7 @@ function AnimatedPrice({ value }: { value: number }) {
       fontFamily: "'JetBrains Mono', monospace",
       fontSize: 'clamp(40px, 9vw, 72px)', fontWeight: 800, lineHeight: 1,
       letterSpacing: '-0.02em',
-      background: 'linear-gradient(135deg, #60A5FA 0%, #06B6D4 40%, #34D399 100%)',
+      background: 'linear-gradient(135deg, #ffffff 0%, #94a3b8 100%)',
       WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
     }}>
       ${display.toLocaleString()}
@@ -442,8 +442,9 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
   const [finDropOpen, setFinDropOpen] = useState(false)
   const [currentScreen, setCurrentScreen] = useState(0)
   const [direction, setDirection] = useState<1 | -1>(1)
-  const [booking, setBooking] = useState(false)
-  const [emailing, setEmailing] = useState(false)
+  const [confirmPrice, setConfirmPrice] = useState<number | null>(null)
+  const [costcoExpanded, setCostcoExpanded] = useState(false)
+  const [sending, setSending] = useState(false)
   const [actionDone, setActionDone] = useState<string | null>(null)
 
   const touchStartX = useRef<number | null>(null)
@@ -472,76 +473,36 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
   }, [config, cashEnabled, selectedFinancingId, calcResult, rawPd])
 
   const screens = useMemo(() => {
-    const s: string[] = ['hero', 'breakdown']
+    const s: string[] = ['intro']
+    calcResult.tiers_applied.forEach((_, i) => s.push(`tier_${i}`))
     if (config.cash_incentive?.enabled) s.push('cash')
-    if ((config.financing_options ?? []).length > 0) s.push('financing')
     s.push('summary')
-    if (config.rebate_program?.enabled && (liveResult.total_rebate ?? 0) > 0) s.push('rebates')
     return s
-  }, [config, liveResult.total_rebate])
+  }, [calcResult.tiers_applied, config.cash_incentive?.enabled])
 
   const safeScreen = Math.min(currentScreen, screens.length - 1)
   const screen = screens[safeScreen]
 
-  const goNext = () => {
-    if (safeScreen < screens.length - 1) {
-      setDirection(1)
-      setCurrentScreen(safeScreen + 1)
-    }
-  }
-
-  const goPrev = () => {
-    if (safeScreen > 0) {
-      setDirection(-1)
-      setCurrentScreen(safeScreen - 1)
-    }
-  }
+  const goNext = () => { if (safeScreen < screens.length - 1) { setDirection(1); setCurrentScreen(safeScreen + 1) } }
+  const goPrev = () => { if (safeScreen > 0) { setDirection(-1); setCurrentScreen(safeScreen - 1) } }
 
   const handleTap = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (confirmPrice !== null) return
     if (finDropOpen) { setFinDropOpen(false); return }
     const rect = e.currentTarget.getBoundingClientRect()
-    const pct = (e.clientX - rect.left) / rect.width
-    if (pct < 0.35) goPrev()
-    else goNext()
+    if ((e.clientX - rect.left) / rect.width < 0.35) goPrev(); else goNext()
   }
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX
-  }
-
+  const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX }
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (touchStartX.current === null) return
     const dx = e.changedTouches[0].clientX - touchStartX.current
     touchStartX.current = null
-    if (Math.abs(dx) > 40) {
-      if (dx < 0) goNext()
-      else goPrev()
-    }
+    if (Math.abs(dx) > 40) { if (dx < 0) goNext(); else goPrev() }
   }
 
-  const first = proposal.customer_first_name || proposal.customer_name?.split(' ')[0] || ''
-  const last = proposal.customer_last_name || proposal.customer_name?.split(' ').slice(1).join(' ') || ''
-  const displayName = `${first} ${last}`.trim().toUpperCase()
-  const addressLine: string = proposal.customer_address ?? ''
-  const totalSavings = liveResult.total_discount_amount + liveResult.cash_discount
-  const selectedFin = selectedFinancingId
-    ? (config.financing_options ?? []).find(f => f.id === selectedFinancingId)
-    : null
-
-  const handleEmail = async () => {
-    setEmailing(true)
-    try {
-      const res = await fetch(`/api/proposals/${proposal.id}/email`, { method: 'POST' })
-      if (res.ok) {
-        const d = await res.json()
-        setActionDone(`Emailed to ${d.to} ✓`)
-        setTimeout(() => setActionDone(null), 4000)
-      }
-    } finally { setEmailing(false) }
-  }
-
-  const handleBooked = async () => {
-    setBooking(true)
+  const handleAcceptSend = async () => {
+    setSending(true)
     try {
       const res = await fetch(`/api/proposals/${proposal.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -549,24 +510,35 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
       })
       if (res.ok) {
         const confetti = (await import('canvas-confetti')).default
-        confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#1D4ED8', '#34D399', '#60A5FA', '#FCD34D'] })
+        confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#10b981', '#34D399', '#6ee7b7', '#ffffff'] })
         setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.5 } }), 300)
-        setActionDone('Booked! 🎉')
+        setConfirmPrice(null)
+        setActionDone('Accepted! 🎉')
+        setTimeout(() => setActionDone(null), 4000)
       }
-    } finally { setBooking(false) }
+    } finally { setSending(false) }
   }
 
-  const ExitBtn = () => backHref ? (
-    <Link href={backHref}
-      className="fixed top-0 right-0 z-[300] flex items-center justify-center w-8 h-8 rounded-full text-xl font-light"
-      style={{ marginTop: 'max(20px, env(safe-area-inset-top, 0px) + 12px)', marginRight: '20px', color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)' }}
-      onClick={e => e.stopPropagation()}>×</Link>
-  ) : (
-    <button type="button"
-      className="fixed top-0 right-0 z-[300] flex items-center justify-center w-8 h-8 rounded-full text-xl font-light"
-      style={{ marginTop: 'max(20px, env(safe-area-inset-top, 0px) + 12px)', marginRight: '20px', color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)' }}
-      onClick={e => { e.stopPropagation(); window.history.back() }}>×</button>
-  )
+  const first = proposal.customer_first_name || proposal.customer_name?.split(' ')[0] || ''
+  const hasRebate = !!(config.rebate_program?.enabled && (liveResult.total_rebate ?? 0) > 0)
+  const rebateName = config.rebate_program?.name ?? 'Member'
+  const selectedFin = selectedFinancingId ? (config.financing_options ?? []).find(f => f.id === selectedFinancingId) : null
+  const totalSavings = liveResult.total_discount_amount + liveResult.cash_discount
+
+  // Tier screen derived values
+  const tierIdx = screen.startsWith('tier_') ? parseInt(screen.split('_')[1], 10) : -1
+  const tiersUpTo = tierIdx >= 0 ? calcResult.tiers_applied.slice(0, tierIdx + 1) : []
+  const tierDiscountTotal = tiersUpTo.reduce((sum, t) => sum + t.amount, 0)
+  const tierPrice = tierIdx >= 0 ? calcResult.base_price - tierDiscountTotal + config.admin_fee : 0
+  const isLastTierScreen = tierIdx >= 0 && tierIdx === calcResult.tiers_applied.length - 1
+
+  const premiumCard: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.10)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
+    borderRadius: '16px',
+  }
 
   const slideVariants = {
     enter: (d: number) => ({ x: `${d * 100}%`, opacity: 0 }),
@@ -577,122 +549,110 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
   return (
     <div
       className="fixed inset-0 z-[200]"
-      style={{ background: '#000', color: '#fff', userSelect: 'none' }}
+      style={{ background: 'radial-gradient(ellipse at top, #1a1f35 0%, #0a0d1a 100%)', color: '#fff', userSelect: 'none' }}
       onClick={handleTap}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}>
 
-      <AnimatedGradientBackground
-        gradientColors={['#000000', '#0A0F1E', '#0D1F3C', '#0A1628', '#000000']}
-        gradientStops={[0, 25, 50, 75, 100]}
-        Breathing={true} animationSpeed={0.008} breathingRange={3}
-      />
+      {/* Exit */}
+      {backHref ? (
+        <Link href={backHref} className="fixed z-[300] flex items-center justify-center w-8 h-8 rounded-full text-xl font-light"
+          style={{ top: 'max(20px, env(safe-area-inset-top, 0px) + 12px)', right: '20px', color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)' }}
+          onClick={e => e.stopPropagation()}>×</Link>
+      ) : (
+        <button type="button" className="fixed z-[300] flex items-center justify-center w-8 h-8 rounded-full text-xl font-light"
+          style={{ top: 'max(20px, env(safe-area-inset-top, 0px) + 12px)', right: '20px', color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)' }}
+          onClick={e => { e.stopPropagation(); window.history.back() }}>×</button>
+      )}
 
-      <ExitBtn />
+      {/* Customer first name — top left every screen */}
+      {first && (
+        <div className="fixed z-[250]"
+          style={{ top: 'max(22px, env(safe-area-inset-top, 0px) + 14px)', left: '20px', fontSize: '14px', color: 'rgba(255,255,255,0.35)', fontWeight: 500 }}>
+          {first}
+        </div>
+      )}
 
-      {/* Screen content */}
-      <div className="fixed inset-0" style={{ overflow: 'hidden' }}>
+      {/* Screens */}
+      <div className="fixed inset-0 overflow-hidden">
         <AnimatePresence custom={direction} mode="wait">
           <motion.div key={screen}
-            custom={direction}
-            variants={slideVariants}
+            custom={direction} variants={slideVariants}
             initial="enter" animate="center" exit="exit"
             transition={{ type: 'tween', duration: 0.28, ease: 'easeInOut' }}
             className="absolute inset-0 flex flex-col items-center justify-center px-6"
             style={{ paddingTop: '80px', paddingBottom: '140px' }}>
 
-            {screen === 'hero' && (
+            {/* ── INTRO ── */}
+            {screen === 'intro' && (
               <div className="text-center max-w-sm w-full">
-                {config.icon && <div style={{ fontSize: '64px', marginBottom: '20px' }}>{config.icon}</div>}
-                <motion.h1
-                  initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, duration: 0.4 }}
-                  style={{ fontSize: 'clamp(28px, 7vw, 52px)', fontWeight: 800, color: '#fff', letterSpacing: '0.05em', lineHeight: 1.1, marginBottom: '12px' }}>
-                  {displayName}
-                </motion.h1>
-                {addressLine && (
-                  <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}
-                    className="uppercase" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.12em', marginBottom: '8px' }}>
-                    {addressLine}
-                  </motion.p>
+                {config.icon && (
+                  <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.05 }}
+                    style={{ fontSize: '64px', marginBottom: '20px' }}>{config.icon}</motion.div>
                 )}
-                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-                  style={{ fontSize: '18px', fontWeight: 600, color: 'rgba(255,255,255,0.55)' }}>
-                  {config.name} Project
-                </motion.p>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} transition={{ delay: 0.7 }}
-                  className="mt-10 flex justify-center">
-                  <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', letterSpacing: '0.08em' }}>Tap to continue →</span>
+                <motion.h2 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+                  style={{ fontSize: 'clamp(22px, 5vw, 38px)', fontWeight: 800, color: '#fff', letterSpacing: '0.03em', marginBottom: '20px' }}>
+                  Your Investment
+                </motion.h2>
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                  <AnimatedPrice value={calcResult.base_price + config.admin_fee} />
                 </motion.div>
-              </div>
-            )}
-
-            {screen === 'breakdown' && (
-              <div className="max-w-sm w-full" style={{ position: 'relative' }}>
-                <CardGlow color="rgba(255,255,255,0.3)" />
-                <div style={{ ...glassCard, padding: '24px', position: 'relative', zIndex: 1 }}>
-                  <SectionLabel>Price Breakdown</SectionLabel>
-                  <BreakdownRow label="Base Price" value={fmt(liveResult.base_price)} />
-                  {liveResult.tiers_applied.map(t => (
-                    <BreakdownRow key={t.id} label={`${t.name} (${t.pct}%)`} value={`-${fmt(t.amount)}`} color="#2DD4BF" />
-                  ))}
-                  {liveResult.hidden_tier_amount > 0 && (
-                    <BreakdownRow label="Additional Discount" value={`-${fmt(liveResult.hidden_tier_amount)}`} color="#2DD4BF" />
-                  )}
-                  {liveResult.admin_fee > 0 && <BreakdownRow label="Admin Fee" value={`+${fmt(liveResult.admin_fee)}`} />}
-                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px', marginTop: '8px' }}>
-                    <BreakdownRow label="Subtotal" value={fmt(liveResult.subtotal)} bold />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {screen === 'cash' && (
-              <div className="max-w-sm w-full" style={{ position: 'relative' }}>
-                <CardGlow color="rgba(52,211,153,0.4)" />
-                <div style={{ ...glassCard, border: '1px solid rgba(52,211,153,0.15)', padding: '24px', position: 'relative', zIndex: 1 }}>
-                  <SectionLabel color="#34D399">{config.cash_incentive?.label ?? 'Cash Incentive'}</SectionLabel>
-                  <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
-                    Save an additional {config.cash_incentive?.pct ?? 0}% by paying with cash or check today.
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+                  style={{ ...premiumCard, padding: '16px 20px', marginTop: '24px', textAlign: 'left' }}>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '8px' }}>
+                    {config.name}
                   </p>
-                  <div onClick={e => e.stopPropagation()}>
-                    <BigToggle
-                      on={cashEnabled}
-                      onToggle={() => setCashEnabled(v => !v)}
-                      label={cashEnabled ? `${config.cash_incentive?.label ?? 'Cash'} Applied ✓` : `Apply ${config.cash_incentive?.label ?? 'Cash Incentive'}`}
-                    />
-                  </div>
-                  {cashEnabled && liveResult.cash_discount > 0 && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginTop: '16px', overflow: 'hidden' }}>
-                      <BreakdownRow
-                        label={`${config.cash_incentive?.pct ?? 0}% savings`}
-                        value={`-${fmt(liveResult.cash_discount)}`}
-                        color="#34D399"
-                      />
-                      <NewPriceRow value={liveResult.customer_price} />
-                    </motion.div>
-                  )}
-                </div>
+                  <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>
+                    Premium installation with professional-grade materials and a certified installation team.
+                  </p>
+                </motion.div>
+                {hasRebate && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.45 }}
+                    style={{ ...premiumCard, background: 'rgba(251,191,36,0.05)', border: '1px solid rgba(251,191,36,0.18)', padding: '10px 16px', marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '18px' }}>🏷️</span>
+                    <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.55)' }}>{rebateName} rebates available</p>
+                  </motion.div>
+                )}
+                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
+                  style={{ marginTop: '28px', fontSize: '13px', color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em' }}>
+                  Tap to continue →
+                </motion.p>
               </div>
             )}
 
-            {screen === 'financing' && (
-              <div className="max-w-sm w-full" style={{ position: 'relative' }}>
-                <CardGlow color="rgba(99,102,241,0.4)" />
-                <div style={{ ...glassCard, border: '1px solid rgba(99,102,241,0.15)', padding: '24px', position: 'relative', zIndex: 1 }}>
-                  <SectionLabel>Financing Options</SectionLabel>
-                  <div ref={finDropRef} style={{ position: 'relative', marginBottom: '16px' }} onClick={e => e.stopPropagation()}>
+            {/* ── TIER SCREENS ── */}
+            {screen.startsWith('tier_') && (
+              <div className="max-w-sm w-full">
+                <div style={{ ...premiumCard, padding: '20px', marginBottom: '20px' }}>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '14px' }}>
+                    Price Breakdown
+                  </p>
+                  <BreakdownRow label="Original Price" value={fmt(calcResult.base_price + config.admin_fee)} />
+                  {tiersUpTo.map(t => (
+                    <BreakdownRow key={t.id} label={`${t.name} (${t.pct}%)`} value={`-${fmt(t.amount)}`} color="#10b981" />
+                  ))}
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '10px', paddingTop: '10px' }}>
+                    <BreakdownRow label="Your Price" value={fmt(tierPrice)} bold color="#fff" />
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                  <AnimatedPrice value={tierPrice} />
+                  <motion.p key={Math.round(tierDiscountTotal)} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                    style={{ fontSize: '18px', fontWeight: 600, color: '#10b981', marginTop: '8px' }}>
+                    You save {fmt(tierDiscountTotal)}
+                  </motion.p>
+                </div>
+
+                {isLastTierScreen && (config.financing_options ?? []).length > 0 && (
+                  <div ref={finDropRef} style={{ position: 'relative', marginBottom: '12px' }} onClick={e => e.stopPropagation()}>
                     <button type="button"
-                      style={{
-                        width: '100%', height: '48px', padding: '0 14px',
-                        background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
-                        borderRadius: '12px', color: '#F9FAFB', fontSize: '15px',
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
-                      }}
+                      style={{ width: '100%', height: '44px', padding: '0 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', color: '#F9FAFB', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
                       onClick={() => setFinDropOpen(v => !v)}>
                       <span style={{ color: selectedFin ? '#F9FAFB' : 'rgba(255,255,255,0.4)' }}>
                         {selectedFin ? getFinancingLabel(selectedFin) : 'Select financing…'}
                       </span>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                         style={{ transform: finDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>
                         <polyline points="6 9 12 15 18 9" />
                       </svg>
@@ -701,28 +661,15 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                       {finDropOpen && (
                         <motion.div initial={{ opacity: 0, scaleY: 0.95, y: -4 }} animate={{ opacity: 1, scaleY: 1, y: 0 }}
                           exit={{ opacity: 0, scaleY: 0.95, y: -4 }} transition={{ duration: 0.15 }}
-                          style={{
-                            position: 'absolute', top: '52px', left: 0, right: 0, zIndex: 50,
-                            background: '#1E293B', border: '1px solid rgba(255,255,255,0.12)',
-                            borderRadius: '12px', overflow: 'hidden',
-                            boxShadow: '0 8px 32px rgba(0,0,0,0.6)', transformOrigin: 'top',
-                          }}>
+                          style={{ position: 'absolute', top: '48px', left: 0, right: 0, zIndex: 50, background: '#1E293B', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.6)', transformOrigin: 'top' }}>
                           <button type="button"
-                            style={{ width: '100%', padding: '12px 14px', textAlign: 'left', fontSize: '15px',
-                              color: !selectedFinancingId ? '#60A5FA' : 'rgba(255,255,255,0.5)',
-                              background: !selectedFinancingId ? 'rgba(29,78,216,0.1)' : 'transparent',
-                              borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                            style={{ width: '100%', padding: '12px 14px', textAlign: 'left', fontSize: '14px', color: !selectedFinancingId ? '#60A5FA' : 'rgba(255,255,255,0.5)', background: !selectedFinancingId ? 'rgba(29,78,216,0.1)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
                             onClick={() => { setSelectedFinancingId(null); setFinDropOpen(false) }}>
                             No financing
                           </button>
                           {(config.financing_options ?? []).map(fin => (
                             <button key={fin.id} type="button"
-                              style={{
-                                width: '100%', padding: '12px 14px', textAlign: 'left', fontSize: '15px',
-                                color: fin.id === selectedFinancingId ? '#60A5FA' : '#F9FAFB',
-                                background: fin.id === selectedFinancingId ? 'rgba(29,78,216,0.12)' : 'transparent',
-                                borderBottom: '1px solid rgba(255,255,255,0.04)',
-                              }}
+                              style={{ width: '100%', padding: '12px 14px', textAlign: 'left', fontSize: '14px', color: fin.id === selectedFinancingId ? '#60A5FA' : '#F9FAFB', background: fin.id === selectedFinancingId ? 'rgba(29,78,216,0.12)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
                               onClick={() => { setSelectedFinancingId(fin.id); setFinDropOpen(false) }}>
                               {getFinancingLabel(fin)}
                             </button>
@@ -730,77 +677,131 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                         </motion.div>
                       )}
                     </AnimatePresence>
-                  </div>
-                  {liveResult.monthly_payment && liveResult.monthly_payment > 0 ? (
-                    <motion.div key={liveResult.monthly_payment} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                      className="text-center" style={{ padding: '8px 0' }}>
-                      <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    {liveResult.monthly_payment && liveResult.monthly_payment > 0 && (
+                      <motion.p key={liveResult.monthly_payment} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                        style={{ textAlign: 'center', fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginTop: '8px' }}>
                         As low as{' '}
-                      </span>
-                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '30px', color: '#60A5FA', fontWeight: 700 }}>
-                        {fmt(liveResult.monthly_payment)}/mo
-                      </span>
-                      {liveResult.financing_fee > 0 && (
-                        <p style={{ fontSize: '12px', color: '#FCD34D', marginTop: '6px' }}>
-                          Financing fee: +{fmt(liveResult.financing_fee)} applied to price
-                        </p>
-                      )}
-                    </motion.div>
-                  ) : (
-                    <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', textAlign: 'center', padding: '8px 0' }}>
-                      Select a financing option to see monthly payments
-                    </p>
-                  )}
-                </div>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#60A5FA', fontWeight: 700 }}>{fmt(liveResult.monthly_payment)}/mo</span>
+                      </motion.p>
+                    )}
+                  </div>
+                )}
+
+                <button type="button"
+                  onClick={e => { e.stopPropagation(); setConfirmPrice(tierPrice) }}
+                  style={{ width: '100%', height: '48px', background: 'transparent', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '12px', color: 'rgba(255,255,255,0.55)', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>
+                  Send at {fmt(tierPrice)}
+                </button>
               </div>
             )}
 
+            {/* ── CASH SCREEN ── */}
+            {screen === 'cash' && (
+              <div className="max-w-sm w-full">
+                <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '12px' }}>
+                    {config.cash_incentive?.label ?? 'Cash Incentive'}
+                  </p>
+                  <AnimatedPrice value={liveResult.customer_price} />
+                  {cashEnabled && liveResult.cash_discount > 0 && (
+                    <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                      style={{ fontSize: '18px', fontWeight: 600, color: '#10b981', marginTop: '8px' }}>
+                      You save {fmt(liveResult.total_discount_amount + liveResult.cash_discount)}
+                    </motion.p>
+                  )}
+                </div>
+                <div style={{ ...premiumCard, padding: '20px', marginBottom: '14px' }} onClick={e => e.stopPropagation()}>
+                  <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', marginBottom: '16px', textAlign: 'center', lineHeight: 1.5 }}>
+                    Save an additional {config.cash_incentive?.pct ?? 0}% by paying with cash or check today.
+                  </p>
+                  <BigToggle
+                    on={cashEnabled}
+                    onToggle={() => setCashEnabled(v => !v)}
+                    label={cashEnabled ? `${config.cash_incentive?.label ?? 'Cash'} Applied ✓` : `Apply ${config.cash_incentive?.label ?? 'Cash Incentive'}`}
+                  />
+                  {cashEnabled && liveResult.cash_discount > 0 && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
+                      style={{ overflow: 'hidden', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                      <BreakdownRow label={`${config.cash_incentive?.pct ?? 0}% cash savings`} value={`-${fmt(liveResult.cash_discount)}`} color="#10b981" />
+                    </motion.div>
+                  )}
+                </div>
+                <button type="button"
+                  onClick={e => { e.stopPropagation(); setConfirmPrice(liveResult.customer_price) }}
+                  style={{ width: '100%', height: '48px', background: 'transparent', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '12px', color: 'rgba(255,255,255,0.55)', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>
+                  Send at {fmt(liveResult.customer_price)}
+                </button>
+              </div>
+            )}
+
+            {/* ── SUMMARY SCREEN ── */}
             {screen === 'summary' && (
-              <div className="max-w-sm w-full text-center" style={{ position: 'relative' }}>
-                <CardGlow color="rgba(96,165,250,0.3)" />
-                <div style={{ ...glassCard, padding: '32px 24px', position: 'relative', zIndex: 1 }}>
-                  <SectionLabel>Your Price</SectionLabel>
-                  <div style={{ marginBottom: '16px' }}>
-                    <AnimatedPrice value={liveResult.customer_price} />
-                  </div>
+              <div className="max-w-sm w-full">
+                <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '12px' }}>
+                    Your Price
+                  </p>
+                  <AnimatedPrice value={liveResult.customer_price} />
                   {totalSavings > 0 && (
-                    <motion.p key={Math.round(totalSavings)} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                      style={{ fontSize: '17px', fontWeight: 700, color: '#2DD4BF', marginBottom: '8px' }}>
+                    <motion.p key={Math.round(totalSavings)} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                      style={{ fontSize: '18px', fontWeight: 600, color: '#10b981', marginTop: '8px' }}>
                       You save {fmt(totalSavings)}
                     </motion.p>
                   )}
                   {liveResult.monthly_payment && liveResult.monthly_payment > 0 && (
-                    <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>
-                      Or as low as {fmt(liveResult.monthly_payment)}/mo
+                    <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', marginTop: '6px' }}>
+                      Or as low as{' '}
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#60A5FA', fontWeight: 700 }}>{fmt(liveResult.monthly_payment)}/mo</span>
                     </p>
                   )}
                 </div>
-              </div>
-            )}
 
-            {screen === 'rebates' && (
-              <div className="max-w-sm w-full" style={{ position: 'relative' }}>
-                <CardGlow color="rgba(251,191,36,0.4)" />
-                <div style={{ ...glassCard, background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.2)', padding: '24px', position: 'relative', zIndex: 1 }}>
-                  <SectionLabel color="#F59E0B">{config.rebate_program?.name ?? 'Rebate'} Benefits</SectionLabel>
-                  {(liveResult.rebates ?? []).filter(r => r.amount > 0).map(r => (
-                    <BreakdownRow key={r.id} label={r.name} value={fmt(r.amount)} color="#F59E0B" />
+                <div style={{ ...premiumCard, padding: '18px 20px', marginBottom: '12px' }}>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '12px' }}>
+                    Full Breakdown
+                  </p>
+                  <BreakdownRow label="Original Price" value={fmt(calcResult.base_price + config.admin_fee)} />
+                  {liveResult.tiers_applied.map(t => (
+                    <BreakdownRow key={t.id} label={`${t.name} (${t.pct}%)`} value={`-${fmt(t.amount)}`} color="#10b981" />
                   ))}
-                  <div style={{ borderTop: '1px solid rgba(251,191,36,0.15)', marginTop: '12px', paddingTop: '12px' }}>
-                    <div className="flex justify-between items-center">
-                      <span style={{ fontSize: '15px', fontWeight: 600, color: '#F9FAFB' }}>Total Rebate</span>
-                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '22px', color: '#FCD34D', fontWeight: 700 }}>
-                        {fmt(liveResult.total_rebate ?? 0)}
-                      </span>
-                    </div>
-                    <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', marginTop: '6px' }}>
-                      Net after rebates:{' '}
-                      <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#FCD34D', fontWeight: 600 }}>
-                        {fmt(liveResult.customer_price - (liveResult.total_rebate ?? 0))}
-                      </span>
-                    </p>
+                  {liveResult.hidden_tier_amount > 0 && (
+                    <BreakdownRow label="Additional Discount" value={`-${fmt(liveResult.hidden_tier_amount)}`} color="#10b981" />
+                  )}
+                  {liveResult.cash_discount > 0 && (
+                    <BreakdownRow label={`${config.cash_incentive?.label ?? 'Cash'} (${config.cash_incentive?.pct ?? 0}%)`} value={`-${fmt(liveResult.cash_discount)}`} color="#10b981" />
+                  )}
+                  {liveResult.financing_fee > 0 && (
+                    <BreakdownRow label="Financing Fee" value={`+${fmt(liveResult.financing_fee)}`} color="#FCD34D" />
+                  )}
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '10px', paddingTop: '10px' }}>
+                    <BreakdownRow label="Your Price" value={fmt(liveResult.customer_price)} bold color="#fff" />
                   </div>
                 </div>
+
+                {hasRebate && (
+                  <div style={{ ...premiumCard, background: 'rgba(251,191,36,0.05)', border: '1px solid rgba(251,191,36,0.18)', padding: '18px 20px', marginBottom: '12px' }}>
+                    <p style={{ fontSize: '11px', color: '#F59E0B', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '12px' }}>
+                      {rebateName} Benefits
+                    </p>
+                    {(liveResult.rebates ?? []).filter(r => r.amount > 0).map(r => (
+                      <BreakdownRow key={r.id} label={r.name} value={fmt(r.amount)} color="#F59E0B" />
+                    ))}
+                    <div style={{ borderTop: '1px solid rgba(251,191,36,0.12)', marginTop: '10px', paddingTop: '10px' }}>
+                      <div className="flex justify-between items-center">
+                        <span style={{ fontSize: '14px', fontWeight: 600, color: '#F9FAFB' }}>Net After Rebates</span>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', color: '#FCD34D', fontWeight: 700 }}>
+                          {fmt(liveResult.customer_price - (liveResult.total_rebate ?? 0))}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <button type="button"
+                  onClick={e => { e.stopPropagation(); setConfirmPrice(liveResult.customer_price) }}
+                  style={{ width: '100%', height: '56px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border: 'none', borderRadius: '14px', color: '#fff', fontSize: '17px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(16,185,129,0.4)' }}>
+                  Accept & Send
+                </button>
               </div>
             )}
 
@@ -808,70 +809,115 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
         </AnimatePresence>
       </div>
 
-      {/* Left/right tap zone hints */}
+      {/* Costco compact box — tier + cash screens only */}
+      {hasRebate && (screen.startsWith('tier_') || screen === 'cash') && (
+        <div onClick={e => { e.stopPropagation(); setCostcoExpanded(v => !v) }}
+          className="fixed z-[200]"
+          style={{ bottom: '100px', right: '20px', cursor: 'pointer' }}>
+          <AnimatePresence mode="wait">
+            {costcoExpanded ? (
+              <motion.div key="exp"
+                initial={{ opacity: 0, scale: 0.9, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 8 }} transition={{ duration: 0.15 }}
+                style={{ background: 'rgba(12,16,32,0.96)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: '14px', padding: '14px', width: '200px' }}>
+                <p style={{ fontSize: '10px', color: '#F59E0B', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '10px' }}>
+                  {rebateName}
+                </p>
+                {(liveResult.rebates ?? []).filter(r => r.amount > 0).map(r => (
+                  <div key={r.id} className="flex justify-between" style={{ marginBottom: '4px' }}>
+                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)' }}>{r.name}</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#FCD34D', fontWeight: 600 }}>{fmt(r.amount)}</span>
+                  </div>
+                ))}
+                <div style={{ borderTop: '1px solid rgba(251,191,36,0.12)', marginTop: '8px', paddingTop: '8px' }}>
+                  <div className="flex justify-between">
+                    <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.55)' }}>Net after rebates</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: '#FCD34D', fontWeight: 700 }}>
+                      {fmt(liveResult.customer_price - (liveResult.total_rebate ?? 0))}
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div key="col"
+                initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}
+                style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.28)', borderRadius: '12px', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '14px' }}>🏷️</span>
+                <div>
+                  <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', lineHeight: 1, marginBottom: '2px' }}>{rebateName}</p>
+                  <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', color: '#FCD34D', fontWeight: 700, lineHeight: 1 }}>
+                    -{fmt(liveResult.total_rebate ?? 0)}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* Tap arrows */}
       {safeScreen > 0 && (
         <div className="fixed left-0 inset-y-0 z-10 flex items-center pl-3" style={{ width: '35%', pointerEvents: 'none' }}>
-          <motion.span initial={{ opacity: 0 }} animate={{ opacity: 0.3 }} transition={{ delay: 0.5 }}
-            style={{ fontSize: '22px', color: 'rgba(255,255,255,0.5)' }}>‹</motion.span>
+          <motion.span initial={{ opacity: 0 }} animate={{ opacity: 0.25 }} transition={{ delay: 0.5 }} style={{ fontSize: '22px' }}>‹</motion.span>
         </div>
       )}
       {safeScreen < screens.length - 1 && (
         <div className="fixed right-0 inset-y-0 z-10 flex items-center justify-end pr-3" style={{ width: '35%', pointerEvents: 'none' }}>
-          <motion.span initial={{ opacity: 0 }} animate={{ opacity: 0.3 }} transition={{ delay: 0.5 }}
-            style={{ fontSize: '22px', color: 'rgba(255,255,255,0.5)' }}>›</motion.span>
+          <motion.span initial={{ opacity: 0 }} animate={{ opacity: 0.25 }} transition={{ delay: 0.5 }} style={{ fontSize: '22px' }}>›</motion.span>
         </div>
       )}
 
-      {/* Progress dots + action bar */}
+      {/* Progress dots */}
       <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-col items-center px-4 pt-3"
-        style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))', background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-        <div className="flex items-center gap-2 mb-3">
+        style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))', background: 'rgba(10,13,26,0.95)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="flex items-center gap-2 mb-2">
           {screens.map((_, i) => (
-            <div key={i} style={{
-              borderRadius: '999px',
-              width: i === safeScreen ? '20px' : '6px',
-              height: '6px',
-              background: i === safeScreen ? '#60A5FA' : 'rgba(255,255,255,0.25)',
-              transition: 'all 0.25s ease',
-            }} />
+            <div key={i} style={{ borderRadius: '999px', width: i === safeScreen ? '20px' : '6px', height: '6px', background: i === safeScreen ? '#10b981' : 'rgba(255,255,255,0.2)', transition: 'all 0.25s ease' }} />
           ))}
         </div>
         <AnimatePresence>
           {actionDone && (
             <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="text-center text-sm mb-2" style={{ color: '#34D399' }}>
+              style={{ color: '#10b981', fontSize: '14px', textAlign: 'center', paddingBottom: '4px' }}>
               {actionDone}
             </motion.p>
           )}
         </AnimatePresence>
-        <div className="flex gap-2 w-full max-w-sm mx-auto">
-          {backHref ? (
-            <Link href={backHref}
-              className="flex-1 h-12 rounded-2xl flex items-center justify-center text-sm font-semibold"
-              style={{ border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.6)', background: 'transparent' }}
-              onClick={e => e.stopPropagation()}>
-              Follow Up
-            </Link>
-          ) : (
-            <button type="button"
-              className="flex-1 h-12 rounded-2xl flex items-center justify-center text-sm font-semibold"
-              style={{ border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.6)', background: 'transparent' }}
-              onClick={e => { e.stopPropagation(); window.history.back() }}>
-              Follow Up
-            </button>
-          )}
-          <button type="button" onClick={e => { e.stopPropagation(); handleEmail() }} disabled={emailing}
-            className="flex-1 h-12 rounded-2xl flex items-center justify-center text-sm font-semibold"
-            style={{ border: '1px solid rgba(29,78,216,0.5)', color: emailing ? 'rgba(96,165,250,0.4)' : '#60A5FA', background: 'rgba(29,78,216,0.08)' }}>
-            {emailing ? 'Sending…' : 'Email Job'}
-          </button>
-          <button type="button" onClick={e => { e.stopPropagation(); handleBooked() }} disabled={booking}
-            className="flex-1 h-12 rounded-2xl flex items-center justify-center text-sm font-bold"
-            style={{ background: booking ? 'rgba(29,78,216,0.3)' : 'linear-gradient(135deg, #1D4ED8, #06B6D4)', color: '#fff', boxShadow: booking ? 'none' : '0 4px 20px rgba(29,78,216,0.35)' }}>
-            {booking ? 'Saving…' : 'Booked! 🎉'}
-          </button>
-        </div>
       </div>
+
+      {/* Confirm modal */}
+      <AnimatePresence>
+        {confirmPrice !== null && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[400] flex items-end justify-center"
+            style={{ background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
+            onClick={e => e.stopPropagation()}>
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              style={{ background: 'rgba(12,16,32,0.98)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)', borderBottom: 'none', borderRadius: '24px 24px 0 0', padding: '32px 24px', paddingBottom: 'max(32px, env(safe-area-inset-bottom, 0px) + 24px)', width: '100%', maxWidth: '480px' }}>
+              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', textAlign: 'center', marginBottom: '8px' }}>
+                Confirm Proposal
+              </p>
+              <p style={{ fontSize: '22px', fontWeight: 700, color: '#fff', textAlign: 'center', marginBottom: '28px', lineHeight: 1.3 }}>
+                Send proposal at <span style={{ color: '#10b981' }}>{fmt(confirmPrice)}</span>?
+              </p>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setConfirmPrice(null)}
+                  style={{ flex: 1, height: '52px', borderRadius: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', fontSize: '16px', fontWeight: 600, cursor: 'pointer' }}>
+                  Cancel
+                </button>
+                <button type="button" onClick={handleAcceptSend} disabled={sending}
+                  style={{ flex: 2, height: '52px', borderRadius: '12px', background: sending ? 'rgba(16,185,129,0.3)' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border: 'none', color: '#fff', fontSize: '16px', fontWeight: 700, cursor: sending ? 'default' : 'pointer', boxShadow: sending ? 'none' : '0 4px 20px rgba(16,185,129,0.4)' }}>
+                  {sending ? 'Sending…' : 'Send'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
