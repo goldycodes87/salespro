@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { formatFinancingName } from '@/lib/job-calculator'
+import { formatFinancingName, getFinancingLabel } from '@/lib/job-calculator'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -612,7 +612,7 @@ export default function JobTypesTab() {
                               placeholder="e.g. Cash / Check" style={{ flex: 1 }} />
                           ) : (
                             <p className="flex-1 text-sm font-medium truncate" style={{ color: '#D1D5DB' }}>
-                              {fin.display_name || '—'}
+                              {getFinancingLabel(fin)}
                             </p>
                           )}
                           <button type="button" onClick={() => removeFin(idx)}

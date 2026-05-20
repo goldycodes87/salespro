@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { calculateJob } from '@/lib/job-calculator'
+import { calculateJob, getFinancingLabel } from '@/lib/job-calculator'
 import type { JobTypeConfig, JobCalculatorResult } from '@/lib/job-calculator'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -655,7 +655,7 @@ export default function JobBuilderForm({
                   onClick={() => setFinDropOpen(v => !v)}>
                   <span style={{ color: financingId ? '#F9FAFB' : 'rgba(255,255,255,0.4)' }}>
                     {financingId
-                      ? ((selectedConfig.financing_options.find(f => f.id === financingId) as any)?.display_name ?? financingId)
+                      ? (() => { const f = selectedConfig.financing_options.find(f => f.id === financingId); return f ? getFinancingLabel(f) : (financingId ?? '') })()
                       : 'Select financing...'}
                   </span>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
@@ -687,7 +687,7 @@ export default function JobBuilderForm({
                           borderBottom: '1px solid rgba(255,255,255,0.04)',
                         }}
                         onClick={() => { setFinancingId(fin.id); setFinDropOpen(false) }}>
-                        {(fin as any).display_name ?? (fin as any).name ?? fin.id}
+                        {getFinancingLabel(fin)}
                       </button>
                     ))}
                   </div>

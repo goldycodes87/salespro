@@ -112,6 +112,26 @@ export function formatFinancingName(rate_pct: number, term_months: number): stri
 // 6.99%, 60mo  → "5 Years at 6.99% Interest"
 // 0%, 18mo  → "18 Months at 0% Interest"
 
+export function getFinancingLabel(opt: FinancingOption): string {
+  if (opt.display_name) return opt.display_name
+  if (opt.rate_pct !== undefined && opt.term_months !== undefined && opt.term_months > 0) {
+    return formatFinancingName(opt.rate_pct, opt.term_months)
+  }
+  if ((opt as any).name) return (opt as any).name
+  return opt.id.replace(/^fin_/, '').replace(/_/g, ' ')
+}
+
+// monthly_factor in old schema stores term months (e.g. 24, 120)
+// so the payment factor is 1/monthly_factor (0% assumed — rate not stored)
+export function getMonthlyFactor(opt: FinancingOption): number {
+  if (opt.rate_pct !== undefined && opt.term_months !== undefined && opt.term_months > 0) {
+    return calcMonthlyFactor(opt.rate_pct, opt.term_months)
+  }
+  const legacyMonths = (opt as any).monthly_factor
+  if (legacyMonths) return 1 / legacyMonths
+  return 0
+}
+
 // Standard amortization monthly payment factor
 export function calcMonthlyFactor(rate_pct: number, term_months: number): number {
   if (rate_pct === 0) {
@@ -169,9 +189,9 @@ export function calculateJob(
         financingFee = Math.floor(customerPrice * fin.fee_pct)
         customerPrice += financingFee
       }
-      // Monthly payment — only if term_months > 0 (not a special case like Cash/Check)
-      if (fin.term_months > 0) {
-        const factor = calcMonthlyFactor(fin.rate_pct, fin.term_months)
+      // Monthly payment — works for both new schema (rate_pct/term_months) and old (monthly_factor)
+      const factor = getMonthlyFactor(fin)
+      if (factor > 0) {
         monthlyPayment = Math.ceil(customerPrice * factor)
       }
     }

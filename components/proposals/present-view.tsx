@@ -13,7 +13,7 @@ import {
 import Link from 'next/link'
 import AnimatedGradientBackground from '@/components/ui/animated-gradient-background'
 import ClozrLogo from '@/components/ui/clozr-logo'
-import { calculateJob, type JobTypeConfig, type JobCalculatorResult } from '@/lib/job-calculator'
+import { calculateJob, getFinancingLabel, type JobTypeConfig, type JobCalculatorResult } from '@/lib/job-calculator'
 
 type Proposal = Record<string, any>
 
@@ -690,9 +690,7 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                       }}
                       onClick={() => setFinDropOpen(v => !v)}>
                       <span style={{ color: selectedFin ? '#F9FAFB' : 'rgba(255,255,255,0.4)' }}>
-                        {selectedFin
-                          ? ((selectedFin as any).display_name ?? (selectedFin as any).name ?? selectedFinancingId)
-                          : 'Select financing…'}
+                        {selectedFin ? getFinancingLabel(selectedFin) : 'Select financing…'}
                       </span>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                         style={{ transform: finDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>
@@ -726,7 +724,7 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                                 borderBottom: '1px solid rgba(255,255,255,0.04)',
                               }}
                               onClick={() => { setSelectedFinancingId(fin.id); setFinDropOpen(false) }}>
-                              {(fin as any).display_name ?? fin.id}
+                              {getFinancingLabel(fin)}
                             </button>
                           ))}
                         </motion.div>

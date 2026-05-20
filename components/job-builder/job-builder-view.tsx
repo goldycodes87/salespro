@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { calculateJob } from '@/lib/job-calculator'
+import { calculateJob, getFinancingLabel } from '@/lib/job-calculator'
 import type { JobTypeConfig, JobCalculatorResult } from '@/lib/job-calculator'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -274,7 +274,7 @@ export default function JobBuilderView({ job, showSavedToast }: { job: Job; show
               <span style={{ color: '#D1D5DB' }}>
                 {(() => {
                   const fin: any = snapshot.financing_options?.find((f: any) => f.id === financingId)
-                  return fin?.display_name ?? fin?.name ?? financingId
+                  return fin ? getFinancingLabel(fin) : (financingId ?? '')
                 })()}
               </span>
             </div>
