@@ -60,6 +60,8 @@ export async function PATCH(request: NextRequest) {
   if ('phone' in body) allowed.phone = body.phone
   if ('settings' in body) allowed.settings = body.settings
   if ('assistant_config' in body) allowed.assistant_config = body.assistant_config
+  if ('industries' in body) allowed.industries = body.industries
+  if ('territory' in body) allowed.territory = body.territory
 
   const { data, error } = await admin
     .from('reps')

@@ -56,7 +56,7 @@ export default async function NewProposalPage({
         </div>
       </div>
 
-      {!existingProposal && <VendoImport />}
+      {/* VendoImport hidden — kept for existing imported proposals */}
       <ProposalWizard
         leadId={lead_id}
         defaultCustomer={defaultCustomer}

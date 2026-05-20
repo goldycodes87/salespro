@@ -109,6 +109,7 @@ export default async function DashboardPage() {
         .from('leads')
         .select('id, first_name, last_name, spouse_first_name, is_married, city, state, status, appointment_date')
         .eq('rep_id', user?.id ?? '')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(5),
 

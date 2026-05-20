@@ -248,6 +248,8 @@ export default function SettingsPage({
     full_name: rep.full_name ?? '',
     phone: rep.phone ?? '',
   })
+  const [industries, setIndustries] = useState<string[]>(Array.isArray(rep.industries) ? rep.industries as string[] : [])
+  const [territory, setTerritory] = useState(rep.territory as string ?? '')
   const [defaults, setDefaults] = useState({
     company_name: settings.company_name ?? 'Lifetime Home Remodeling',
     rep_title: settings.rep_title ?? 'Sales Representative',
@@ -428,7 +430,7 @@ export default function SettingsPage({
     await fetch('/api/reps', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ full_name: profile.full_name, phone: profile.phone.replace(/\D/g, '') || null }),
+      body: JSON.stringify({ full_name: profile.full_name, phone: profile.phone.replace(/\D/g, '') || null, industries, territory: territory.trim() || null }),
     })
     setSavingProfile(false)
     savedFlash(setProfileSaved)
@@ -759,144 +761,39 @@ export default function SettingsPage({
             <Field label="Phone">
               <FocusInput value={profile.phone} onChange={v => setProfile(p => ({ ...p, phone: v }))} type="tel" placeholder="719-555-0100" />
             </Field>
+            <Field label="Industries">
+              <div className="flex flex-wrap gap-2">
+                {(['windows_doors', 'siding', 'roofing', 'hvac', 'solar', 'gutters', 'other'] as const).map(id => {
+                  const labels: Record<string, string> = { windows_doors: 'Windows', siding: 'Siding', roofing: 'Roofing', hvac: 'HVAC', solar: 'Solar', gutters: 'Gutters', other: 'Other' }
+                  const selected = industries.includes(id)
+                  return (
+                    <button key={id} type="button"
+                      onClick={() => setIndustries(prev => selected ? prev.filter(i => i !== id) : [...prev, id])}
+                      className="px-3 h-9 rounded-xl text-sm font-medium"
+                      style={{
+                        background: selected ? 'rgba(29,78,216,0.2)' : 'rgba(255,255,255,0.05)',
+                        border: selected ? '1.5px solid rgba(29,78,216,0.5)' : '1px solid rgba(255,255,255,0.10)',
+                        color: selected ? '#60A5FA' : '#9CA3AF',
+                      }}>
+                      {labels[id]}
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
+            <Field label="Territory">
+              <FocusInput value={territory} onChange={setTerritory} placeholder="e.g. Colorado Springs, Denver Metro" />
+            </Field>
             <SaveButton saving={savingProfile} saved={profileSaved} onClick={saveProfile} label="Save Profile" />
           </CollapsibleSection>
 
-          {/* Proposal Defaults */}
-          <CollapsibleSection title="Proposal Defaults" storageKey="proposal-defaults">
-            <Field label="Company Name">
-              <FocusInput value={defaults.company_name} onChange={v => setDefaults(d => ({ ...d, company_name: v }))} placeholder="Lifetime Home Remodeling" />
-            </Field>
-            <Field label="Your Title">
-              <FocusInput value={defaults.rep_title} onChange={v => setDefaults(d => ({ ...d, rep_title: v }))} placeholder="Sales Representative" />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Default Warranty (years)">
-                <FocusInput value={defaults.warranty_years} onChange={v => setDefaults(d => ({ ...d, warranty_years: v }))} type="number" placeholder="10" />
-              </Field>
-              <Field label="Default Margin %">
-                <FocusInput value={defaults.default_margin} onChange={v => setDefaults(d => ({ ...d, default_margin: v }))} type="number" placeholder="35" />
-              </Field>
-            </div>
-            <SaveButton saving={savingDefaults} saved={defaultsSaved} onClick={saveDefaults} label="Save Defaults" />
-          </CollapsibleSection>
-
-          {/* Financing Options */}
-          <CollapsibleSection title="Financing Options" storageKey="financing-options">
-            <p className="text-xs -mt-1" style={{ color: '#6B7280' }}>Configure available financing options in the proposal builder.</p>
-            <div className="space-y-3">
-              {financingOpts.map((opt, idx) => (
-                <div key={opt.id} className="rounded-xl p-3 space-y-2"
-                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div className="flex items-center gap-2">
-                    <Toggle on={opt.active} onToggle={() => updateFinancing(idx, { active: !opt.active })} />
-                    <SmallInput value={opt.label} onChange={v => updateFinancing(idx, { label: v })}
-                      placeholder="Option name" style={{ flex: 1 }} />
-                    <button type="button" onClick={() => removeFinancing(idx)} style={{ color: '#4B5563', flexShrink: 0 }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
-                  </div>
-                  <div className="flex gap-2">
-                    {(['factor', 'months'] as const).map(m => (
-                      <button key={m} type="button" onClick={() => updateFinancing(idx, { method: m })}
-                        className="flex-1 h-8 rounded-lg text-xs font-medium"
-                        style={{
-                          background: opt.method === m ? 'rgba(29,78,216,0.2)' : 'rgba(255,255,255,0.04)',
-                          border: opt.method === m ? '1.5px solid rgba(29,78,216,0.5)' : '1px solid rgba(255,255,255,0.08)',
-                          color: opt.method === m ? '#60A5FA' : '#9CA3AF',
-                        }}>
-                        {m === 'factor' ? 'Factor × price' : 'Price ÷ months'}
-                      </button>
-                    ))}
-                  </div>
-                  {opt.method === 'factor' ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs" style={{ color: '#6B7280' }}>Factor</span>
-                      <SmallInput value={opt.factor ?? ''} onChange={v => updateFinancing(idx, { factor: parseFloat(v) || 0 })}
-                        type="number" placeholder="0.01161" style={{ flex: 1 }} />
-                      <span className="text-xs" style={{ color: '#4B5563' }}>
-                        {opt.factor ? `≈ ${(opt.factor * 100).toFixed(4)}%` : ''}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs" style={{ color: '#6B7280' }}>Months</span>
-                      <SmallInput value={opt.months ?? ''} onChange={v => updateFinancing(idx, { months: parseInt(v) || 0 })}
-                        type="number" placeholder="18" style={{ flex: 1 }} />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            <button type="button" onClick={addFinancing}
-              className="w-full h-10 rounded-xl flex items-center justify-center gap-2 text-sm font-medium"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px dashed rgba(255,255,255,0.12)', color: '#6B7280' }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              Add Financing Option
-            </button>
-            <SaveButton saving={savingFinancing} saved={financingSaved} onClick={saveFinancing} label="Save Financing" />
-          </CollapsibleSection>
-
-          {/* Promotional Discounts */}
-          <CollapsibleSection title="Promotional Discounts" storageKey="promotional-discounts">
-            <p className="text-xs -mt-1" style={{ color: '#6B7280' }}>Configure discount options available in the proposal builder.</p>
-            <div className="space-y-3">
-              {discountOpts.map((opt, idx) => (
-                <div key={opt.id} className="rounded-xl p-3 space-y-2"
-                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div className="flex items-center gap-2">
-                    <Toggle on={opt.active} onToggle={() => updateDiscount(idx, { active: !opt.active })} />
-                    <SmallInput value={opt.name} onChange={v => updateDiscount(idx, { name: v })}
-                      placeholder="Discount name" style={{ flex: 1 }} />
-                    <button type="button" onClick={() => removeDiscount(idx)} style={{ color: '#4B5563', flexShrink: 0 }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5 flex-1">
-                      <span className="text-xs" style={{ color: '#6B7280' }}>%</span>
-                      <SmallInput value={opt.pct} onChange={v => updateDiscount(idx, { pct: parseFloat(v) || 0 })}
-                        type="number" placeholder="20" style={{ flex: 1 }} />
-                    </div>
-                    <div className="flex gap-1.5">
-                      {(['promotion', 'bnsn', 'cash'] as const).map(t => (
-                        <button key={t} type="button" onClick={() => updateDiscount(idx, { type: t })}
-                          className="px-2 h-8 rounded-lg text-xs font-medium"
-                          style={{
-                            background: opt.type === t ? 'rgba(29,78,216,0.2)' : 'rgba(255,255,255,0.04)',
-                            border: opt.type === t ? '1.5px solid rgba(29,78,216,0.5)' : '1px solid rgba(255,255,255,0.08)',
-                            color: opt.type === t ? '#60A5FA' : '#9CA3AF',
-                          }}>
-                          {t}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {opt.type === 'bnsn' && (
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <Toggle on={!!opt.is_combined} onToggle={() => updateDiscount(idx, { is_combined: !opt.is_combined })} />
-                      <span className="text-xs" style={{ color: '#9CA3AF' }}>Combined (flat rate, not additive)</span>
-                    </label>
-                  )}
-                </div>
-              ))}
-            </div>
-            <button type="button" onClick={addDiscount}
-              className="w-full h-10 rounded-xl flex items-center justify-center gap-2 text-sm font-medium"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px dashed rgba(255,255,255,0.12)', color: '#6B7280' }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              Add Discount Option
-            </button>
-            <SaveButton saving={savingDiscounts} saved={discountsSaved} onClick={saveDiscounts} label="Save Discounts" />
-          </CollapsibleSection>
+          {/* Proposal Defaults, Financing Options, Promotional Discounts — moved to Job Types */}
+          <div className="rounded-2xl p-4"
+            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <p className="text-sm" style={{ color: '#9CA3AF' }}>
+              These settings have moved to Job Types. Configure your pricing in the Job Types section above.
+            </p>
+          </div>
 
           {/* API Usage */}
           <CollapsibleSection title="API Usage This Month" storageKey="api-usage">
