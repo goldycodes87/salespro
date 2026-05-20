@@ -50,25 +50,39 @@ function Fade({ delay, children }: { delay: number; children: React.ReactNode })
 interface ResearchSummary {
   property?: {
     sqft?: number | null
+    sqftSource?: 'zillow' | 'public_records' | 'verified' | null
+    sqftNote?: string | null
+    sqftAlt?: number | null
+    sqftAltSource?: string | null
     beds?: number | null
     baths?: number | null
     yearBuilt?: number | null
-    lotSize?: number | null
-    zillowSqft?: number | null
+    lotSize?: number | null        // legacy
+    lotSizeSqft?: number | null   // new
+    zillowSqft?: number | null    // legacy
     estimatedValue?: number | null
+    zestimate?: number | null
+    listingStatus?: string | null
     lastSalePrice?: number | null
     lastSaleDate?: string | null
     ownerOccupied?: boolean | null
     elevation?: number | null
   }
   owner?: {
+    dataFound?: boolean
     yearsAtAddress?: string | null
     businessOwner?: boolean | null
     professionalBackground?: string | null
     communityInvolvement?: string | null
     otherContext?: string | null
-    confidence?: 'high' | 'medium' | 'low'
+    confidence?: 'high' | 'medium' | 'low'  // legacy
   }
+  propertyIntel?: {
+    recentPermits?: string | null
+    hoa?: string | null
+    recentListing?: string | null
+    neighborhoodContext?: string | null
+  } | null
   salesContext?: string | null
   dataSources?: string[]
 }
@@ -120,16 +134,23 @@ function StructuredSummary({
   const { property, owner, salesContext, dataSources } = data
 
   const propValues = property ? Object.entries(property).filter(([, v]) => v !== null && v !== undefined) : []
-  const ownerValues = owner ? Object.entries(owner).filter(([k, v]) => k !== 'confidence' && v !== null && v !== undefined && v !== false) : []
+  const ownerValues = owner ? Object.entries(owner).filter(([k, v]) => k !== 'confidence' && k !== 'dataFound' && v !== null && v !== undefined && v !== false) : []
   const hasProp = propValues.length > 0
   const hasOwner = ownerValues.length > 0 || !!salesContext
   const hasOwnerPersonalData = ownerValues.length > 0
+  const hasPropertyIntel = !!(
+    data.propertyIntel?.recentPermits ||
+    data.propertyIntel?.hoa ||
+    data.propertyIntel?.recentListing ||
+    data.propertyIntel?.neighborhoodContext
+  )
 
   const startEditSqft = () => {
     const current = sqftOverride ?? property?.sqft ?? property?.zillowSqft ?? null
     setSqftInputVal(current != null ? String(current) : '')
     setEditingSqft(true)
   }
+
 
   const saveSqftOverride = async () => {
     const val = parseInt(sqftInputVal, 10)
@@ -152,9 +173,10 @@ function StructuredSummary({
     )
   }
 
-  // FIX 5: confidence badge replaced with data-availability badge
   let ownerBadge: { label: string; bg: string; color: string } | null = null
-  if (!hasOwnerPersonalData) {
+  if (owner?.dataFound === false) {
+    ownerBadge = { label: 'Property data only', bg: 'rgba(107,114,128,0.15)', color: '#9CA3AF' }
+  } else if (owner?.dataFound === undefined && !hasOwnerPersonalData) {
     ownerBadge = hasProp
       ? { label: 'Property data only', bg: 'rgba(107,114,128,0.15)', color: '#9CA3AF' }
       : { label: 'Limited public records available', bg: 'rgba(107,114,128,0.15)', color: '#9CA3AF' }
@@ -167,8 +189,9 @@ function StructuredSummary({
     </svg>
   )
 
-  // FIX 1: lot size in acres
-  const lotSizeSqFt = typeof property?.lotSize === 'number' ? property.lotSize : null
+  const lotSizeSqFt = typeof property?.lotSizeSqft === 'number'
+    ? property.lotSizeSqft
+    : (typeof property?.lotSize === 'number' ? property.lotSize : null)
   const lotSizeDisplay = lotSizeSqFt
     ? `${(lotSizeSqFt / 43560).toFixed(2)} acres (${lotSizeSqFt.toLocaleString()} sq ft)`
     : null
@@ -180,15 +203,20 @@ function StructuredSummary({
         <div className="rounded-xl p-3.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
           <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6B7280' }}>Property</p>
 
-          {/* FIX 3 + FIX 4: sq footage with Zillow comparison, disclaimer, manual override */}
+          {/* Square footage with source-aware display and manual override */}
           {(() => {
-            const rentcastSqft = property?.sqft ?? null
-            const zillowSqft = property?.zillowSqft ?? null
-            const hasSqftData = sqftOverride != null || rentcastSqft != null || zillowSqft != null
-            if (!hasSqftData) return null
+            const displaySqft = sqftOverride ?? property?.sqft ?? null
+            const sqftSource = property?.sqftSource ?? null
+            const sqftAlt = property?.sqftAlt ?? null
+            const sqftAltSource = property?.sqftAltSource ?? null
 
-            const showBoth = !sqftOverride && rentcastSqft != null && zillowSqft != null &&
-              Math.abs(zillowSqft - rentcastSqft) / rentcastSqft > 0.10
+            // Legacy fallback: old records have zillowSqft but no sqftSource
+            const legacyZillow = property?.zillowSqft ?? null
+            const hasLegacySplit = !sqftSource && displaySqft != null && legacyZillow != null &&
+              Math.abs(legacyZillow - displaySqft) / displaySqft > 0.10
+
+            const hasSqftData = sqftOverride != null || displaySqft != null || legacyZillow != null
+            if (!hasSqftData) return null
 
             return (
               <div className="mb-2.5">
@@ -212,32 +240,53 @@ function StructuredSummary({
                     <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(16,185,129,0.15)', color: '#34D399' }}>✓ Manually verified</span>
                     <button onClick={startEditSqft} style={{ color: '#4B5563', display: 'inline-flex', alignItems: 'center' }}><PencilIcon /></button>
                   </div>
-                ) : showBoth ? (
+                ) : sqftSource === 'verified' ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold" style={{ color: '#F9FAFB' }}>{displaySqft!.toLocaleString()} sq ft ✓</span>
+                    <button onClick={startEditSqft} style={{ color: '#4B5563', display: 'inline-flex', alignItems: 'center' }}><PencilIcon /></button>
+                  </div>
+                ) : sqftSource === 'zillow' ? (
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-bold" style={{ color: '#F9FAFB' }}>{displaySqft!.toLocaleString()} sq ft</span>
+                      <span className="text-xs" style={{ color: '#6B7280' }}>(Zillow)</span>
+                      <button onClick={startEditSqft} style={{ color: '#4B5563', display: 'inline-flex', alignItems: 'center' }}><PencilIcon /></button>
+                    </div>
+                    {sqftAlt != null && (
+                      <p style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                        {sqftAlt.toLocaleString()} sq ft ({sqftAltSource ?? 'public records'})
+                      </p>
+                    )}
+                  </div>
+                ) : sqftSource === 'public_records' || (!sqftSource && !hasLegacySplit && displaySqft != null) ? (
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-bold" style={{ color: '#F9FAFB' }}>{displaySqft!.toLocaleString()} sq ft</span>
+                      <button onClick={startEditSqft} style={{ color: '#4B5563', display: 'inline-flex', alignItems: 'center' }}><PencilIcon /></button>
+                    </div>
+                    <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                      From public records — may not reflect additions or renovations
+                    </p>
+                  </div>
+                ) : hasLegacySplit ? (
                   <div>
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-bold" style={{ color: '#F9FAFB' }}>
-                        {Math.max(rentcastSqft!, zillowSqft!).toLocaleString()} sq ft ({rentcastSqft! >= zillowSqft! ? 'public records' : 'Zillow estimate'})
+                        {Math.max(displaySqft!, legacyZillow!).toLocaleString()} sq ft ({displaySqft! >= legacyZillow! ? 'public records' : 'Zillow estimate'})
                       </span>
                       <button onClick={startEditSqft} style={{ color: '#4B5563', display: 'inline-flex', alignItems: 'center' }}><PencilIcon /></button>
                     </div>
                     <p style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
-                      {Math.min(rentcastSqft!, zillowSqft!).toLocaleString()} sq ft ({rentcastSqft! < zillowSqft! ? 'public records' : 'Zillow estimate'})
+                      {Math.min(displaySqft!, legacyZillow!).toLocaleString()} sq ft ({displaySqft! < legacyZillow! ? 'public records' : 'Zillow estimate'})
                     </p>
                     <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
                       From public records — may not reflect additions or renovations
                     </p>
                   </div>
                 ) : (
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-bold" style={{ color: '#F9FAFB' }}>
-                        {(rentcastSqft ?? zillowSqft)!.toLocaleString()} sq ft
-                      </span>
-                      <button onClick={startEditSqft} style={{ color: '#4B5563', display: 'inline-flex', alignItems: 'center' }}><PencilIcon /></button>
-                    </div>
-                    <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
-                      From public records — may not reflect additions or renovations
-                    </p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold" style={{ color: '#F9FAFB' }}>{(legacyZillow ?? displaySqft)!.toLocaleString()} sq ft</span>
+                    <button onClick={startEditSqft} style={{ color: '#4B5563', display: 'inline-flex', alignItems: 'center' }}><PencilIcon /></button>
                   </div>
                 )}
               </div>
@@ -255,6 +304,8 @@ function StructuredSummary({
             {property?.yearBuilt && <PropRow label="Built" value={String(property.yearBuilt)} />}
             {lotSizeDisplay && <PropRow label="Lot Size" value={lotSizeDisplay} />}
             {property?.estimatedValue && <PropRow label="Est. Value" value={`$${property.estimatedValue.toLocaleString()}`} />}
+            {property?.zestimate && <PropRow label="Zestimate" value={`$${property.zestimate.toLocaleString()}`} />}
+            {property?.listingStatus && <PropRow label="Listing Status" value={property.listingStatus} />}
             {property?.lastSalePrice && (
               <PropRow
                 label="Last Sale"
@@ -296,6 +347,19 @@ function StructuredSummary({
               {owner?.otherContext && <BulletRow text={owner.otherContext} />}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Property Intel card */}
+      {hasPropertyIntel && (
+        <div className="rounded-xl p-3.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6B7280' }}>Property Intel</p>
+          <div className="space-y-1.5">
+            {data.propertyIntel?.recentPermits && <BulletRow text={data.propertyIntel.recentPermits} />}
+            {data.propertyIntel?.hoa && <BulletRow text={`HOA: ${data.propertyIntel.hoa}`} />}
+            {data.propertyIntel?.recentListing && <BulletRow text={data.propertyIntel.recentListing} />}
+            {data.propertyIntel?.neighborhoodContext && <BulletRow text={data.propertyIntel.neighborhoodContext} />}
+          </div>
         </div>
       )}
 
