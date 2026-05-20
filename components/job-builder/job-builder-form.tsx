@@ -257,6 +257,7 @@ export default function JobBuilderForm({
 
   // Financing
   const [financingId, setFinancingId] = useState<string | null>(ejPd?.financing_id ?? null)
+  const [finDropOpen, setFinDropOpen] = useState(false)
 
   // Rebate
   const [rebateEnabled, setRebateEnabled] = useState(ejPd?.rebate_enabled ?? false)
@@ -269,6 +270,7 @@ export default function JobBuilderForm({
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [toast, setToast] = useState<string | null>(null)
   const searchRef = useRef<HTMLDivElement>(null)
+  const finDropRef = useRef<HTMLDivElement>(null)
 
   // When config changes (and not editing), reset tier/rebate defaults
   useEffect(() => {
@@ -311,6 +313,16 @@ export default function JobBuilderForm({
     const handler = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (finDropRef.current && !finDropRef.current.contains(e.target as Node)) {
+        setFinDropOpen(false)
       }
     }
     document.addEventListener('mousedown', handler)
@@ -616,17 +628,51 @@ export default function JobBuilderForm({
                   Financing options show payment terms. The cash incentive removes the financing fee from the price.
                 </p>
               )}
-              <select
-                value={financingId ?? ''}
-                onChange={e => setFinancingId(e.target.value || null)}
-                style={{ ...INPUT, appearance: 'none', cursor: 'pointer' }}>
-                <option value="">Select financing...</option>
-                {selectedConfig.financing_options.map(fin => (
-                  <option key={fin.id} value={fin.id}>
-                    {(fin as any).display_name ?? (fin as any).name ?? fin.id}
-                  </option>
-                ))}
-              </select>
+              <div ref={finDropRef} style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  style={{ ...INPUT, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+                  onClick={() => setFinDropOpen(v => !v)}>
+                  <span style={{ color: financingId ? '#F9FAFB' : 'rgba(255,255,255,0.4)' }}>
+                    {financingId
+                      ? ((selectedConfig.financing_options.find(f => f.id === financingId) as any)?.display_name ?? financingId)
+                      : 'Select financing...'}
+                  </span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                    style={{ transform: finDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+                {finDropOpen && (
+                  <div style={{
+                    position: 'absolute', top: '52px', left: 0, right: 0, zIndex: 50,
+                    background: '#1E293B', border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '12px', overflow: 'hidden',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                  }}>
+                    <button type="button"
+                      style={{ width: '100%', padding: '12px 14px', textAlign: 'left', fontSize: '15px',
+                        color: !financingId ? '#60A5FA' : 'rgba(255,255,255,0.5)',
+                        background: !financingId ? 'rgba(29,78,216,0.1)' : 'transparent',
+                        borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                      onClick={() => { setFinancingId(null); setFinDropOpen(false) }}>
+                      No financing
+                    </button>
+                    {selectedConfig.financing_options.map(fin => (
+                      <button key={fin.id} type="button"
+                        style={{
+                          width: '100%', padding: '12px 14px', textAlign: 'left', fontSize: '15px',
+                          color: fin.id === financingId ? '#60A5FA' : '#F9FAFB',
+                          background: fin.id === financingId ? 'rgba(29,78,216,0.12)' : 'transparent',
+                          borderBottom: '1px solid rgba(255,255,255,0.04)',
+                        }}
+                        onClick={() => { setFinancingId(fin.id); setFinDropOpen(false) }}>
+                        {(fin as any).display_name ?? (fin as any).name ?? fin.id}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               {/* Contextual note below dropdown */}
               {financingId && (() => {
                 const fin = selectedConfig.financing_options.find(f => f.id === financingId)
