@@ -583,10 +583,7 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                   <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.05 }}
                     style={{ fontSize: '64px', marginBottom: '20px' }}>{config.icon}</motion.div>
                 )}
-                <motion.h2 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-                  style={{ fontSize: 'clamp(22px, 5vw, 38px)', fontWeight: 800, color: '#fff', letterSpacing: '0.03em', marginBottom: '20px' }}>
-                  Your Investment
-                </motion.h2>
+
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
                   {first && (
                     <div style={{ textAlign: 'center', marginBottom: '8px' }}>
