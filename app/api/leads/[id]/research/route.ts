@@ -38,9 +38,16 @@ interface ApillowData {
   sqft: number | null
   zestimate: number | null
   photoUrl: string | null
-  priceHistory: any[] | null
-  daysOnMarket: number | null
-  listingStatus: string | null
+  lastSoldPrice: number | null
+  bedrooms: number | null
+  bathrooms: number | null
+  yearBuilt: number | null
+  lotSize: number | null
+  propertyType: string | null
+  latitude: number | null
+  longitude: number | null
+  daysOnZillow: number | null
+  hoaFee: number | null
 }
 
 interface PerplexityData {
@@ -108,38 +115,84 @@ async function fetchRentcast(address: string, apiKey: string): Promise<RentcastD
 // ─── Helper: APIllow ─────────────────────────────────────────────────────────
 
 async function fetchApillow(
-  address: string, city: string, state: string, zip: string, apiKey: string,
+  address: string, city: string, state: string, zip: string,
 ): Promise<ApillowData | null> {
-  const fullAddress = [address, city, state, zip].filter(Boolean).join(', ')
-  try {
-    const res = await fetch('https://api.apillow.co/property', {
-      method: 'POST',
-      headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address: fullAddress }),
-    })
-    if (!res.ok) {
-      console.log(`APIllow: ${res.status} — no data for address`)
-      return null
-    }
-    const data = await res.json()
-    const result: ApillowData = {
-      sqft: data.livingArea ?? data.sqft ?? null,
-      zestimate: data.zestimate ?? null,
-      photoUrl: data.photos?.[0]?.url ?? data.imgSrc ?? null,
-      priceHistory: data.priceHistory ?? null,
-      daysOnMarket: data.daysOnMarket ?? null,
-      listingStatus: data.listingStatus ?? null,
-    }
-    console.log('APILLOW:', {
-      sqft: result.sqft,
-      photo: result.photoUrl,
-      zestimate: result.zestimate,
-    })
-    return result
-  } catch (err) {
-    console.error('APIllow error:', err)
+  const fullAddress = `${address}, ${city}, ${state} ${zip}`
+
+  // Step 1: Submit job
+  const submitRes = await fetch('https://api.apillow.co/v1/properties', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': process.env.APILLOW_API_KEY!,
+    },
+    body: JSON.stringify({ addresses: [fullAddress] }),
+  })
+
+  if (!submitRes.ok) {
+    console.log('APIllow submit failed:', submitRes.status)
     return null
   }
+
+  const { job_id } = await submitRes.json()
+  if (!job_id) return null
+
+  // Step 2: Poll for results (max 8 attempts, 2s apart = 16s max)
+  for (let i = 0; i < 8; i++) {
+    await new Promise(r => setTimeout(r, 2000))
+
+    const pollRes = await fetch(`https://api.apillow.co/v1/results/${job_id}`, {
+      headers: { 'X-API-Key': process.env.APILLOW_API_KEY! },
+    })
+
+    if (!pollRes.ok) continue
+
+    const data = await pollRes.json()
+
+    if (data.status === 'complete') {
+      const result = data.results?.[0]
+      if (!result?.success) {
+        console.log('APIllow: no result for address')
+        return null
+      }
+
+      const p = result.property
+      console.log('APILLOW SUCCESS:', {
+        living_area: p.living_area,
+        zestimate: p.zestimate,
+        image: p.image_urls?.[0],
+        lat: p.latitude,
+        lng: p.longitude,
+      })
+
+      return {
+        sqft: p.living_area ?? null,
+        zestimate: p.zestimate ?? null,
+        lastSoldPrice: p.last_sold_price ?? null,
+        bedrooms: p.bedrooms ?? null,
+        bathrooms: p.bathrooms ?? null,
+        yearBuilt: p.year_built ?? null,
+        lotSize: p.lot_size ?? null,
+        propertyType: p.property_type ?? null,
+        photoUrl: p.image_urls?.[0] ?? null,
+        latitude: p.latitude ?? null,
+        longitude: p.longitude ?? null,
+        daysOnZillow: p.days_on_zillow ?? null,
+        hoaFee: p.hoa_fee ?? null,
+      }
+    }
+
+    if (data.status === 'failed') {
+      console.log('APIllow job failed')
+      return null
+    }
+
+    // status === 'processing', keep polling
+    console.log(`APIllow polling... attempt ${i + 1}`)
+  }
+
+  console.log('APIllow: timed out after 16 seconds')
+  return null
 }
 
 // ─── Helper: Perplexity Owner ─────────────────────────────────────────────────
@@ -470,7 +523,7 @@ export async function POST(
 
       // CALL 3 — APIllow (Zillow data source)
       process.env.APILLOW_API_KEY
-        ? timed(() => fetchApillow(lead.address, lead.city, lead.state, lead.zip ?? '', process.env.APILLOW_API_KEY!))
+        ? timed(() => fetchApillow(lead.address, lead.city, lead.state, lead.zip ?? ''))
         : Promise.resolve({ value: null as ApillowData | null, ms: 0 }),
 
       // CALL 4 — Perplexity: owner research
@@ -517,12 +570,14 @@ export async function POST(
       ...(perplexityPropertyData?.citations ?? []),
     ]
 
-    // ── Step 3: Photo priority — Zillow listing photo as fallback ────────────
+    // ── Step 3: Photo priority — street view > zillow listing > satellite ────
 
-    const alreadyHasStreetView = lead.photo_type === 'street_view' && !!lead.street_view_url
-    if (!alreadyHasStreetView && apillowData?.photoUrl) {
+    const hasStreetViewPhoto = lead.photo_type === 'street_view' && !!lead.street_view_url
+    const apillowPhoto = apillowData?.photoUrl ?? null
+
+    if (!hasStreetViewPhoto && apillowPhoto) {
       await admin.from('leads').update({
-        street_view_url: apillowData.photoUrl,
+        street_view_url: apillowPhoto,
         photo_type: 'zillow_listing',
         updated_at: new Date().toISOString(),
       }).eq('id', id)
