@@ -33,7 +33,7 @@ export async function GET(
     .eq('id', id)
     .eq('rep_id', user.id)
     .not('job_type_config_id', 'is', null)
-    .is('deleted_at', null)
+    .neq('status', 'archived')
     .single()
 
   if (error || !data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -53,14 +53,35 @@ export async function PUT(
   const admin = getSupabaseAdmin()
 
   const calcResult = body.calculator_result ?? {}
-  const { id: _id, rep_id: _rep, created_at: _ca, public_token: _pt, deleted_at: _da, ...rest } = body
+
+  // Build pricing_data for update
+  const pricing_data = {
+    source: 'job_builder',
+    base_price: body.base_price,
+    enabled_tier_ids: body.enabled_tier_ids ?? [],
+    cash_enabled: body.cash_enabled ?? false,
+    financing_id: body.financing_id ?? null,
+    charged_amount: body.charged_amount ?? null,
+    rebate_enabled: body.rebate_enabled ?? false,
+    rebate_tier_ids: body.rebate_tier_ids ?? [],
+    calculator_result: calcResult,
+  }
 
   const { data, error } = await admin
     .from('proposals')
     .update({
-      ...rest,
-      your_price: calcResult.customer_price ?? rest.your_price ?? 0,
-      customer_name: [body.customer_first_name, body.customer_last_name].filter(Boolean).join(' ') || undefined,
+      customer_first_name: body.customer_first_name?.trim(),
+      customer_last_name: body.customer_last_name?.trim(),
+      customer_name: [body.customer_first_name, body.customer_last_name].filter(Boolean).join(' ').trim() || undefined,
+      customer_email: body.customer_email || null,
+      customer_phone: body.customer_phone || null,
+      customer_address: body.customer_address || null,
+      job_type_config_id: body.job_type_config_id,
+      job_type_snapshot: body.job_type_snapshot,
+      scope_of_work: body.scope_of_work || null,
+      pricing_data,
+      your_price: calcResult.customer_price ?? 0,
+      status: body.status ?? undefined,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
@@ -73,7 +94,7 @@ export async function PUT(
   return NextResponse.json(data)
 }
 
-// DELETE /api/job-builder/[id] — soft delete
+// DELETE /api/job-builder/[id] — soft delete via archived status
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -86,7 +107,7 @@ export async function DELETE(
 
   const { error } = await admin
     .from('proposals')
-    .update({ deleted_at: new Date().toISOString() })
+    .update({ status: 'archived', updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('rep_id', user.id)
     .not('job_type_config_id', 'is', null)

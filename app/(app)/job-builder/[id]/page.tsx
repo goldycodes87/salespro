@@ -23,7 +23,7 @@ export default async function JobViewPage({
     .eq('id', id)
     .eq('rep_id', user.id)
     .not('job_type_config_id', 'is', null)
-    .is('deleted_at', null)
+    .neq('status', 'archived')
     .single()
 
   if (error || !job) notFound()

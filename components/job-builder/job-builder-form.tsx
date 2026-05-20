@@ -222,6 +222,8 @@ export default function JobBuilderForm({
 }) {
   const router = useRouter()
   const ej = existingJob
+  // For existing jobs, job builder fields are stored in pricing_data
+  const ejPd = (ej?.pricing_data && (ej.pricing_data as any).source === 'job_builder') ? ej.pricing_data as any : null
 
   // Job type
   const [selectedConfigId, setSelectedConfigId] = useState<string | null>(
@@ -241,25 +243,25 @@ export default function JobBuilderForm({
   const [email, setEmail] = useState(ej?.customer_email ?? '')
 
   // Pricing
-  const [basePriceStr, setBasePriceStr] = useState(ej?.base_price ? String(ej.base_price) : '')
+  const [basePriceStr, setBasePriceStr] = useState(ejPd?.base_price ? String(ejPd.base_price) : '')
   const basePrice = parseFloat(basePriceStr) || 0
   const [scopeOfWork, setScopeOfWork] = useState(ej?.scope_of_work ?? '')
 
   // Discounts
   const [enabledTierIds, setEnabledTierIds] = useState<string[]>(() => {
-    if (ej?.enabled_tier_ids) return ej.enabled_tier_ids
+    if (ejPd?.enabled_tier_ids) return ejPd.enabled_tier_ids
     const cfg = configs.length === 1 ? configs[0] : null
     return cfg ? cfg.discount_tiers.filter(t => t.enabled !== false).map(t => t.id) : []
   })
-  const [cashEnabled, setCashEnabled] = useState(ej?.cash_enabled ?? false)
+  const [cashEnabled, setCashEnabled] = useState(ejPd?.cash_enabled ?? false)
 
   // Financing
-  const [financingId, setFinancingId] = useState<string | null>(ej?.financing_id ?? null)
+  const [financingId, setFinancingId] = useState<string | null>(ejPd?.financing_id ?? null)
 
   // Rebate
-  const [rebateEnabled, setRebateEnabled] = useState(ej?.rebate_enabled ?? false)
-  const [rebateTierIds, setRebateTierIds] = useState<string[]>(ej?.rebate_tier_ids ?? [])
-  const [chargedAmount, setChargedAmount] = useState(ej?.charged_amount ? String(ej.charged_amount) : '')
+  const [rebateEnabled, setRebateEnabled] = useState(ejPd?.rebate_enabled ?? false)
+  const [rebateTierIds, setRebateTierIds] = useState<string[]>(ejPd?.rebate_tier_ids ?? [])
+  const [chargedAmount, setChargedAmount] = useState(ejPd?.charged_amount ? String(ejPd.charged_amount) : '')
 
   // UI
   const [pricePanelOpen, setPricePanelOpen] = useState(false)

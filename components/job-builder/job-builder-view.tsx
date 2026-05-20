@@ -56,7 +56,14 @@ export default function JobBuilderView({ job, showSavedToast }: { job: Job; show
   })
 
   const snapshot: JobTypeConfig | null = job.job_type_snapshot ?? null
-  const calcResult: JobCalculatorResult | null = job.calculator_result ?? null
+  const pd = (job.pricing_data && (job.pricing_data as any).source === 'job_builder') ? job.pricing_data as any : null
+  const calcResult: JobCalculatorResult | null = pd?.calculator_result ?? job.calculator_result ?? null
+  const basePrice: number | null = pd?.base_price ?? null
+  const enabledTierIds: string[] = pd?.enabled_tier_ids ?? []
+  const cashEnabled: boolean = pd?.cash_enabled ?? false
+  const financingId: string | null = pd?.financing_id ?? null
+  const rebateEnabled: boolean = pd?.rebate_enabled ?? false
+  const rebateTierIds: string[] = pd?.rebate_tier_ids ?? []
 
   const sc = STATUS_COLORS[job.status] ?? STATUS_COLORS.draft
   const name = [job.customer_first_name, job.customer_last_name].filter(Boolean).join(' ') || job.customer_name || 'Unknown'
@@ -241,35 +248,35 @@ export default function JobBuilderView({ job, showSavedToast }: { job: Job; show
       )}
 
       {/* Discount config */}
-      {job.enabled_tier_ids && snapshot && (
+      {pd && snapshot && (
         <div className="rounded-2xl p-4 mb-4 space-y-1.5"
           style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
           <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6B7280' }}>Configuration</p>
           {snapshot.discount_tiers?.map(t => (
             <div key={t.id} className="flex items-center gap-2 text-sm">
-              <span style={{ color: job.enabled_tier_ids.includes(t.id) ? '#34D399' : '#4B5563' }}>
-                {job.enabled_tier_ids.includes(t.id) ? '✓' : '○'}
+              <span style={{ color: enabledTierIds.includes(t.id) ? '#34D399' : '#4B5563' }}>
+                {enabledTierIds.includes(t.id) ? '✓' : '○'}
               </span>
-              <span style={{ color: job.enabled_tier_ids.includes(t.id) ? '#D1D5DB' : '#6B7280' }}>
+              <span style={{ color: enabledTierIds.includes(t.id) ? '#D1D5DB' : '#6B7280' }}>
                 {t.name} ({t.pct}%)
               </span>
             </div>
           ))}
-          {job.cash_enabled && (
+          {cashEnabled && (
             <div className="flex items-center gap-2 text-sm">
               <span style={{ color: '#34D399' }}>✓</span>
               <span style={{ color: '#D1D5DB' }}>Cash incentive applied</span>
             </div>
           )}
-          {job.financing_id && (
+          {financingId && (
             <div className="flex items-center gap-2 text-sm">
               <span style={{ color: '#60A5FA' }}>⚡</span>
               <span style={{ color: '#D1D5DB' }}>
-                {snapshot.financing_options?.find(f => f.id === job.financing_id)?.name ?? job.financing_id}
+                {snapshot.financing_options?.find(f => f.id === financingId)?.name ?? financingId}
               </span>
             </div>
           )}
-          {job.rebate_enabled && (
+          {rebateEnabled && (
             <div className="flex items-center gap-2 text-sm">
               <span style={{ color: '#A78BFA' }}>✓</span>
               <span style={{ color: '#D1D5DB' }}>

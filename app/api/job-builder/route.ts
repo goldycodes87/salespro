@@ -26,17 +26,24 @@ export async function GET(request: NextRequest) {
 
   let query = admin
     .from('proposals')
-    .select('id, customer_first_name, customer_last_name, customer_name, status, your_price, base_price, job_type_snapshot, created_at, updated_at')
+    .select('id, customer_first_name, customer_last_name, customer_name, status, your_price, pricing_data, job_type_snapshot, created_at, updated_at')
     .eq('rep_id', user.id)
     .not('job_type_config_id', 'is', null)
-    .is('deleted_at', null)
+    .neq('status', 'archived')
     .order('created_at', { ascending: false })
 
   if (status && status !== 'all') query = query.eq('status', status)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data ?? [])
+
+  // Merge pricing_data fields into top-level for convenience
+  const jobs = (data ?? []).map(row => ({
+    ...row,
+    base_price: (row.pricing_data as any)?.base_price ?? null,
+  }))
+
+  return NextResponse.json(jobs)
 }
 
 // POST /api/job-builder — create new job
@@ -55,6 +62,19 @@ export async function POST(request: NextRequest) {
   const customer_name = `${body.customer_first_name.trim()} ${body.customer_last_name.trim()}`
   const calcResult = body.calculator_result ?? {}
 
+  // Store job builder inputs in pricing_data
+  const pricing_data = {
+    source: 'job_builder',
+    base_price: body.base_price,
+    enabled_tier_ids: body.enabled_tier_ids ?? [],
+    cash_enabled: body.cash_enabled ?? false,
+    financing_id: body.financing_id ?? null,
+    charged_amount: body.charged_amount ?? null,
+    rebate_enabled: body.rebate_enabled ?? false,
+    rebate_tier_ids: body.rebate_tier_ids ?? [],
+    calculator_result: calcResult,
+  }
+
   const { data, error } = await admin
     .from('proposals')
     .insert({
@@ -68,15 +88,8 @@ export async function POST(request: NextRequest) {
       customer_address: body.customer_address || null,
       job_type_config_id: body.job_type_config_id,
       job_type_snapshot: body.job_type_snapshot || null,
-      base_price: body.base_price,
       scope_of_work: body.scope_of_work || null,
-      enabled_tier_ids: body.enabled_tier_ids ?? [],
-      cash_enabled: body.cash_enabled ?? false,
-      financing_id: body.financing_id || null,
-      charged_amount: body.charged_amount || null,
-      rebate_enabled: body.rebate_enabled ?? false,
-      rebate_tier_ids: body.rebate_tier_ids ?? [],
-      calculator_result: calcResult,
+      pricing_data,
       your_price: calcResult.customer_price ?? 0,
       type: (body.job_type_snapshot?.name ?? 'job').toLowerCase().replace(/[^a-z0-9]+/g, '_'),
       status: 'draft',
