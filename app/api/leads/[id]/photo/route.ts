@@ -40,10 +40,10 @@ export async function POST(
     return NextResponse.json({ error: 'Google Maps API key not configured' }, { status: 500 })
   }
 
-  // Fetch the lead to get the address
+  // Fetch the lead to get address and current photo state
   const { data: lead, error: leadError } = await admin
     .from('leads')
-    .select('address, city, state, zip')
+    .select('address, city, state, zip, photo_type, street_view_url')
     .eq('id', id)
     .eq('rep_id', user.id)
     .single()
@@ -63,37 +63,54 @@ export async function POST(
 
   const locationStr = encodeURIComponent(addressStr)
 
-  let photoUrl: string
-  let photoType: 'street_view' | 'satellite'
+  let streetViewFound = false
+  let streetViewUrl = ''
 
   try {
     const svCheckUrl = `https://maps.googleapis.com/maps/api/streetview?size=800x600&location=${locationStr}&key=${googleKey}&return_error_code=true`
     const svResponse = await fetch(svCheckUrl)
     if (svResponse.ok && svResponse.status === 200) {
       console.log('Street View found')
-      photoUrl = svCheckUrl
-      photoType = 'street_view'
+      streetViewFound = true
+      streetViewUrl = svCheckUrl
     } else {
-      console.log('No Street View — falling back to satellite')
-      photoUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=19&size=640x400&maptype=satellite&key=${googleKey}`
-      photoType = 'satellite'
+      console.log('No Street View available')
     }
   } catch (err: any) {
     console.error('Street View check failed:', err.message)
-    photoUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=19&size=640x400&maptype=satellite&key=${googleKey}`
-    photoType = 'satellite'
   }
 
-  console.log('SAVED URL:', photoUrl)
+  // Street view found — save it
+  if (streetViewFound) {
+    console.log('SAVED URL:', streetViewUrl)
+    const { data: updated, error: updateError } = await admin
+      .from('leads')
+      .update({ street_view_url: streetViewUrl, photo_type: 'street_view', updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('rep_id', user.id)
+      .select('street_view_url, photo_type')
+      .single()
 
-  // Update lead with new photo URL and type
+    if (updateError) {
+      console.error('Failed to update lead:', updateError.message)
+      return NextResponse.json({ error: updateError.message }, { status: 500 })
+    }
+    return NextResponse.json({ street_view_url: updated.street_view_url, photo_type: updated.photo_type })
+  }
+
+  // No street view — keep Zillow photo if one already exists
+  if (lead.photo_type === 'zillow_listing' && lead.street_view_url) {
+    console.log('Keeping existing Zillow photo — no Street View available')
+    return NextResponse.json({ street_view_url: lead.street_view_url, photo_type: 'zillow_listing' })
+  }
+
+  // Fall back to satellite
+  const satelliteUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${locationStr}&zoom=19&size=640x400&maptype=satellite&key=${googleKey}`
+  console.log('SAVED URL:', satelliteUrl)
+
   const { data: updated, error: updateError } = await admin
     .from('leads')
-    .update({
-      street_view_url: photoUrl,
-      photo_type: photoType,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ street_view_url: satelliteUrl, photo_type: 'satellite', updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('rep_id', user.id)
     .select('street_view_url, photo_type')
@@ -103,6 +120,5 @@ export async function POST(
     console.error('Failed to update lead:', updateError.message)
     return NextResponse.json({ error: updateError.message }, { status: 500 })
   }
-
   return NextResponse.json({ street_view_url: updated.street_view_url, photo_type: updated.photo_type })
 }

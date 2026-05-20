@@ -504,7 +504,18 @@ export default function LeadDetail({
         if (res.ok) {
           const data = await res.json()
           if (data.summary) {
-            setLead(prev => ({ ...prev, ai_summary: data.summary, research_status: 'complete' }))
+            if (data.street_view_url) {
+              setLead(prev => ({
+                ...prev,
+                ai_summary: data.summary,
+                research_status: 'complete',
+                street_view_url: data.street_view_url,
+                photo_type: data.photo_type,
+              }))
+            } else {
+              setLead(prev => ({ ...prev, ai_summary: data.summary, research_status: 'complete' }))
+            }
+            setStreetViewError(false)
           }
         } else {
           setResearchError('Research failed. Try again.')

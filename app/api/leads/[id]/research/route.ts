@@ -666,7 +666,10 @@ export async function POST(
       costUsd: API_COSTS.anthropic_research, responseMs: synthesisMs,
     }).catch(console.error)
 
-    return NextResponse.json({ summary })
+    const updatedPhotoUrl = (!hasStreetViewPhoto && apillowPhoto) ? apillowPhoto : lead.street_view_url
+    const updatedPhotoType = (!hasStreetViewPhoto && apillowPhoto) ? 'zillow_listing' : lead.photo_type
+
+    return NextResponse.json({ summary, street_view_url: updatedPhotoUrl, photo_type: updatedPhotoType })
   } catch (err: any) {
     console.error('AI research error:', err)
     await admin.from('leads').update({ research_status: 'failed' }).eq('id', id)
