@@ -10,6 +10,7 @@ import { DEFAULT_FINANCING_SETTINGS, DEFAULT_DISCOUNT_SETTINGS } from '@/lib/pri
 import { formatPhone } from '@/hooks/usePhoneFormat'
 import { PERSONAS } from '@/lib/coach-personas'
 import { getPlatformsForIndustry, PLATFORM_REGISTRY } from '@/lib/platform-registry'
+import JobTypesTab from './job-types-tab'
 
 function PersonaPhoto({ personaId, color }: { personaId: string; color: string }) {
   const [error, setError] = useState(false)
@@ -215,7 +216,7 @@ const CAPABILITIES = [
   { id: 'outbound',      icon: '📱', label: 'Make outbound calls' },
 ]
 
-type TabId = 'general' | 'assistant' | 'coach' | 'calendar' | 'integrations'
+type TabId = 'general' | 'assistant' | 'coach' | 'calendar' | 'integrations' | 'jobtypes'
 
 export default function SettingsPage({
   rep,
@@ -665,6 +666,7 @@ export default function SettingsPage({
     { id: 'coach',        label: 'Coach' },
     { id: 'calendar',     label: 'Calendar' },
     { id: 'integrations', label: 'Integrations' },
+    { id: 'jobtypes',     label: 'Job Types' },
   ]
 
   return (
@@ -1757,6 +1759,8 @@ export default function SettingsPage({
           })()}
         </>
       )}
+
+      {activeTab === 'jobtypes' && <JobTypesTab />}
 
       {/* Add / Edit Contact Modal */}
       {(addingContact || editingContact) && (
