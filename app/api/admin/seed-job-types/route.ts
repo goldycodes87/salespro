@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
+import { formatFinancingName } from '@/lib/job-calculator'
 
 const ERIC_REP_ID = 'c6fc9b34-2c2d-4b3b-a312-63fa24637c92'
 
@@ -26,31 +27,27 @@ export async function POST() {
       pricing_model: 'financed_down',
       admin_fee: 850,
       max_discount_pct: 37,
-      cash_incentive: {
-        enabled: true,
-        pct: 7,
-        label: 'Cash Incentive',
-      },
+      cash_incentive: { enabled: true, pct: 7, label: 'Cash Incentive' },
       discount_tiers: [
         { id: 'promo', name: 'Promotional Discount', pct: 20, visible: true, enabled: true, position: 1 },
         { id: 'bnsn', name: 'Buy Now, Save Now', pct: 10, visible: true, enabled: true, position: 2 },
       ],
       hidden_tier: { enabled: false, pct: 0 },
       financing_options: [
-        { id: 'cash', name: 'Cash / Check', fee_pct: 0, show_after_tier: 2 },
-        { id: '9_99_10yr', name: '9.99% / 10 Years', fee_pct: 0, show_after_tier: 2, monthly_factor: 0.01053 },
-        { id: '6_99_10yr', name: '6.99% / 10 Years', fee_pct: 0.0525, show_after_tier: 2, monthly_factor: 0.01163 },
-        { id: '6_99_5yr', name: '6.99% / 5 Years', fee_pct: 0.06, show_after_tier: 2, monthly_factor: 0.01980 },
-        { id: '0pct_18mo', name: '0% / 18 Months', fee_pct: 0.085, show_after_tier: 2, monthly_factor: 0.05556 },
-        { id: '0pct_24mo', name: '0% / 24 Months', fee_pct: 0.105, show_after_tier: 2, monthly_factor: 0.04167 },
+        { id: 'cash',      display_name: 'Cash / Check',                     rate_pct: 0,    term_months: 0,   fee_pct: 0,      show_after_tier: 2, is_special_case: true },
+        { id: '9_99_10yr', display_name: formatFinancingName(9.99, 120),      rate_pct: 9.99, term_months: 120, fee_pct: 0,      show_after_tier: 2 },
+        { id: '6_99_10yr', display_name: formatFinancingName(6.99, 120),      rate_pct: 6.99, term_months: 120, fee_pct: 0,      show_after_tier: 2 },
+        { id: '6_99_5yr',  display_name: formatFinancingName(6.99, 60),       rate_pct: 6.99, term_months: 60,  fee_pct: 0,      show_after_tier: 2 },
+        { id: '0pct_18mo', display_name: formatFinancingName(0, 18),          rate_pct: 0,    term_months: 18,  fee_pct: 0,      show_after_tier: 2 },
+        { id: '0pct_24mo', display_name: formatFinancingName(0, 24),          rate_pct: 0,    term_months: 24,  fee_pct: 0,      show_after_tier: 2 },
       ],
       rebate_program: {
         enabled: true,
         name: 'Costco',
         tiers: [
-          { id: 'member', name: 'Costco Shop Card', type: 'pct_of_price', value: 10, base: 'customer_price' },
-          { id: 'executive', name: 'Executive Reward', type: 'pct_of_price', value: 2, cap: 1250, base: 'customer_price' },
-          { id: 'city_visa', name: 'City Visa (2%)', type: 'pct_of_charged', value: 2, base: 'charged_amount' },
+          { id: 'member',    name: 'Costco Shop Card',    type: 'pct_of_price',    value: 10, base: 'customer_price' },
+          { id: 'executive', name: 'Executive Reward',    type: 'pct_of_price',    value: 2,  cap: 1250, base: 'customer_price' },
+          { id: 'city_visa', name: 'City Visa (2%)',      type: 'pct_of_charged',  value: 2,  base: 'charged_amount' },
         ],
       },
       is_default: true,
@@ -71,33 +68,29 @@ export async function POST() {
       pricing_model: 'cash_up',
       admin_fee: 850,
       max_discount_pct: 37,
-      cash_incentive: {
-        enabled: true,
-        pct: 7,
-        label: 'Cash Incentive',
-      },
+      cash_incentive: { enabled: true, pct: 7, label: 'Cash Incentive' },
       discount_tiers: [
         { id: 'promo', name: 'Promotional Discount', pct: 20, visible: true, enabled: true, position: 1 },
         { id: 'bnsn', name: 'Buy Now, Save Now', pct: 10, visible: true, enabled: true, position: 2 },
       ],
       hidden_tier: { enabled: true, pct: 10 },
       financing_options: [
-        { id: 'cash', name: 'Cash / Check', fee_pct: 0, show_after_tier: 2 },
-        { id: 'credit_card', name: 'Credit Card', fee_pct: 0.035, show_after_tier: 2 },
-        { id: '9_99_10yr', name: '9.99% / 10 Years', fee_pct: 0, show_after_tier: 2, monthly_factor: 0.01053 },
-        { id: '6_99_10yr', name: '6.99% / 10 Years', fee_pct: 0.0525, show_after_tier: 2, monthly_factor: 0.01163 },
-        { id: '6_99_5yr', name: '6.99% / 5 Years', fee_pct: 0.06, show_after_tier: 2, monthly_factor: 0.01980 },
-        { id: '0pct_24mo', name: '0% / 24 Months', fee_pct: 0.105, show_after_tier: 2, monthly_factor: 0.04167 },
-        { id: '0pct_18mo', name: '0% / 18 Months', fee_pct: 0.085, show_after_tier: 2, monthly_factor: 0.05556 },
-        { id: '0pct_12mo', name: '0% / 12 Months', fee_pct: 0.055, show_after_tier: 2, monthly_factor: 0.08333 },
+        { id: 'cash',        display_name: 'Cash / Check',                 rate_pct: 0,    term_months: 0,   fee_pct: 0,      show_after_tier: 2, is_special_case: true },
+        { id: 'credit_card', display_name: 'Credit Card',                  rate_pct: 0,    term_months: 0,   fee_pct: 0.035,  show_after_tier: 2, is_special_case: true },
+        { id: '9_99_10yr',   display_name: formatFinancingName(9.99, 120), rate_pct: 9.99, term_months: 120, fee_pct: 0,      show_after_tier: 2 },
+        { id: '6_99_10yr',   display_name: formatFinancingName(6.99, 120), rate_pct: 6.99, term_months: 120, fee_pct: 0.0525, show_after_tier: 2 },
+        { id: '6_99_5yr',    display_name: formatFinancingName(6.99, 60),  rate_pct: 6.99, term_months: 60,  fee_pct: 0.06,   show_after_tier: 2 },
+        { id: '0pct_24mo',   display_name: formatFinancingName(0, 24),     rate_pct: 0,    term_months: 24,  fee_pct: 0.105,  show_after_tier: 2 },
+        { id: '0pct_18mo',   display_name: formatFinancingName(0, 18),     rate_pct: 0,    term_months: 18,  fee_pct: 0.085,  show_after_tier: 2 },
+        { id: '0pct_12mo',   display_name: formatFinancingName(0, 12),     rate_pct: 0,    term_months: 12,  fee_pct: 0.055,  show_after_tier: 2 },
       ],
       rebate_program: {
         enabled: true,
         name: 'Costco',
         tiers: [
-          { id: 'member', name: 'Costco Shop Card', type: 'pct_of_price', value: 10, base: 'customer_price' },
-          { id: 'executive', name: 'Executive Reward', type: 'pct_of_price', value: 2, cap: 1250, base: 'customer_price' },
-          { id: 'city_visa', name: 'City Visa (2%)', type: 'pct_of_charged', value: 2, base: 'charged_amount' },
+          { id: 'member',    name: 'Costco Shop Card',    type: 'pct_of_price',    value: 10, base: 'customer_price' },
+          { id: 'executive', name: 'Executive Reward',    type: 'pct_of_price',    value: 2,  cap: 1250, base: 'customer_price' },
+          { id: 'city_visa', name: 'City Visa (2%)',      type: 'pct_of_charged',  value: 2,  base: 'charged_amount' },
         ],
       },
       is_default: false,

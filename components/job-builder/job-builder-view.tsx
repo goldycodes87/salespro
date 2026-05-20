@@ -272,7 +272,10 @@ export default function JobBuilderView({ job, showSavedToast }: { job: Job; show
             <div className="flex items-center gap-2 text-sm">
               <span style={{ color: '#60A5FA' }}>⚡</span>
               <span style={{ color: '#D1D5DB' }}>
-                {snapshot.financing_options?.find(f => f.id === financingId)?.name ?? financingId}
+                {(() => {
+                  const fin: any = snapshot.financing_options?.find((f: any) => f.id === financingId)
+                  return fin?.display_name ?? fin?.name ?? financingId
+                })()}
               </span>
             </div>
           )}

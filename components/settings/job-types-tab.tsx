@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { formatFinancingName } from '@/lib/job-calculator'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,10 +19,12 @@ type CashIncentive = { enabled: boolean; pct: number; label: string }
 
 type FinancingOpt = {
   id: string
-  name: string
+  rate_pct: number
+  term_months: number
   fee_pct: number
+  display_name: string
   show_after_tier: number
-  monthly_factor?: number
+  is_special_case?: boolean
 }
 
 type RebateTier = {
@@ -304,7 +307,14 @@ export default function JobTypesTab() {
   const addFin = () =>
     setD(d => ({
       ...d,
-      financing_options: [...d.financing_options, { id: `fin_${Date.now()}`, name: '', fee_pct: 0, show_after_tier: 2 }],
+      financing_options: [...d.financing_options, {
+        id: `fin_${Date.now()}`,
+        rate_pct: 0,
+        term_months: 24,
+        fee_pct: 0,
+        display_name: formatFinancingName(0, 24),
+        show_after_tier: 2,
+      }],
     }))
 
   const updateRebateTier = (idx: number, u: Partial<RebateTier>) =>
@@ -571,23 +581,71 @@ export default function JobTypesTab() {
 
               {/* FINANCING OPTIONS */}
               <Sec title="Financing Options">
+                {draft.pricing_model === 'financed_down' && (
+                  <p className="text-xs -mt-1" style={{ color: '#6B7280' }}>
+                    No fees added — enter payment terms only.
+                  </p>
+                )}
                 {draft.financing_options.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="grid text-xs gap-1" style={{ gridTemplateColumns: '1fr 62px 80px 28px', color: '#6B7280' }}>
-                      <span>Name</span><span>Fee %</span><span>Monthly ×</span><span />
-                    </div>
+                  <div className="space-y-3">
                     {draft.financing_options.map((fin, idx) => (
-                      <div key={fin.id} className="grid items-center gap-1" style={{ gridTemplateColumns: '1fr 62px 80px 28px' }}>
-                        <SI value={fin.name} onChange={v => updateFin(idx, { name: v })} placeholder="Name" />
-                        <SI type="number"
-                          value={String(Number((fin.fee_pct * 100).toFixed(4)))}
-                          onChange={v => updateFin(idx, { fee_pct: Number(v) / 100 })}
-                          placeholder="0" />
-                        <SI type="number"
-                          value={fin.monthly_factor != null ? String(fin.monthly_factor) : ''}
-                          onChange={v => updateFin(idx, { monthly_factor: v ? Number(v) : undefined })}
-                          placeholder="—" />
-                        <button type="button" onClick={() => removeFin(idx)} style={{ color: '#4B5563', fontSize: 14, textAlign: 'center' }}>🗑</button>
+                      <div key={fin.id} className="rounded-xl p-3 space-y-2"
+                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        {/* Line 1: name + delete */}
+                        <div className="flex items-center gap-2">
+                          {fin.is_special_case ? (
+                            <SI value={fin.display_name} onChange={v => updateFin(idx, { display_name: v })}
+                              placeholder="e.g. Cash / Check" style={{ flex: 1 }} />
+                          ) : (
+                            <p className="flex-1 text-sm font-medium truncate" style={{ color: '#D1D5DB' }}>
+                              {fin.display_name || '—'}
+                            </p>
+                          )}
+                          <button type="button" onClick={() => removeFin(idx)}
+                            style={{ color: '#4B5563', fontSize: 14, flexShrink: 0 }}>🗑</button>
+                        </div>
+                        {/* Line 2: rate / term / fee inputs */}
+                        {!fin.is_special_case ? (
+                          <div className="flex items-center flex-wrap gap-3">
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs" style={{ color: '#6B7280' }}>Rate</span>
+                              <SI type="number" value={String(fin.rate_pct ?? 0)}
+                                onChange={v => {
+                                  const rate = parseFloat(v) || 0
+                                  updateFin(idx, { rate_pct: rate, display_name: formatFinancingName(rate, fin.term_months ?? 0) })
+                                }}
+                                style={{ width: 54 }} placeholder="0" />
+                              <span className="text-xs" style={{ color: '#6B7280' }}>%</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs" style={{ color: '#6B7280' }}>Term</span>
+                              <SI type="number" value={String(fin.term_months ?? 0)}
+                                onChange={v => {
+                                  const term = parseInt(v) || 0
+                                  updateFin(idx, { term_months: term, display_name: formatFinancingName(fin.rate_pct ?? 0, term) })
+                                }}
+                                style={{ width: 54 }} placeholder="24" />
+                              <span className="text-xs" style={{ color: '#6B7280' }}>mo</span>
+                            </div>
+                            {draft.pricing_model === 'cash_up' && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs" style={{ color: '#6B7280' }}>Fee</span>
+                                <SI type="number" value={String(Number(((fin.fee_pct ?? 0) * 100).toFixed(2)))}
+                                  onChange={v => updateFin(idx, { fee_pct: parseFloat(v) / 100 || 0 })}
+                                  style={{ width: 54 }} placeholder="0" />
+                                <span className="text-xs" style={{ color: '#6B7280' }}>%</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : draft.pricing_model === 'cash_up' ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs" style={{ color: '#6B7280' }}>Fee</span>
+                            <SI type="number" value={String(Number(((fin.fee_pct ?? 0) * 100).toFixed(2)))}
+                              onChange={v => updateFin(idx, { fee_pct: parseFloat(v) / 100 || 0 })}
+                              style={{ width: 54 }} placeholder="0" />
+                            <span className="text-xs" style={{ color: '#6B7280' }}>%</span>
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>

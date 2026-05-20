@@ -20,10 +20,12 @@ export interface CashIncentive {
 
 export interface FinancingOption {
   id: string
-  name: string
-  fee_pct: number
+  rate_pct: number       // interest rate, e.g. 0, 6.99, 9.99
+  term_months: number    // e.g. 12, 18, 24, 120; 0 = no term (special case)
+  fee_pct: number        // fee added to price (cash_up only)
+  display_name: string   // auto-generated via formatFinancingName or manual for special cases
   show_after_tier: number
-  monthly_factor?: number
+  is_special_case?: boolean  // true for Cash/Check, Credit Card — manual name, no rate/term
 }
 
 export interface RebateTier {
@@ -94,6 +96,33 @@ export interface JobCalculatorResult {
   total_rebate: number | null
 }
 
+// Auto-generate human-readable display name from rate and term
+export function formatFinancingName(rate_pct: number, term_months: number): string {
+  const rate = rate_pct === 0 ? '0% Interest' : `${rate_pct}% Interest`
+  if (term_months >= 12 && term_months % 12 === 0) {
+    const years = term_months / 12
+    const yearLabel = years === 1 ? '1 Year' : `${years} Years`
+    return `${yearLabel} at ${rate}`
+  }
+  return `${term_months} Months at ${rate}`
+}
+// Examples:
+// 0%, 24mo  → "24 Months at 0% Interest"
+// 9.99%, 120mo → "10 Years at 9.99% Interest"
+// 6.99%, 60mo  → "5 Years at 6.99% Interest"
+// 0%, 18mo  → "18 Months at 0% Interest"
+
+// Standard amortization monthly payment factor
+export function calcMonthlyFactor(rate_pct: number, term_months: number): number {
+  if (rate_pct === 0) {
+    return Number((1 / term_months).toFixed(6))
+  }
+  const r = (rate_pct / 100) / 12
+  const n = term_months
+  const factor = r / (1 - Math.pow(1 + r, -n))
+  return Number(factor.toFixed(6))
+}
+
 export function calculateJob(
   config: JobTypeConfig,
   inputs: JobCalculatorInputs,
@@ -124,12 +153,12 @@ export function calculateJob(
   const cashDiscount = Math.floor(subtotal * (cashPct / 100))
   const afterCash = subtotal - cashDiscount
 
-  // Step 6: Admin fee always added, never discounted, always baked in
+  // Step 6: Admin fee always added, never discounted
   let customerPrice = afterCash + config.admin_fee
 
   // Step 7: Financing fee
-  // cash_up model: fee added to price
-  // financed_down model: no fee added (fee already in base price)
+  // financed_down: NEVER add fee — financing = payment terms only
+  // cash_up: ADD fee_pct to price if financing selected and fee_pct > 0
   let financingFee = 0
   let monthlyPayment: number | null = null
 
@@ -140,13 +169,15 @@ export function calculateJob(
         financingFee = Math.floor(customerPrice * fin.fee_pct)
         customerPrice += financingFee
       }
-      if (fin.monthly_factor) {
-        monthlyPayment = Math.ceil(customerPrice * fin.monthly_factor)
+      // Monthly payment — only if term_months > 0 (not a special case like Cash/Check)
+      if (fin.term_months > 0) {
+        const factor = calcMonthlyFactor(fin.rate_pct, fin.term_months)
+        monthlyPayment = Math.ceil(customerPrice * factor)
       }
     }
   }
 
-  // Step 8: Rebates — always calculated off final customer_price including admin
+  // Step 8: Rebates — calculated off final customer_price including admin
   let rebates: RebateResult[] | null = null
   let totalRebate: number | null = null
 
@@ -173,7 +204,7 @@ export function calculateJob(
     totalRebate = rebates.reduce((sum, r) => sum + r.amount, 0)
   }
 
-  // Step 9: Per-tier breakdown for display purposes
+  // Step 9: Per-tier breakdown for display
   const tiersApplied: TierResult[] = activeTiers.map(t => ({
     id: t.id,
     name: t.name,
@@ -208,19 +239,3 @@ export function calculateRebateAtPrice(program: RebateProgram, price: number): n
     return sum + (tier.cap ? Math.min(amount, tier.cap) : amount)
   }, 0)
 }
-
-/*
-TEST — Windows, 20% promo, no cash:
-  base_price: 7303
-  enabled_tier_ids: ['promo']
-  cash_enabled: false
-  financing_id: null
-  admin_fee: 850
-  promo tier pct: 20%
-
-  total_discount_amount:
-    floor(7303 × 0.20) = 1460
-  subtotal: 7303 - 1460 = 5843
-  customer_price: 5843 + 850 = 6693
-  member_rebate (10% of 6693): 669
-*/

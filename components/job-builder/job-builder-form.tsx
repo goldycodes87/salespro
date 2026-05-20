@@ -590,8 +590,14 @@ export default function JobBuilderForm({
                   <Tog
                     on={cashEnabled}
                     onToggle={() => setCashEnabled((v: boolean) => !v)}
-                    label={`${selectedConfig.cash_incentive.label || 'Cash Incentive'} (${selectedConfig.cash_incentive.pct}%)`}
-                    sub="Toggle on if customer is paying cash or by check"
+                    label={`${
+                      selectedConfig.pricing_model === 'financed_down'
+                        ? 'Cash / Check Payment'
+                        : 'Cash Price'
+                    } (${selectedConfig.cash_incentive.pct}%)`}
+                    sub={selectedConfig.pricing_model === 'financed_down'
+                      ? 'Customer pays in full by cash, check, or credit card'
+                      : 'No financing fee applied'}
                   />
                 </div>
               )}
@@ -601,8 +607,14 @@ export default function JobBuilderForm({
           {/* SECTION 5: Financing — only show if tiers are enabled */}
           {selectedConfig && hasTiersEnabled && (
             <Sec title="Financing Option">
-              {selectedConfig.pricing_model === 'cash_up' && (
-                <p className="text-xs" style={{ color: '#9CA3AF' }}>Financing fee added to price based on selection</p>
+              {selectedConfig.pricing_model === 'cash_up' ? (
+                <p className="text-xs" style={{ color: '#9CA3AF' }}>
+                  Selecting a financing option will add the financing fee to the customer&apos;s price.
+                </p>
+              ) : (
+                <p className="text-xs" style={{ color: '#9CA3AF' }}>
+                  Financing options show payment terms. The cash incentive removes the financing fee from the price.
+                </p>
               )}
               <select
                 value={financingId ?? ''}
@@ -610,9 +622,46 @@ export default function JobBuilderForm({
                 style={{ ...INPUT, appearance: 'none', cursor: 'pointer' }}>
                 <option value="">Select financing...</option>
                 {selectedConfig.financing_options.map(fin => (
-                  <option key={fin.id} value={fin.id}>{fin.name}</option>
+                  <option key={fin.id} value={fin.id}>
+                    {(fin as any).display_name ?? (fin as any).name ?? fin.id}
+                  </option>
                 ))}
               </select>
+              {/* Contextual note below dropdown */}
+              {financingId && (() => {
+                const fin = selectedConfig.financing_options.find(f => f.id === financingId)
+                if (!fin) return null
+                if (selectedConfig.pricing_model === 'financed_down') {
+                  if (calcResult?.monthly_payment) {
+                    return (
+                      <p className="text-xs mt-1" style={{ color: '#9CA3AF' }}>
+                        Monthly payment: ${calcResult.monthly_payment.toLocaleString()}/mo (no price change)
+                      </p>
+                    )
+                  }
+                } else {
+                  if (fin.fee_pct > 0 && calcResult) {
+                    return (
+                      <div className="mt-1 space-y-0.5">
+                        <p className="text-xs" style={{ color: '#FCD34D' }}>
+                          Financing fee: +{fmt(calcResult.financing_fee)} added to price
+                        </p>
+                        {calcResult.monthly_payment && (
+                          <p className="text-xs" style={{ color: '#9CA3AF' }}>
+                            Monthly payment: ${calcResult.monthly_payment.toLocaleString()}/mo
+                          </p>
+                        )}
+                      </div>
+                    )
+                  }
+                  return (
+                    <p className="text-xs mt-1" style={{ color: '#34D399' }}>
+                      No financing fee — cash price
+                    </p>
+                  )
+                }
+                return null
+              })()}
             </Sec>
           )}
 
