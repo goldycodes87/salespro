@@ -296,9 +296,11 @@ export function calcPrice(inputs: PricingInputs): PricingResult {
     monthly_payment = FINANCING_FACTORS[inputs.financing](your_price)
   }
 
-  const costco_member_savings = inputs.costco_revealed && inputs.costco_member ? your_price * 0.10 : 0
+  const costco_member_savings = inputs.costco_revealed && inputs.costco_member
+    ? Math.floor(your_price * 0.10)
+    : 0
   const costco_exec_savings = inputs.costco_revealed && inputs.costco_executive
-    ? Math.min(your_price * 0.02, 1250)
+    ? Math.min(Math.floor(your_price * 0.02), 1250)
     : 0
   const costco_city_visa_savings = inputs.costco_city_visa_enabled && inputs.costco_city_visa_amount
     ? Math.floor(inputs.costco_city_visa_amount * 0.02)

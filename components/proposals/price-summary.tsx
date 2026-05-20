@@ -17,7 +17,7 @@ export default function PriceSummary({
   const hasDiscount = result.discount_pct > 0 || result.cash_discount > 0
   const hasFinancing = inputs.financing !== 'none' && result.monthly_payment > 0
   const hasCostco = result.net_after_costco < result.your_price
-  const displayPrice = hasCostco ? result.net_after_costco : result.your_price
+  const displayPrice = result.your_price
 
   // Siding-specific layout
   if (inputs.proposal_type === 'siding') {
@@ -175,25 +175,25 @@ export default function PriceSummary({
         </div>
       )}
 
-      {/* Costco savings */}
+      {/* Costco rebates — informational only, never deducted from Your Price */}
       {hasCostco && (
         <div className="rounded-xl p-3 mt-2" style={{ background: 'rgba(29,78,216,0.1)', border: '1px solid rgba(29,78,216,0.2)' }}>
           {result.costco_member_savings > 0 && (
             <div className="flex justify-between text-sm mb-1">
-              <span style={{ color: '#60A5FA' }}>Costco member (10%)</span>
-              <span className="font-semibold" style={{ color: '#60A5FA' }}>−{fmt(result.costco_member_savings)}</span>
+              <span style={{ color: '#60A5FA' }}>Costco Shop Card</span>
+              <span className="font-semibold" style={{ color: '#60A5FA' }}>{fmt(result.costco_member_savings)}</span>
             </div>
           )}
           {result.costco_exec_savings > 0 && (
-            <div className="flex justify-between text-sm">
-              <span style={{ color: '#60A5FA' }}>Executive reward (2%)</span>
-              <span className="font-semibold" style={{ color: '#60A5FA' }}>−{fmt(result.costco_exec_savings)}</span>
+            <div className="flex justify-between text-sm mb-1">
+              <span style={{ color: '#60A5FA' }}>Executive Reward</span>
+              <span className="font-semibold" style={{ color: '#60A5FA' }}>{fmt(result.costco_exec_savings)}</span>
             </div>
           )}
           {result.costco_city_visa_savings > 0 && (
             <div className="flex justify-between text-sm">
-              <span style={{ color: '#60A5FA' }}>City Visa (2%)</span>
-              <span className="font-semibold" style={{ color: '#60A5FA' }}>−{fmt(result.costco_city_visa_savings)}</span>
+              <span style={{ color: '#60A5FA' }}>City Visa Rebate</span>
+              <span className="font-semibold" style={{ color: '#60A5FA' }}>{fmt(result.costco_city_visa_savings)}</span>
             </div>
           )}
         </div>
