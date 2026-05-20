@@ -45,6 +45,178 @@ function Fade({ delay, children }: { delay: number; children: React.ReactNode })
   )
 }
 
+// ─── Research summary types ───────────────────────────────────────────────────
+
+interface ResearchSummary {
+  property?: {
+    sqft?: number | null
+    beds?: number | null
+    baths?: number | null
+    yearBuilt?: number | null
+    lotSize?: string | null
+    estimatedValue?: number | null
+    lastSalePrice?: number | null
+    lastSaleDate?: string | null
+    ownerOccupied?: boolean | null
+    elevation?: number | null
+  }
+  owner?: {
+    yearsAtAddress?: string | null
+    businessOwner?: boolean | null
+    professionalBackground?: string | null
+    communityInvolvement?: string | null
+    otherContext?: string | null
+    confidence?: 'high' | 'medium' | 'low'
+  }
+  salesContext?: string | null
+  dataSources?: string[]
+}
+
+function parseResearchSummary(text: string): ResearchSummary | null {
+  try {
+    const parsed = JSON.parse(text)
+    if (parsed && typeof parsed === 'object' && ('property' in parsed || 'owner' in parsed || 'salesContext' in parsed)) {
+      return parsed as ResearchSummary
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function PropRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span style={{ fontSize: '12px', color: '#6B7280', flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: '13px', color: '#D1D5DB', textAlign: 'right' }}>{value}</span>
+    </div>
+  )
+}
+
+function BulletRow({ text }: { text: string }) {
+  return (
+    <div className="flex items-start gap-2">
+      <span style={{ color: '#4B5563', flexShrink: 0, marginTop: '2px' }}>•</span>
+      <span style={{ fontSize: '13px', color: '#D1D5DB', lineHeight: 1.55 }}>{text}</span>
+    </div>
+  )
+}
+
+function StructuredSummary({ data }: { data: ResearchSummary }) {
+  const [sourcesOpen, setSourcesOpen] = useState(false)
+  const { property, owner, salesContext, dataSources } = data
+
+  const propValues = property ? Object.entries(property).filter(([, v]) => v !== null && v !== undefined) : []
+  const ownerValues = owner ? Object.entries(owner).filter(([k, v]) => k !== 'confidence' && v !== null && v !== undefined && v !== false) : []
+  const hasProp = propValues.length > 0
+  const hasOwner = ownerValues.length > 0 || !!salesContext
+
+  if (!hasProp && !hasOwner) {
+    return (
+      <p className="text-sm" style={{ color: '#6B7280' }}>
+        No public records found for this address. Try verifying the address or searching manually.
+      </p>
+    )
+  }
+
+  const confidenceColor = owner?.confidence === 'high'
+    ? { bg: 'rgba(16,185,129,0.15)', text: '#34D399' }
+    : owner?.confidence === 'medium'
+    ? { bg: 'rgba(245,158,11,0.15)', text: '#FCD34D' }
+    : { bg: 'rgba(107,114,128,0.15)', text: '#9CA3AF' }
+
+  return (
+    <div className="space-y-3">
+      {/* Property card */}
+      {hasProp && (
+        <div className="rounded-xl p-3.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6B7280' }}>Property</p>
+
+          {(property?.sqft || property?.beds || property?.baths) && (
+            <p className="text-sm font-bold mb-2.5" style={{ color: '#F9FAFB' }}>
+              {property.sqft ? `${property.sqft.toLocaleString()} sq ft` : ''}
+              {(property.beds || property.baths) ? `${property.sqft ? ' · ' : ''}${property.beds ?? '—'}bd / ${property.baths ?? '—'}ba` : ''}
+            </p>
+          )}
+
+          <div className="space-y-1.5">
+            {property?.yearBuilt && <PropRow label="Built" value={String(property.yearBuilt)} />}
+            {property?.lotSize && <PropRow label="Lot Size" value={property.lotSize} />}
+            {property?.estimatedValue && <PropRow label="Est. Value" value={`$${property.estimatedValue.toLocaleString()}`} />}
+            {property?.lastSalePrice && (
+              <PropRow
+                label="Last Sale"
+                value={`$${property.lastSalePrice.toLocaleString()}${property.lastSaleDate ? ` (${property.lastSaleDate})` : ''}`}
+              />
+            )}
+            {property?.elevation != null && (
+              <PropRow label="Elevation" value={`${property.elevation.toLocaleString()} ft`} />
+            )}
+            {property?.ownerOccupied !== null && property?.ownerOccupied !== undefined && (
+              <PropRow label="Owner Occupied" value={property.ownerOccupied ? 'Yes' : 'No'} />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Owner insights card */}
+      {hasOwner && (
+        <div className="rounded-xl p-3.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>Owner Insights</p>
+            {owner?.confidence && (
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: confidenceColor.bg, color: confidenceColor.text }}>
+                {owner.confidence} confidence
+              </span>
+            )}
+          </div>
+
+          {salesContext && (
+            <p className="text-sm mb-3" style={{ color: '#D1D5DB', lineHeight: 1.6 }}>{salesContext}</p>
+          )}
+
+          {(hasOwner || ownerValues.length > 0) && (
+            <div className="space-y-1.5">
+              {owner?.yearsAtAddress && <BulletRow text={`At this address: ${owner.yearsAtAddress}`} />}
+              {owner?.businessOwner && <BulletRow text="Business owner" />}
+              {owner?.professionalBackground && <BulletRow text={owner.professionalBackground} />}
+              {owner?.communityInvolvement && <BulletRow text={owner.communityInvolvement} />}
+              {owner?.otherContext && <BulletRow text={owner.otherContext} />}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sources (collapsed) */}
+      {dataSources && dataSources.length > 0 && (
+        <div>
+          <button
+            onClick={() => setSourcesOpen(o => !o)}
+            className="flex items-center gap-1.5 text-xs"
+            style={{ color: '#4B5563', minHeight: '36px' }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <polyline points={sourcesOpen ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
+            </svg>
+            {sourcesOpen ? 'Hide' : 'Show'} sources ({dataSources.length})
+          </button>
+          {sourcesOpen && (
+            <div className="mt-1 space-y-1">
+              {dataSources.map((url, i) => (
+                <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                  className="block text-xs truncate"
+                  style={{ color: '#4B5563', maxWidth: '100%' }}>
+                  {url}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AISummary({ text }: { text: string }) {
   return (
     <div className="space-y-2">
@@ -377,32 +549,40 @@ export default function LeadDetail({
                   </div>
                 ) : lead.ai_summary ? (
                   <div>
-                    {/* Collapsible summary text */}
-                    <div style={{ position: 'relative' }}>
-                      <motion.div
-                        initial="collapsed"
-                        animate={summaryExpanded ? 'expanded' : 'collapsed'}
-                        variants={{ collapsed: { height: 80 }, expanded: { height: 'auto' } }}
-                        transition={{ duration: 0.3, ease: 'easeInOut' }}
-                        style={{ overflow: 'hidden' }}
-                      >
-                        <AISummary text={lead.ai_summary} />
-                      </motion.div>
-                      {!summaryExpanded && (
-                        <div style={{
-                          position: 'absolute', bottom: 0, left: 0, right: 0, height: '40px',
-                          background: 'linear-gradient(to bottom, transparent, #111827)',
-                          pointerEvents: 'none',
-                        }} />
-                      )}
-                    </div>
-                    <button
-                      onClick={() => setSummaryExpanded(e => !e)}
-                      className="text-xs mt-2"
-                      style={{ fontSize: '13px', color: '#06B6D4', marginTop: '8px', minHeight: '44px', display: 'flex', alignItems: 'center' }}
-                    >
-                      {summaryExpanded ? 'Collapse ▴' : 'Show full research ▾'}
-                    </button>
+                    {(() => {
+                      const parsed = parseResearchSummary(lead.ai_summary)
+                      if (parsed) return <StructuredSummary data={parsed} />
+                      // Fallback: old text format
+                      return (
+                        <>
+                          <div style={{ position: 'relative' }}>
+                            <motion.div
+                              initial="collapsed"
+                              animate={summaryExpanded ? 'expanded' : 'collapsed'}
+                              variants={{ collapsed: { height: 80 }, expanded: { height: 'auto' } }}
+                              transition={{ duration: 0.3, ease: 'easeInOut' }}
+                              style={{ overflow: 'hidden' }}
+                            >
+                              <AISummary text={lead.ai_summary} />
+                            </motion.div>
+                            {!summaryExpanded && (
+                              <div style={{
+                                position: 'absolute', bottom: 0, left: 0, right: 0, height: '40px',
+                                background: 'linear-gradient(to bottom, transparent, #111827)',
+                                pointerEvents: 'none',
+                              }} />
+                            )}
+                          </div>
+                          <button
+                            onClick={() => setSummaryExpanded(e => !e)}
+                            className="text-xs mt-2"
+                            style={{ fontSize: '13px', color: '#06B6D4', marginTop: '8px', minHeight: '44px', display: 'flex', alignItems: 'center' }}
+                          >
+                            {summaryExpanded ? 'Collapse ▴' : 'Show full research ▾'}
+                          </button>
+                        </>
+                      )
+                    })()}
                     <p className="text-xs mt-4 pt-3" style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', fontStyle: 'italic', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                       AI-generated research. Verify before your appointment.
                     </p>

@@ -104,6 +104,8 @@ export default function WindowsStep({
 
   const selectedPromoId = value.selected_promo_id ??
     (value.promotion === '20_off' ? '20pct_promo' : value.promotion === '25_off' ? '25pct_promo' : 'none')
+  const selectedPromoOpt = activePromos.find(o => o.id === selectedPromoId)
+  const currentPromoPct = selectedPromoOpt?.pct ?? 0
   const promoOptions = [{ value: 'none', label: 'None' }, ...activePromos.map(o => ({ value: o.id, label: o.name }))]
   const handlePromoChange = (id: string) => {
     if (id === 'none') {
@@ -119,6 +121,17 @@ export default function WindowsStep({
 
   const selectedBnsnId = value.selected_bnsn_id ??
     (value.bnsn === '30_combined' ? 'bnsn_30' : value.bnsn === '10_off' ? 'bnsn_10' : value.bnsn === '5_off' ? 'bnsn_5' : 'none')
+  const selectedBnsnOpt = activeBnsn.find(o => o.id === selectedBnsnId)
+  const currentBnsnPct = selectedBnsnOpt?.pct ?? 0
+  const cashPctVal = cashOpt?.pct ?? 7
+  const bnsnWouldExceedCap = (opt: DiscountOptionSetting) => {
+    const effectivePromo = opt.is_combined ? 0 : currentPromoPct
+    return effectivePromo + opt.pct + (value.cash_incentive ? cashPctVal : 0) > 37
+  }
+  const cashWouldExceedCap = (() => {
+    const effectivePromo = selectedBnsnOpt?.is_combined ? 0 : currentPromoPct
+    return effectivePromo + currentBnsnPct + cashPctVal > 37
+  })()
   const bnsnOptions = [{ value: 'none', label: 'None' }, ...activeBnsn.map(o => ({ value: o.id, label: o.name }))]
   const handleBnsnChange = (id: string) => {
     if (id === 'none') {
@@ -245,28 +258,37 @@ export default function WindowsStep({
         <div>
           <p className="text-xs font-medium mb-2" style={{ color: '#9CA3AF' }}>Buy Now Save Now</p>
           <div className="grid grid-cols-2 gap-2">
-            {bnsnOptions.map(o => (
-              <button key={o.value} type="button" onClick={() => handleBnsnChange(o.value)}
-                className="h-10 rounded-xl text-sm font-medium transition-all"
-                style={{
-                  background: selectedBnsnId === o.value ? 'rgba(29,78,216,0.2)' : 'rgba(255,255,255,0.04)',
-                  border: selectedBnsnId === o.value ? '1.5px solid rgba(29,78,216,0.5)' : '1px solid rgba(255,255,255,0.08)',
-                  color: selectedBnsnId === o.value ? '#60A5FA' : '#9CA3AF',
-                }}>
-                {o.label}
-              </button>
-            ))}
+            {bnsnOptions.map(o => {
+              const opt = activeBnsn.find(a => a.id === o.value)
+              const capBlocked = o.value !== 'none' && !!opt && selectedBnsnId !== o.value && bnsnWouldExceedCap(opt)
+              return (
+                <button key={o.value} type="button"
+                  onClick={() => !capBlocked && handleBnsnChange(o.value)}
+                  title={capBlocked ? 'Maximum discount of 37% reached' : undefined}
+                  className="h-10 rounded-xl text-sm font-medium transition-all"
+                  style={{
+                    background: selectedBnsnId === o.value ? 'rgba(29,78,216,0.2)' : 'rgba(255,255,255,0.04)',
+                    border: selectedBnsnId === o.value ? '1.5px solid rgba(29,78,216,0.5)' : '1px solid rgba(255,255,255,0.08)',
+                    color: selectedBnsnId === o.value ? '#60A5FA' : capBlocked ? 'rgba(156,163,175,0.35)' : '#9CA3AF',
+                    opacity: capBlocked ? 0.5 : 1,
+                    cursor: capBlocked ? 'not-allowed' : 'pointer',
+                  }}>
+                  {o.label}
+                </button>
+              )
+            })}
           </div>
         </div>
         <Toggle
           on={value.cash_incentive}
           onToggle={() => {
+            if (!value.cash_incentive && cashWouldExceedCap) return
             const pct = cashOpt?.pct ?? 7
             onChange({ ...value, cash_incentive: !value.cash_incentive, cash_pct: pct })
           }}
           label={cashOpt ? `${cashOpt.name} (−${cashOpt.pct}%)` : 'Cash incentive (−7%)'}
-          disabled={cashDisabled}
-          disabledReason="Cash incentive not available with this financing option"
+          disabled={cashDisabled || (!value.cash_incentive && cashWouldExceedCap)}
+          disabledReason={cashDisabled ? 'Cash incentive not available with this financing option' : 'Maximum discount of 37% reached'}
         />
       </SectionCard>
 

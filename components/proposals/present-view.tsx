@@ -45,103 +45,128 @@ interface ToggleState {
   costcoExecOn: boolean
 }
 
-interface PricePoints {
+interface CustomerPricing {
   packagePrice: number
-  discountableBase: number
+  promoPct: number
+  promoLabel: string
+  promoDiscount: number
+  afterPromo: number
+  bnsnName: string
+  bnsnPct: number
+  bnsnDiscount: number
+  afterBnsn: number
+  cashPct: number
+  cashDiscount: number
+  afterCash: number
   adminFee: number
   leadPaint: number
-  totalFees: number
-  priceBeforeDiscounts: number
-  promoDiscount: number
-  bnsnDiscount: number
-  cashDiscount: number
-  youSave: number
   yourPrice: number
+  memberRebate: number
+  execRebate: number
+  visaRebate: number
+  totalRebate: number
+  netAfterRebates: number
   monthlyPayment: number
-  costcoShopCard: number
-  costcoExec: number
-  netAfterCostco: number
   cashAvailable: boolean
   totalWindows: number
+  totalSavings: number
 }
 
-// ─── Pure pricing function ────────────────────────────────────────────────────
+// ─── Cascading pricing ────────────────────────────────────────────────────────
 
-function calculatePricing(
+function calculateCustomerPricing(
   pd: PricingInputs,
   ts: ToggleState,
+  promoPct: number,
   discountOpts: DiscountOptionSetting[],
   financingOpts: FinancingOptionSetting[],
-): PricePoints {
-  const selectedPromo = ts.promoOn
-    ? discountOpts.find(d => d.id === ts.selectedPromoId && d.type === 'promotion')
+): CustomerPricing {
+  let packagePrice = 0
+  let totalWindows = pd.num_windows ?? 0
+
+  if (pd.proposal_type === 'siding') {
+    const r = calcPrice(pd)
+    return {
+      packagePrice: r.package_price, promoPct: 0, promoLabel: '', promoDiscount: 0,
+      afterPromo: r.package_price, bnsnName: '', bnsnPct: 0, bnsnDiscount: 0,
+      afterBnsn: r.package_price, cashPct: 7, cashDiscount: 0, afterCash: r.package_price,
+      adminFee: r.admin_fee, leadPaint: r.lead_paint, yourPrice: r.your_price,
+      memberRebate: 0, execRebate: 0, visaRebate: 0, totalRebate: 0,
+      netAfterRebates: r.your_price, monthlyPayment: 0, cashAvailable: false,
+      totalWindows: 0, totalSavings: 0,
+    }
+  }
+
+  if (pd.windows_project_value != null && pd.windows_project_value > 0) {
+    packagePrice = pd.windows_project_value
+  } else {
+    for (const item of pd.line_items ?? []) {
+      const rowTotal = item.qty * item.unit_price
+      totalWindows += item.qty
+      if (item.discountable) packagePrice += rowTotal
+    }
+  }
+
+  const adminFee = pd.admin_fee_enabled ? pd.admin_fee_amount : 0
+  const leadPaint = pd.lead_paint_enabled ? pd.lead_paint_amount : 0
+
+  const selectedBnsn = (ts.bnsnOn && ts.selectedBnsnId)
+    ? discountOpts.find(d => d.id === ts.selectedBnsnId)
     : null
-  const selectedBnsn = (ts.bnsnOn && ts.promoOn)
-    ? discountOpts.find(d => d.id === ts.selectedBnsnId && d.type === 'bnsn')
-    : null
+  const isCombined = selectedBnsn?.is_combined ?? false
+
+  const effectivePromoPct = isCombined ? 0 : promoPct
+  const promoLabelText = effectivePromoPct === 20
+    ? 'Spring Savings'
+    : effectivePromoPct === 25
+    ? 'Preferred Customer Savings'
+    : effectivePromoPct > 0
+    ? `${effectivePromoPct}% Package Discount`
+    : ''
+
+  const promoDiscount = Math.floor(packagePrice * effectivePromoPct / 100)
+  const afterPromo = packagePrice - promoDiscount
+
+  const bnsnPct = selectedBnsn?.pct ?? 0
+  const bnsnDiscount = (ts.bnsnOn && selectedBnsn) ? Math.floor(afterPromo * bnsnPct / 100) : 0
+  const afterBnsn = afterPromo - bnsnDiscount
+
   const cashOpt = discountOpts.find(d => d.type === 'cash' && d.active)
+  const cashPct = cashOpt?.pct ?? 7
+
   const selectedFin = (ts.financingOn && ts.selectedFinancingId)
     ? financingOpts.find(f => f.id === ts.selectedFinancingId)
     : null
-  const isCombined = selectedBnsn?.is_combined ?? false
   const cashAvailable = !selectedFin || selectedFin.id === '9.99_10yr'
 
-  const inputs: PricingInputs = {
-    ...pd,
-    // Normalize: ensure calcPrice can find the package price
-    line_items: pd.line_items ?? [],
-    project_value: pd.project_value ?? 0,
-    windows_project_value: pd.windows_project_value ?? (pd as any).package_price ?? undefined,
-    promotion: (selectedPromo && !isCombined) ? '20_off' : 'none',
-    promotion_pct: (selectedPromo && !isCombined) ? selectedPromo.pct : undefined,
-    bnsn: isCombined ? '30_combined' : (selectedBnsn ? '10_off' : 'none'),
-    bnsn_pct: selectedBnsn?.pct,
-    bnsn_is_combined: isCombined || undefined,
-    cash_incentive: ts.cashOn && cashAvailable,
-    cash_pct: cashOpt?.pct ?? 7,
-    costco_revealed: ts.costcoShopOn || ts.costcoExecOn,
-    costco_member: pd.costco_member,
-    costco_executive: pd.costco_executive,
-    financing: 'none',
-    financing_factor: selectedFin?.method === 'factor' ? selectedFin.factor : undefined,
-    financing_months: selectedFin?.method === 'months' ? selectedFin.months : undefined,
-    selected_financing_id: undefined,
+  const cashDiscount = (ts.cashOn && cashAvailable) ? Math.floor(afterBnsn * cashPct / 100) : 0
+  const afterCash = afterBnsn - cashDiscount
+
+  const yourPrice = afterCash + adminFee + leadPaint
+
+  const memberRebate = (ts.costcoShopOn && pd.costco_member) ? afterCash * 0.10 : 0
+  const execRebate = (ts.costcoExecOn && pd.costco_executive) ? Math.min(afterCash * 0.02, 1250) : 0
+  const visaRebate = (pd.costco_city_visa_enabled && pd.costco_city_visa_amount)
+    ? Math.floor(pd.costco_city_visa_amount * 0.02)
+    : 0
+  const totalRebate = memberRebate + execRebate + visaRebate
+
+  let monthlyPayment = 0
+  if (selectedFin && ts.financingOn) {
+    if (selectedFin.method === 'factor' && selectedFin.factor) monthlyPayment = yourPrice * selectedFin.factor
+    else if (selectedFin.method === 'months' && selectedFin.months) monthlyPayment = yourPrice / selectedFin.months
   }
-
-  const r = calcPrice(inputs)
-  const discountableBase = r.discountable_base
-
-  let promoDiscount = 0
-  let bnsnDiscount = 0
-  if (isCombined && selectedBnsn) {
-    bnsnDiscount = discountableBase * (selectedBnsn.pct / 100)
-  } else {
-    if (selectedPromo) promoDiscount = discountableBase * (selectedPromo.pct / 100)
-    if (selectedBnsn) bnsnDiscount = discountableBase * (selectedBnsn.pct / 100)
-  }
-
-  const costcoShopCard = r.your_price * 0.10
-  const costcoExecutive = Math.min(r.your_price * 0.02, 1250)
-  const netCostcoSavings = (ts.costcoShopOn ? costcoShopCard : 0) + (ts.costcoExecOn ? costcoExecutive : 0)
 
   return {
-    packagePrice: r.package_price,
-    discountableBase,
-    adminFee: r.admin_fee,
-    leadPaint: r.lead_paint,
-    totalFees: r.admin_fee + r.lead_paint,
-    priceBeforeDiscounts: r.package_price,
-    promoDiscount,
-    bnsnDiscount,
-    cashDiscount: r.cash_discount,
-    youSave: r.you_save,
-    yourPrice: r.your_price,
-    monthlyPayment: r.monthly_payment,
-    costcoShopCard,
-    costcoExec: costcoExecutive,
-    netAfterCostco: r.your_price - netCostcoSavings,
-    cashAvailable,
-    totalWindows: r.total_windows,
+    packagePrice, promoPct: effectivePromoPct, promoLabel: promoLabelText,
+    promoDiscount, afterPromo,
+    bnsnName: selectedBnsn?.name ?? '', bnsnPct, bnsnDiscount, afterBnsn,
+    cashPct, cashDiscount, afterCash,
+    adminFee, leadPaint, yourPrice,
+    memberRebate, execRebate, visaRebate, totalRebate,
+    netAfterRebates: yourPrice - totalRebate,
+    monthlyPayment, cashAvailable, totalWindows,
+    totalSavings: promoDiscount + bnsnDiscount + cashDiscount,
   }
 }
 
@@ -177,11 +202,9 @@ function initToggleState(
     }
   }
 
-  // Case 1: explicit toggle_state stored in pricing_data
   const storedTs = (pd as any).toggle_state as StoredTs | undefined
   if (storedTs) return fromStoredTs(storedTs)
 
-  // Case 2: old-format Vendo — derive toggles from stored prices
   if ((pd as any).vendo_imported) {
     const pkgPrice = pd.windows_project_value || (pd as any).package_price || 0
     const adminFeeAmt = pd.admin_fee_enabled ? (pd.admin_fee_amount || 850) : 0
@@ -199,7 +222,6 @@ function initToggleState(
     }
   }
 
-  // Case 3: regular proposal — initialize from PricingInputs fields
   const isCombined = pd.bnsn === '30_combined' || !!pd.bnsn_is_combined
   const hasPromo = (pd.promotion != null && pd.promotion !== 'none') || (pd.promotion_pct != null && pd.promotion_pct > 0)
   const hasBnsn = pd.bnsn !== 'none' || (pd.bnsn_pct != null && pd.bnsn_pct > 0)
@@ -269,6 +291,26 @@ function CardGlow({ color }: { color: string }) {
   )
 }
 
+function SectionLabel({ children, color }: { children: React.ReactNode; color?: string }) {
+  return (
+    <p style={{
+      fontSize: '10px', color: color ?? 'rgba(255,255,255,0.45)',
+      letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '14px',
+    }}>
+      {children}
+    </p>
+  )
+}
+
+function BreakdownRow({ label, value, color, bold }: { label: string; value: string; color?: string; bold?: boolean }) {
+  return (
+    <div className="flex justify-between items-center py-1">
+      <span style={{ fontSize: '13px', color: color ?? 'rgba(255,255,255,0.5)', fontWeight: bold ? 600 : 400 }}>{label}</span>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: color ?? 'rgba(255,255,255,0.7)', fontWeight: bold ? 600 : 400 }}>{value}</span>
+    </div>
+  )
+}
+
 function BigToggle({ on, onToggle, label, disabled }: {
   on: boolean; onToggle: () => void; label: string; disabled?: boolean
 }) {
@@ -329,24 +371,6 @@ function RadioOption({ selected, onSelect, label, rightLabel, badge }: {
   )
 }
 
-function PriceBridge({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex items-center justify-between px-2 py-4"
-      style={{ borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-      <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-        {label}
-      </span>
-      <motion.span
-        key={Math.round(value)}
-        initial={{ opacity: 0.6 }} animate={{ opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-        style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '22px', color: '#F9FAFB', fontWeight: 700 }}>
-        {fmt(value)}
-      </motion.span>
-    </div>
-  )
-}
-
 function NewPriceRow({ value }: { value: number }) {
   return (
     <div className="flex justify-between items-center mt-3 pt-3"
@@ -375,10 +399,7 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
   renders?: ProposalRender[]
 }) {
   const rawPd = proposal.pricing_data || {}
-
-  const pricingData: PricingInputs | null = rawPd.proposal_type
-    ? (rawPd as PricingInputs)
-    : null
+  const pricingData: PricingInputs | null = rawPd.proposal_type ? (rawPd as PricingInputs) : null
 
   const discountOpts = useMemo(
     () => (repSettings?.discount_options ?? DEFAULT_DISCOUNT_SETTINGS).filter(d => d.active),
@@ -395,22 +416,30 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
       : { promoOn: false, selectedPromoId: null, bnsnOn: false, selectedBnsnId: null, cashOn: false, financingOn: false, selectedFinancingId: null, costcoShopOn: false, costcoExecOn: false },
   )
 
+  const promoPct = useMemo(() => {
+    if (!ts.promoOn) return 0
+    if (ts.selectedPromoId) {
+      const opt = discountOpts.find(d => d.id === ts.selectedPromoId)
+      if (opt) return opt.pct
+    }
+    if (pricingData?.promotion_pct) return pricingData.promotion_pct
+    if (pricingData?.promotion === '20_off') return 20
+    if (pricingData?.promotion === '25_off') return 25
+    return 0
+  }, [ts.promoOn, ts.selectedPromoId, discountOpts, pricingData])
+
   const pp = useMemo(
-    () => pricingData ? calculatePricing(pricingData, ts, discountOpts, financingOpts) : null,
-    [pricingData, ts, discountOpts, financingOpts],
+    () => pricingData ? calculateCustomerPricing(pricingData, ts, promoPct, discountOpts, financingOpts) : null,
+    [pricingData, ts, promoPct, discountOpts, financingOpts],
   )
 
   const [booking, setBooking] = useState(false)
   const [emailing, setEmailing] = useState(false)
   const [actionDone, setActionDone] = useState<string | null>(null)
-  const [revealedCount, setRevealedCount] = useState(1)
 
-  // Derived option lists
-  const promoOpts = discountOpts.filter(d => d.type === 'promotion')
   const bnsnOpts = discountOpts.filter(d => d.type === 'bnsn')
   const cashOpt = discountOpts.find(d => d.type === 'cash')
-  const hasFees = pp ? pp.adminFee > 0 || pp.leadPaint > 0 : false
-  const hasCostco = !!(pricingData?.costco_member || pricingData?.costco_executive)
+  const hasCostco = !!(pricingData?.costco_member || pricingData?.costco_executive || pricingData?.costco_city_visa_enabled)
 
   const getMonthlyPayment = (f: FinancingOptionSetting) => {
     if (!pp) return 0
@@ -419,7 +448,6 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
     return 0
   }
 
-  // Customer name
   const first = proposal.customer_first_name || proposal.customer_name?.split(' ')[0] || ''
   const last = proposal.customer_last_name || proposal.customer_name?.split(' ').slice(1).join(' ') || ''
   const spouseFirst = proposal.spouse_first_name || ''
@@ -440,43 +468,8 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
     return n > 0 ? `For ${n} Window${n !== 1 ? 's' : ''}` : ''
   }, [pricingData, pp?.totalWindows])
 
-  const cardOrder = useMemo(() => {
-    const cards: string[] = ['starting_price']
-    if (hasFees) { cards.push('fees'); cards.push('bridge1') }
-    if (promoOpts.length > 0) cards.push('promo')
-    if (bnsnOpts.length > 0) cards.push('bnsn')
-    if (cashOpt) cards.push('cash')
-    cards.push('bridge2')
-    if (financingOpts.length > 0) cards.push('financing')
-    if (hasCostco) cards.push('costco')
-    cards.push('final_price')
-    if (renders.length > 0) cards.push('renders')
-    return cards
-  }, [hasFees, promoOpts.length, bnsnOpts.length, cashOpt, financingOpts.length, hasCostco, renders.length])
-
-  const totalCards = cardOrder.length
-  const fullyRevealed = revealedCount >= totalCards
-  const handleTap = () => {
-    console.log('TAP', revealedCount, 'of', totalCards, 'revealed:', fullyRevealed)
-    setRevealedCount(c => Math.min(c + 1, totalCards))
-  }
-  const shown = (id: string) => {
-    const idx = cardOrder.indexOf(id)
-    return idx !== -1 && idx < revealedCount
-  }
-
   // Toggle handlers
-  const togglePromo = () => setTs(prev => {
-    if (prev.promoOn) return { ...prev, promoOn: false, bnsnOn: false, selectedBnsnId: null, cashOn: false }
-    return { ...prev, promoOn: true }
-  })
-  const selectPromo = (id: string) => setTs(prev => ({ ...prev, promoOn: true, selectedPromoId: id }))
-
-  const toggleBnsn = () => setTs(prev => {
-    if (!prev.promoOn) return prev
-    if (prev.bnsnOn) return { ...prev, bnsnOn: false, cashOn: false }
-    return { ...prev, bnsnOn: true }
-  })
+  const toggleBnsn = () => setTs(prev => ({ ...prev, bnsnOn: !prev.bnsnOn, ...(!prev.bnsnOn ? {} : { cashOn: false }) }))
   const selectBnsn = (id: string) => setTs(prev => ({ ...prev, bnsnOn: true, selectedBnsnId: id }))
 
   const toggleCash = () => setTs(prev => {
@@ -550,8 +543,7 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
         Breathing={true} animationSpeed={0.008} breathingRange={3}
       />
       <div style={{
-        position: 'absolute',
-        bottom: 0, left: 0, right: 0, height: '120px',
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: '120px',
         background: 'linear-gradient(to bottom, transparent, #000000)',
         pointerEvents: 'none', zIndex: 10,
       }} />
@@ -583,204 +575,155 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
         </div>
       </div>
 
-      {/* Card stack */}
-      <div className="relative z-10 flex flex-col gap-3 px-4 py-4 max-w-sm mx-auto"
+      {/* Content */}
+      <div className="relative z-10 flex flex-col gap-4 px-4 pt-2 max-w-sm mx-auto"
         style={{ paddingBottom: '120px' }}>
 
-        {/* ── CARD 1: STARTING PRICE ── */}
+        {/* ── HERO: Name + Address ── */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(0)}
+          style={{ textAlign: 'center', padding: '20px 8px 8px' }}>
+          <h1 style={{
+            fontSize: 'clamp(22px, 5vw, 42px)', fontWeight: 800, color: '#fff',
+            letterSpacing: '0.05em', lineHeight: 1.15, marginBottom: '6px',
+          }}>
+            {displayName}
+          </h1>
+          {addressLine && (
+            <p className="uppercase" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.12em', marginBottom: '4px' }}>
+              {addressLine}
+            </p>
+          )}
+          {startingSubtitle && (
+            <p style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>{startingSubtitle}</p>
+          )}
+        </motion.div>
+
+        {/* ── SECTION 1: Price Breakdown ── */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(1)}
           style={{ position: 'relative' }}>
           <CardGlow color="rgba(255,255,255,0.3)" />
-          <div style={{ ...glassCard, padding: '24px 20px', position: 'relative', zIndex: 1, width: '100%', textAlign: 'center' }}>
-            <h1 style={{
-              fontSize: 'clamp(24px, 5vw, 48px)',
-              fontWeight: 800, color: '#fff',
-              letterSpacing: '0.05em', lineHeight: 1.15,
-              wordBreak: 'normal', overflowWrap: 'break-word',
-              whiteSpace: 'normal', width: '100%', display: 'block',
-              marginBottom: '6px',
-            }}>
-              {displayName}
-            </h1>
-            {addressLine && (
-              <p className="uppercase" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.12em', marginBottom: '20px' }}>
-                {addressLine}
-              </p>
+          <div style={{ ...glassCard, padding: '20px', position: 'relative', zIndex: 1 }}>
+            <SectionLabel>Price Breakdown</SectionLabel>
+
+            <BreakdownRow label="Package Price" value={fmt(pp.packagePrice)} />
+
+            {pp.promoDiscount > 0 && (
+              <BreakdownRow
+                label={`${pp.promoLabel} (${pp.promoPct}%)`}
+                value={`-${fmt(pp.promoDiscount)}`}
+                color="#2DD4BF"
+              />
             )}
-            <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '8px' }}>
-              Starting Price
-            </p>
-            <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '52px', fontWeight: 700, color: '#fff', lineHeight: 1, marginBottom: '6px' }}>
-              {fmt(pp.packagePrice)}
-            </p>
-            {startingSubtitle && (
-              <p style={{ fontSize: '18px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', marginTop: '8px' }}>{startingSubtitle}</p>
-            )}
+
+            <div className="flex justify-between items-center pt-3 mt-2"
+              style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>
+                {pp.promoDiscount > 0 ? 'Discounted Price' : 'Starting Price'}
+              </span>
+              <motion.span
+                key={Math.round(pp.afterPromo)}
+                initial={{ opacity: 0.6 }} animate={{ opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '26px', color: '#F9FAFB', fontWeight: 700 }}>
+                {fmt(pp.afterPromo)}
+              </motion.span>
+            </div>
+
             {pp.adminFee > 0 && (
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '10px', fontStyle: 'italic' }}>
+              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic', marginTop: '10px' }}>
                 Includes {fmt(pp.adminFee)} admin fee — not subject to discount
               </p>
             )}
           </div>
         </motion.div>
 
-        {/* ── CARD 2: FEES ── */}
-        {hasFees && shown('fees') && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(1)}
-            style={{ position: 'relative' }}>
-            <CardGlow color="rgba(255,255,255,0.2)" />
-            <div style={{ ...glassCard, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', padding: '20px', position: 'relative', zIndex: 1 }}>
-              <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '14px' }}>
-                Project Fees
-              </p>
-              {pp.adminFee > 0 && (
-                <div className="flex justify-between py-1.5">
-                  <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: '14px' }}>Admin Fee</span>
-                  <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: '14px' }}>{fmt(pp.adminFee)}</span>
-                </div>
-              )}
-              {pp.leadPaint > 0 && (
-                <div className="flex justify-between py-1.5">
-                  <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: '14px' }}>Lead Paint Test</span>
-                  <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: '14px' }}>{fmt(pp.leadPaint)}</span>
-                </div>
-              )}
-              <div className="flex justify-between pt-2 mt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: '15px', fontWeight: 600 }}>Total Fees</span>
-                <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: '15px', fontWeight: 600 }}>{fmt(pp.totalFees)}</span>
-              </div>
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic', marginTop: '12px' }}>
-                Fees are not subject to discount.
-              </p>
-            </div>
-          </motion.div>
-        )}
-
-        {/* ── PRICE BRIDGE 1 ── */}
-        {hasFees && shown('bridge1') && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(2)}>
-            <PriceBridge label="Price Before Discounts" value={pp.priceBeforeDiscounts} />
-          </motion.div>
-        )}
-
-        {/* ── CARD 3: PACKAGE DISCOUNT ── */}
-        {promoOpts.length > 0 && shown('promo') && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(3)}
+        {/* ── SECTION 2: Additional Savings (BNSN + Cash) ── */}
+        {(bnsnOpts.length > 0 || cashOpt) && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(2)}
             style={{ position: 'relative' }}>
             <CardGlow color="rgba(6,182,212,0.4)" />
             <div style={{ ...glassCard, border: '1px solid rgba(6,182,212,0.15)', padding: '20px', position: 'relative', zIndex: 1 }}>
-              <BigToggle on={ts.promoOn} onToggle={togglePromo} label="Package Discount" />
-              <AnimatePresence>
-                {ts.promoOn && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25 }}
-                    className="overflow-hidden">
-                    <div className="space-y-2 mt-3">
-                      {promoOpts.map(opt => (
-                        <RadioOption
-                          key={opt.id}
-                          selected={ts.selectedPromoId === opt.id}
-                          onSelect={() => selectPromo(opt.id)}
-                          label={opt.name}
-                          rightLabel={`-${fmt(pp.discountableBase * (opt.pct / 100))}`}
-                        />
-                      ))}
-                      {ts.selectedPromoId && <NewPriceRow value={pp.yourPrice} />}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        )}
+              <SectionLabel>Additional Savings</SectionLabel>
 
-        {/* ── CARD 4: BNSN ── */}
-        {bnsnOpts.length > 0 && shown('bnsn') && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(4)}
-            style={{ position: 'relative', opacity: ts.promoOn ? 1 : 0.5, transition: 'opacity 0.2s' }}>
-            <CardGlow color="rgba(6,182,212,0.4)" />
-            <div style={{ ...glassCard, border: '1px solid rgba(6,182,212,0.12)', padding: '20px', position: 'relative', zIndex: 1 }}>
-              <BigToggle on={ts.bnsnOn} onToggle={toggleBnsn} label="Buy Now, Save Now" disabled={!ts.promoOn} />
-              <AnimatePresence>
-                {ts.bnsnOn && ts.promoOn && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25 }}
-                    className="overflow-hidden">
-                    <div className="space-y-2 mt-3">
-                      {bnsnOpts.map(opt => (
-                        <RadioOption
-                          key={opt.id}
-                          selected={ts.selectedBnsnId === opt.id}
-                          onSelect={() => selectBnsn(opt.id)}
-                          label={opt.name}
-                          rightLabel={`-${fmt(pp.discountableBase * (opt.pct / 100))}`}
-                        />
-                      ))}
-                      {ts.selectedBnsnId && <NewPriceRow value={pp.yourPrice} />}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        )}
-
-        {/* ── CARD 5: CASH INCENTIVE ── */}
-        {cashOpt && shown('cash') && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(5)}
-            style={{ position: 'relative' }}>
-            <CardGlow color="rgba(6,182,212,0.4)" />
-            <div style={{ ...glassCard, border: '1px solid rgba(6,182,212,0.12)', padding: '20px', position: 'relative', zIndex: 1 }}>
-              <div className="flex items-center gap-3" style={{ minHeight: '44px' }}>
-                <span style={{
-                  flex: 1, fontSize: '16px', fontWeight: 600,
-                  color: pp.cashAvailable ? (ts.cashOn ? '#F9FAFB' : 'rgba(255,255,255,0.55)') : 'rgba(255,255,255,0.3)',
-                }}>
-                  Cash Incentive (+{cashOpt.pct}%)
-                </span>
-                {ts.cashOn && pp.cashAvailable && pp.cashDiscount > 0 && (
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', color: '#06B6D4', fontWeight: 600 }}>
-                    -{fmt(pp.cashDiscount)}
-                  </span>
-                )}
-                <div onClick={pp.cashAvailable ? toggleCash : undefined} style={{
-                  position: 'relative', flexShrink: 0, width: '52px', height: '28px', borderRadius: '14px',
-                  background: (ts.cashOn && pp.cashAvailable) ? '#1D4ED8' : 'rgba(255,255,255,0.15)',
-                  transition: 'background 0.2s',
-                  opacity: pp.cashAvailable ? 1 : 0.4,
-                  cursor: pp.cashAvailable ? 'pointer' : 'default',
-                }}>
-                  <div style={{
-                    position: 'absolute', top: '3px', width: '22px', height: '22px', borderRadius: '50%',
-                    background: '#fff', left: (ts.cashOn && pp.cashAvailable) ? '27px' : '3px',
-                    transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
-                  }} />
-                </div>
-              </div>
-              {!pp.cashAvailable && (
-                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic', marginTop: '8px' }}>
-                  Not available with selected financing
-                </p>
+              {/* BNSN */}
+              {bnsnOpts.length > 0 && (
+                <>
+                  <BigToggle on={ts.bnsnOn} onToggle={toggleBnsn} label="Buy Now, Save Now" />
+                  <AnimatePresence>
+                    {ts.bnsnOn && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25 }}
+                        className="overflow-hidden">
+                        <div className="space-y-2 mt-3">
+                          {bnsnOpts.map(opt => (
+                            <RadioOption
+                              key={opt.id}
+                              selected={ts.selectedBnsnId === opt.id}
+                              onSelect={() => selectBnsn(opt.id)}
+                              label={opt.name}
+                              rightLabel={`-${fmt(Math.floor(pp.afterPromo * (opt.pct / 100)))}`}
+                            />
+                          ))}
+                        </div>
+                        {ts.selectedBnsnId && <NewPriceRow value={pp.afterBnsn} />}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </>
               )}
-              {ts.cashOn && pp.cashAvailable && pp.cashDiscount > 0 && (
-                <NewPriceRow value={pp.yourPrice} />
+
+              {/* Divider */}
+              {bnsnOpts.length > 0 && cashOpt && (
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '12px 0' }} />
+              )}
+
+              {/* Cash */}
+              {cashOpt && (
+                <>
+                  <div className="flex items-center gap-3" style={{ minHeight: '44px' }}>
+                    <span style={{
+                      flex: 1, fontSize: '16px', fontWeight: 600,
+                      color: pp.cashAvailable ? (ts.cashOn ? '#F9FAFB' : 'rgba(255,255,255,0.55)') : 'rgba(255,255,255,0.3)',
+                    }}>
+                      Cash Incentive (+{cashOpt.pct}%)
+                    </span>
+                    {ts.cashOn && pp.cashAvailable && pp.cashDiscount > 0 && (
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', color: '#06B6D4', fontWeight: 600 }}>
+                        -{fmt(pp.cashDiscount)}
+                      </span>
+                    )}
+                    <div onClick={pp.cashAvailable ? toggleCash : undefined} style={{
+                      position: 'relative', flexShrink: 0, width: '52px', height: '28px', borderRadius: '14px',
+                      background: (ts.cashOn && pp.cashAvailable) ? '#1D4ED8' : 'rgba(255,255,255,0.15)',
+                      transition: 'background 0.2s',
+                      opacity: pp.cashAvailable ? 1 : 0.4,
+                      cursor: pp.cashAvailable ? 'pointer' : 'default',
+                    }}>
+                      <div style={{
+                        position: 'absolute', top: '3px', width: '22px', height: '22px', borderRadius: '50%',
+                        background: '#fff', left: (ts.cashOn && pp.cashAvailable) ? '27px' : '3px',
+                        transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                      }} />
+                    </div>
+                  </div>
+                  {!pp.cashAvailable && (
+                    <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic', marginTop: '8px' }}>
+                      Not available with selected financing
+                    </p>
+                  )}
+                  {ts.cashOn && pp.cashAvailable && pp.cashDiscount > 0 && (
+                    <NewPriceRow value={pp.afterCash} />
+                  )}
+                </>
               )}
             </div>
           </motion.div>
         )}
 
-        {/* ── PRICE BRIDGE 2 ── */}
-        {shown('bridge2') && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(6)}>
-            <PriceBridge label="Your Price" value={pp.yourPrice} />
-          </motion.div>
-        )}
-
-        {/* ── CARD 6: FINANCING ── */}
-        {financingOpts.length > 0 && shown('financing') && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(7)}
+        {/* ── SECTION 3: Financing ── */}
+        {financingOpts.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(3)}
             style={{ position: 'relative' }}>
             <CardGlow color="rgba(99,102,241,0.4)" />
             <div style={{ ...glassCard, border: '1px solid rgba(99,102,241,0.15)', padding: '20px', position: 'relative', zIndex: 1 }}>
@@ -828,121 +771,175 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
           </motion.div>
         )}
 
-        {/* ── CARD 7: COSTCO ── */}
-        {hasCostco && shown('costco') && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(9)}
-            style={{ position: 'relative' }}>
-            <CardGlow color="rgba(251,191,36,0.4)" />
-            <div style={{ ...glassCard, background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.2)', padding: '20px', position: 'relative', zIndex: 1 }}>
-
-              {/* Toggle A: Shop Card */}
-              <div className="flex items-center gap-3" style={{ minHeight: '44px' }}>
-                <span style={{ flex: 1, fontSize: '16px', fontWeight: 600, color: ts.costcoShopOn ? '#F9FAFB' : 'rgba(255,255,255,0.55)' }}>
-                  Costco Shop Card (10%)
-                </span>
-                {ts.costcoShopOn && (
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', color: '#F59E0B', fontWeight: 700 }}>
-                    -{fmt(pp.costcoShopCard)}
-                  </span>
-                )}
-                <div onClick={toggleCostcoShop} style={{
-                  position: 'relative', flexShrink: 0, width: '52px', height: '28px', borderRadius: '14px',
-                  background: ts.costcoShopOn ? '#1D4ED8' : 'rgba(255,255,255,0.15)', transition: 'background 0.2s', cursor: 'pointer',
-                }}>
-                  <div style={{
-                    position: 'absolute', top: '3px', width: '22px', height: '22px', borderRadius: '50%',
-                    background: '#fff', left: ts.costcoShopOn ? '27px' : '3px', transition: 'left 0.2s',
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
-                  }} />
-                </div>
-              </div>
-
-              {/* Toggle B: Executive */}
-              <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(251,191,36,0.1)' }}>
-                <div className="flex items-center gap-3" style={{ minHeight: '44px' }}>
-                  <span style={{ flex: 1, fontSize: '16px', fontWeight: 600, color: ts.costcoExecOn ? '#F9FAFB' : 'rgba(255,255,255,0.55)' }}>
-                    Executive Membership Reward (2%)
-                  </span>
-                  {ts.costcoExecOn && (
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', color: '#F59E0B', fontWeight: 700 }}>
-                      -{fmt(pp.costcoExec)}
-                    </span>
-                  )}
-                  <div onClick={toggleCostcoExec} style={{
-                    position: 'relative', flexShrink: 0, width: '52px', height: '28px', borderRadius: '14px',
-                    background: ts.costcoExecOn ? '#1D4ED8' : 'rgba(255,255,255,0.15)', transition: 'background 0.2s', cursor: 'pointer',
-                  }}>
-                    <div style={{
-                      position: 'absolute', top: '3px', width: '22px', height: '22px', borderRadius: '50%',
-                      background: '#fff', left: ts.costcoExecOn ? '27px' : '3px', transition: 'left 0.2s',
-                      boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
-                    }} />
-                  </div>
-                </div>
-                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginTop: '2px' }}>
-                  For Executive members · Max $1,250
-                </p>
-              </div>
-
-            </div>
-          </motion.div>
-        )}
-
-        {/* ── CARD 8: FINAL PRICE SUMMARY ── */}
-        {shown('final_price') && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(10)}
+        {/* ── SECTION 4: Your Price Summary ── */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(4)}
           style={{ position: 'relative' }}>
           <CardGlow color="rgba(29,78,216,0.5)" />
           <div style={{
             ...glassCard,
             boxShadow: '0 0 60px rgba(29,78,216,0.25), 0 0 120px rgba(6,182,212,0.1), inset 0 1px 0 rgba(255,255,255,0.1)',
-            padding: '28px 16px', position: 'relative', zIndex: 1, overflow: 'visible',
+            padding: '24px 20px', position: 'relative', zIndex: 1, overflow: 'visible',
           }}>
             <div style={{
               position: 'absolute', inset: 0, borderRadius: '20px', pointerEvents: 'none',
               background: 'radial-gradient(ellipse at 50% 100%, rgba(29,78,216,0.25) 0%, transparent 60%)',
             }} />
+
             <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', letterSpacing: '0.3em', textTransform: 'uppercase', marginBottom: '16px', position: 'relative', zIndex: 1 }}>
-              Your Final Price
+              Your Price
             </p>
-            <motion.p
-              key={`final-${Math.round((ts.costcoShopOn || ts.costcoExecOn) ? pp.netAfterCostco : pp.yourPrice)}`}
-              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 100, damping: 15 }}
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 'clamp(36px, 7vw, 64px)', fontWeight: 800, lineHeight: 1, marginBottom: '16px',
-                letterSpacing: '-0.02em',
-                background: 'linear-gradient(135deg, #60A5FA 0%, #06B6D4 40%, #34D399 100%)',
-                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-                position: 'relative', zIndex: 1, overflow: 'visible',
-              }}>
-              {fmt((ts.costcoShopOn || ts.costcoExecOn) ? pp.netAfterCostco : pp.yourPrice)}
-            </motion.p>
-            <div style={{ position: 'relative', zIndex: 1 }}>
-              {pp.youSave > 0 && (
-                <p style={{ fontSize: '18px', fontWeight: 700, color: '#2DD4BF', marginBottom: '4px' }}>
-                  Total Savings: {fmt(pp.youSave)}
+
+            {/* Breakdown */}
+            <div className="space-y-1.5 mb-4" style={{ position: 'relative', zIndex: 1 }}>
+              <BreakdownRow label="Package Price" value={fmt(pp.packagePrice)} />
+              {pp.promoDiscount > 0 && (
+                <BreakdownRow label={`${pp.promoLabel} (${pp.promoPct}%)`} value={`-${fmt(pp.promoDiscount)}`} color="#2DD4BF" />
+              )}
+              {pp.bnsnDiscount > 0 && (
+                <BreakdownRow label={pp.bnsnName || `BNSN (${pp.bnsnPct}%)`} value={`-${fmt(pp.bnsnDiscount)}`} color="#2DD4BF" />
+              )}
+              {pp.cashDiscount > 0 && (
+                <BreakdownRow label={`Cash Incentive (${pp.cashPct}%)`} value={`-${fmt(pp.cashDiscount)}`} color="#2DD4BF" />
+              )}
+              {pp.adminFee > 0 && (
+                <BreakdownRow label="Admin Fee" value={`+${fmt(pp.adminFee)}`} />
+              )}
+              {pp.leadPaint > 0 && (
+                <BreakdownRow label="Lead Paint Test" value={`+${fmt(pp.leadPaint)}`} />
+              )}
+            </div>
+
+            {/* Final price */}
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px', position: 'relative', zIndex: 1 }}>
+              <motion.p
+                key={`final-${Math.round(pp.yourPrice)}`}
+                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 100, damping: 15 }}
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 'clamp(36px, 7vw, 64px)', fontWeight: 800, lineHeight: 1, marginBottom: '12px',
+                  letterSpacing: '-0.02em',
+                  background: 'linear-gradient(135deg, #60A5FA 0%, #06B6D4 40%, #34D399 100%)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                  overflow: 'visible',
+                }}>
+                {fmt(pp.yourPrice)}
+              </motion.p>
+
+              {pp.totalSavings > 0 && (
+                <p style={{ fontSize: '17px', fontWeight: 700, color: '#2DD4BF', marginBottom: '4px' }}>
+                  Total Savings: {fmt(pp.totalSavings)}
                 </p>
               )}
               {ts.financingOn && ts.selectedFinancingId && pp.monthlyPayment > 0 && (
-                <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>
+                <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>
                   Or as low as {fmt(pp.monthlyPayment)}/mo
-                </p>
-              )}
-              {(ts.costcoShopOn || ts.costcoExecOn) && (
-                <p style={{ fontSize: '14px', fontWeight: 600, color: '#FCD34D' }}>
-                  Net cost after Costco: {fmt(pp.netAfterCostco)}
                 </p>
               )}
             </div>
           </div>
         </motion.div>
+
+        {/* ── SECTION 5: Costco Rebates ── */}
+        {hasCostco && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(5)}
+            style={{ position: 'relative' }}>
+            <CardGlow color="rgba(251,191,36,0.4)" />
+            <div style={{ ...glassCard, background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.2)', padding: '20px', position: 'relative', zIndex: 1 }}>
+              <SectionLabel color="#F59E0B">Costco Member Benefits</SectionLabel>
+
+              {/* Shop Card Toggle */}
+              {pricingData.costco_member && (
+                <div className="flex items-center gap-3" style={{ minHeight: '44px' }}>
+                  <span style={{ flex: 1, fontSize: '16px', fontWeight: 600, color: ts.costcoShopOn ? '#F9FAFB' : 'rgba(255,255,255,0.55)' }}>
+                    Costco Shop Card (10%)
+                  </span>
+                  {ts.costcoShopOn && (
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', color: '#F59E0B', fontWeight: 700 }}>
+                      -{fmt(pp.memberRebate)}
+                    </span>
+                  )}
+                  <div onClick={toggleCostcoShop} style={{
+                    position: 'relative', flexShrink: 0, width: '52px', height: '28px', borderRadius: '14px',
+                    background: ts.costcoShopOn ? '#1D4ED8' : 'rgba(255,255,255,0.15)', transition: 'background 0.2s', cursor: 'pointer',
+                  }}>
+                    <div style={{
+                      position: 'absolute', top: '3px', width: '22px', height: '22px', borderRadius: '50%',
+                      background: '#fff', left: ts.costcoShopOn ? '27px' : '3px', transition: 'left 0.2s',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                    }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Executive Toggle */}
+              {pricingData.costco_executive && (
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(251,191,36,0.1)' }}>
+                  <div className="flex items-center gap-3" style={{ minHeight: '44px' }}>
+                    <span style={{ flex: 1, fontSize: '16px', fontWeight: 600, color: ts.costcoExecOn ? '#F9FAFB' : 'rgba(255,255,255,0.55)' }}>
+                      Executive Reward (2%)
+                    </span>
+                    {ts.costcoExecOn && (
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', color: '#F59E0B', fontWeight: 700 }}>
+                        -{fmt(pp.execRebate)}
+                      </span>
+                    )}
+                    <div onClick={toggleCostcoExec} style={{
+                      position: 'relative', flexShrink: 0, width: '52px', height: '28px', borderRadius: '14px',
+                      background: ts.costcoExecOn ? '#1D4ED8' : 'rgba(255,255,255,0.15)', transition: 'background 0.2s', cursor: 'pointer',
+                    }}>
+                      <div style={{
+                        position: 'absolute', top: '3px', width: '22px', height: '22px', borderRadius: '50%',
+                        background: '#fff', left: ts.costcoExecOn ? '27px' : '3px', transition: 'left 0.2s',
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                      }} />
+                    </div>
+                  </div>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginTop: '2px' }}>
+                    For Executive members · Max $1,250
+                  </p>
+                </div>
+              )}
+
+              {/* City Visa (display only) */}
+              {pricingData.costco_city_visa_enabled && pricingData.costco_city_visa_amount && pp.visaRebate > 0 && (
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(251,191,36,0.1)' }}>
+                  <div className="flex items-center justify-between" style={{ minHeight: '44px' }}>
+                    <span style={{ fontSize: '16px', fontWeight: 600, color: '#F9FAFB' }}>
+                      Costco City Visa (2%)
+                    </span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', color: '#F59E0B', fontWeight: 700 }}>
+                      -{fmt(pp.visaRebate)}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginTop: '2px' }}>
+                    On {fmt(pricingData.costco_city_visa_amount)} charged
+                  </p>
+                </div>
+              )}
+
+              {/* Net After Rebates */}
+              {pp.totalRebate > 0 && (
+                <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid rgba(251,191,36,0.15)' }}>
+                  <div className="flex justify-between items-center">
+                    <span style={{ fontSize: '15px', fontWeight: 600, color: '#F9FAFB' }}>Net After Costco</span>
+                    <motion.span
+                      key={Math.round(pp.netAfterRebates)}
+                      initial={{ opacity: 0.6 }} animate={{ opacity: 1 }}
+                      transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                      style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '22px', color: '#FCD34D', fontWeight: 700 }}>
+                      {fmt(pp.netAfterRebates)}
+                    </motion.span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
         )}
 
-        {/* ── CARD 9: VISUALIZATIONS ── */}
-        {renders.length > 0 && shown('renders') && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(11)}
+        {/* ── RENDERS ── */}
+        {renders.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={s(6)}
             style={{ position: 'relative' }}>
             <CardGlow color="rgba(139,92,246,0.4)" />
             <div style={{ ...glassCard, border: '1px solid rgba(139,92,246,0.15)', padding: '20px', position: 'relative', zIndex: 1 }}>
@@ -968,9 +965,7 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
                           {r.color_hex && (
                             <div style={{
                               width: 10, height: 10, borderRadius: '50%',
-                              background: r.color_hex,
-                              border: '1px solid rgba(255,255,255,0.2)',
-                              flexShrink: 0,
+                              background: r.color_hex, border: '1px solid rgba(255,255,255,0.2)', flexShrink: 0,
                             }} />
                           )}
                           <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', lineHeight: 1 }}>{r.color_name}</p>
@@ -988,11 +983,6 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
         )}
 
       </div>
-
-      {/* Tap overlay — captures taps to advance cinematic reveal */}
-      {!fullyRevealed && (
-        <div onClick={handleTap} style={{ position: 'fixed', inset: 0, zIndex: 10, cursor: 'pointer', background: 'transparent' }} />
-      )}
 
       {/* Bottom action bar */}
       <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pt-3"
