@@ -575,12 +575,23 @@ export async function POST(
     const hasStreetViewPhoto = lead.photo_type === 'street_view' && !!lead.street_view_url
     const apillowPhoto = apillowData?.photoUrl ?? null
 
+    console.log('PHOTO DEBUG:', {
+      hasStreetViewPhoto,
+      apillowPhoto,
+      currentPhotoType: lead.photo_type,
+      currentUrl: lead.street_view_url,
+    })
+
     if (!hasStreetViewPhoto && apillowPhoto) {
       await admin.from('leads').update({
         street_view_url: apillowPhoto,
         photo_type: 'zillow_listing',
         updated_at: new Date().toISOString(),
       }).eq('id', id)
+      console.log('PHOTO UPDATED:', {
+        newUrl: apillowPhoto,
+        newType: 'zillow_listing',
+      })
     }
 
     // ── Step 4: Sqft resolution ───────────────────────────────────────────────

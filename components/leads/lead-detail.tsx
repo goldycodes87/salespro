@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import FilesTab from './files-tab'
@@ -429,6 +430,7 @@ export default function LeadDetail({
   rep?: Record<string, any> | null
   merged?: boolean
 }) {
+  const router = useRouter()
   const { startResearch } = useResearch()
   const [lead, setLead] = useState<Lead>(initialLead)
   const [tab, setTab] = useState<Tab>('Overview')
@@ -443,6 +445,8 @@ export default function LeadDetail({
   const [showMenu, setShowMenu] = useState(false)
   const [showMerge, setShowMerge] = useState(false)
   const [mergeToast, setMergeToast] = useState(!!merged)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (merged) {
@@ -537,6 +541,16 @@ export default function LeadDetail({
     })
   }
 
+  const deleteLead = async () => {
+    setDeleting(true)
+    try {
+      await fetch(`/api/leads/${lead.id}/delete`, { method: 'POST' })
+      router.push('/leads?deleted=1')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const apptDate = lead.appointment_date
     ? new Date(lead.appointment_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
     : null
@@ -592,6 +606,16 @@ export default function LeadDetail({
                     <circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/>
                   </svg>
                   Merge with another lead
+                </button>
+                <button
+                  onClick={() => { setShowDeleteConfirm(true); setShowMenu(false) }}
+                  className="flex items-center gap-2.5 w-full px-4 py-3 text-sm text-left"
+                  style={{ color: '#EF4444' }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                  </svg>
+                  Delete Lead
                 </button>
               </div>
             </>
@@ -1028,6 +1052,66 @@ export default function LeadDetail({
             primaryLead={lead}
             onClose={() => setShowMerge(false)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Delete confirmation modal */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[200]"
+              style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+              onClick={() => !deleting && setShowDeleteConfirm(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              transition={{ duration: 0.2 }}
+              className="fixed left-4 right-4 z-[210] rounded-2xl p-6"
+              style={{
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: '#1F2937',
+                border: '1px solid rgba(255,255,255,0.12)',
+                boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+                maxWidth: 400,
+                margin: '0 auto',
+              }}
+            >
+              <div className="flex items-center justify-center w-12 h-12 rounded-2xl mx-auto mb-4" style={{ background: 'rgba(239,68,68,0.15)' }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-center mb-2" style={{ color: '#F9FAFB' }}>Delete this lead?</h3>
+              <p className="text-sm text-center mb-6" style={{ color: '#9CA3AF', lineHeight: 1.6 }}>
+                This lead will be moved to trash and permanently deleted after 14 days.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deleting}
+                  className="flex-1 h-12 rounded-xl text-sm font-semibold"
+                  style={{ background: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,0.08)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={deleteLead}
+                  disabled={deleting}
+                  className="flex-1 h-12 rounded-xl text-sm font-semibold"
+                  style={{ background: deleting ? 'rgba(239,68,68,0.4)' : '#EF4444', color: '#fff' }}
+                >
+                  {deleting ? 'Moving…' : 'Move to Trash'}
+                </button>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </motion.div>

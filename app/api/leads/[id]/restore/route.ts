@@ -10,37 +10,29 @@ async function getUser() {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll() },
-        setAll() {},
-      },
-    },
+    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } },
   )
   const { data: { user } } = await supabase.auth.getUser()
   return user
 }
 
-// GET /api/leads/search?q=
-export async function GET(request: NextRequest) {
+// POST /api/leads/[id]/restore — restore from trash
+export async function POST(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const q = new URL(request.url).searchParams.get('q') ?? ''
-  if (q.length < 2) return NextResponse.json([])
-
+  const { id } = await params
   const admin = getSupabaseAdmin()
 
-  const { data, error } = await admin
+  const { error } = await admin
     .from('leads')
-    .select('id, first_name, last_name, city, state')
+    .update({ deleted_at: null, updated_at: new Date().toISOString() })
+    .eq('id', id)
     .eq('rep_id', user.id)
-    .is('merged_into', null)
-    .is('deleted_at', null)
-    .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
-    .order('last_name', { ascending: true })
-    .limit(10)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data ?? [])
+  return NextResponse.json({ ok: true })
 }

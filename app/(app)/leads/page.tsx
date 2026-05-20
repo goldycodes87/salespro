@@ -2,16 +2,18 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import LeadsListClient from '@/components/leads/leads-list-client'
 
-const FILTERS = ['All', 'New', 'Contacted', 'Proposed', 'Closed']
+const FILTERS = ['All', 'New', 'Contacted', 'Proposed', 'Closed', 'Trash']
 
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>
+  searchParams: Promise<{ status?: string; deleted?: string }>
 }) {
-  const { status = 'all' } = await searchParams
+  const { status = 'all', deleted } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+
+  const isTrash = status === 'trash'
 
   let query = supabase
     .from('leads')
@@ -20,8 +22,13 @@ export default async function LeadsPage({
     .is('merged_into', null)
     .order('created_at', { ascending: false })
 
-  if (status && status !== 'all') {
-    query = query.eq('status', status.toLowerCase())
+  if (isTrash) {
+    query = (query as any).not('deleted_at', 'is', null)
+  } else {
+    query = query.is('deleted_at', null)
+    if (status && status !== 'all') {
+      query = query.eq('status', status.toLowerCase())
+    }
   }
 
   const { data: leads = [] } = await query
@@ -35,17 +42,19 @@ export default async function LeadsPage({
             {leads?.length ?? 0} lead{leads?.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Link
-          href="/leads/create"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold"
-          style={{ background: '#0F766E', color: '#fff' }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          Add
-        </Link>
+        {!isTrash && (
+          <Link
+            href="/leads/create"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold"
+            style={{ background: '#0F766E', color: '#fff' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Add
+          </Link>
+        )}
       </div>
 
       {/* Filter tabs */}
@@ -53,14 +62,19 @@ export default async function LeadsPage({
         {FILTERS.map(f => {
           const val = f.toLowerCase()
           const active = status === val || (f === 'All' && (!status || status === 'all'))
+          const isTrashTab = f === 'Trash'
           return (
             <Link
               key={f}
               href={f === 'All' ? '/leads' : `/leads?status=${val}`}
               className="flex-shrink-0 px-4 h-9 rounded-xl text-sm font-medium flex items-center"
               style={{
-                background: active ? '#0F766E' : 'rgba(255,255,255,0.06)',
-                color: active ? '#fff' : '#9CA3AF',
+                background: active
+                  ? (isTrashTab ? 'rgba(239,68,68,0.2)' : '#0F766E')
+                  : 'rgba(255,255,255,0.06)',
+                color: active
+                  ? (isTrashTab ? '#EF4444' : '#fff')
+                  : '#9CA3AF',
                 border: active ? 'none' : '1px solid rgba(255,255,255,0.08)',
               }}
             >
@@ -70,7 +84,11 @@ export default async function LeadsPage({
         })}
       </div>
 
-      <LeadsListClient leads={leads ?? []} />
+      <LeadsListClient
+        leads={leads ?? []}
+        isTrash={isTrash}
+        showDeletedToast={deleted === '1'}
+      />
     </div>
   )
 }

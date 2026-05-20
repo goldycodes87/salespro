@@ -66,3 +66,29 @@ export async function PATCH(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
+
+// DELETE /api/leads/[id] — permanent hard delete (requires confirmation header)
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const confirm = request.headers.get('X-Confirm-Delete')
+  if (confirm !== 'permanent') {
+    return NextResponse.json({ error: 'Missing confirmation header' }, { status: 400 })
+  }
+
+  const user = await getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id } = await params
+  const admin = getSupabaseAdmin()
+
+  const { error } = await admin
+    .from('leads')
+    .delete()
+    .eq('id', id)
+    .eq('rep_id', user.id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
