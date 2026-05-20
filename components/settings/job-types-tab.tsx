@@ -249,7 +249,7 @@ export default function JobTypesTab() {
     try {
       const res = await fetch(`/api/settings/job-types/${id}`, { method: 'DELETE' })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Failed to delete')
+      if (!res.ok) throw new Error(data.message ?? data.error ?? 'Failed to archive')
       setConfigs(prev => prev.filter(c => c.id !== id))
       setConfirmDeleteId(null)
     } catch (err: any) {
@@ -427,9 +427,9 @@ export default function JobTypesTab() {
               onClick={() => !deleting && setConfirmDeleteId(null)} />
             <div className="fixed left-4 right-4 z-[210] rounded-2xl p-6"
               style={{ top: '50%', transform: 'translateY(-50%)', background: '#1F2937', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 24px 64px rgba(0,0,0,0.6)', maxWidth: 400, margin: '0 auto' }}>
-              <h3 className="text-lg font-bold mb-2" style={{ color: '#F9FAFB' }}>Delete {config.name}?</h3>
+              <h3 className="text-lg font-bold mb-2" style={{ color: '#F9FAFB' }}>Archive {config.name}?</h3>
               <p className="text-sm mb-6" style={{ color: '#9CA3AF', lineHeight: 1.6 }}>
-                This cannot be undone. Any proposals using this job type will keep their saved snapshot.
+                It will no longer appear in Job Builder. Any completed jobs using this type are preserved.
               </p>
               <div className="flex gap-3">
                 <button onClick={() => setConfirmDeleteId(null)} disabled={deleting} className="flex-1 h-12 rounded-xl text-sm font-semibold"
@@ -438,7 +438,7 @@ export default function JobTypesTab() {
                 </button>
                 <button onClick={() => doDelete(confirmDeleteId)} disabled={deleting} className="flex-1 h-12 rounded-xl text-sm font-semibold"
                   style={{ background: deleting ? 'rgba(239,68,68,0.4)' : '#EF4444', color: '#fff' }}>
-                  {deleting ? 'Deleting…' : 'Delete'}
+                  {deleting ? 'Archiving…' : 'Archive'}
                 </button>
               </div>
             </div>

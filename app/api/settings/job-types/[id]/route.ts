@@ -71,29 +71,29 @@ export async function DELETE(
 
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  try {
-    const { data: proposals } = await admin
-      .from('proposals')
-      .select('id')
-      .eq('job_type_config_id', id)
-      .limit(1)
+  const { data: activeJobs } = await admin
+    .from('proposals')
+    .select('id')
+    .eq('job_type_config_id', id)
+    .is('deleted_at', null)
 
-    if (proposals && proposals.length > 0) {
-      return NextResponse.json(
-        { error: 'Cannot delete: proposals exist using this job type' },
-        { status: 409 },
-      )
-    }
-  } catch {
-    // job_type_config_id column may not exist yet — allow delete
+  if (activeJobs && activeJobs.length > 0) {
+    return NextResponse.json(
+      {
+        error: 'Cannot delete job type',
+        message: `This job type is used by ${activeJobs.length} active job(s). Delete or archive those jobs first.`,
+        count: activeJobs.length,
+      },
+      { status: 409 },
+    )
   }
 
   const { error } = await admin
     .from('job_type_configs')
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq('id', id)
     .eq('rep_id', user.id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ success: true })
 }

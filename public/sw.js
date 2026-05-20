@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'clozr-v1779302212441'
+const CACHE_VERSION = 'clozr-v1779303685813'
 
 self.addEventListener('install', (e) => {
   self.skipWaiting()
