@@ -40,8 +40,9 @@ export default async function LeadDetailPage({
       .order('created_at', { ascending: false }),
     supabase
       .from('proposals')
-      .select('id, type, status, your_price, created_at')
+      .select('id, type, status, your_price, created_at, job_type_config_id, pricing_data, job_type_snapshot')
       .eq('lead_id', id)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false }),
     supabase
       .from('lead_activity')

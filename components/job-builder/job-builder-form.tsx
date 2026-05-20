@@ -216,9 +216,11 @@ function PricingPanel({ result, config }: { result: JobCalculatorResult | null; 
 export default function JobBuilderForm({
   configs,
   existingJob,
+  initialLeadId,
 }: {
   configs: JobTypeConfig[]
   existingJob?: Record<string, any> | null
+  initialLeadId?: string
 }) {
   const router = useRouter()
   const ej = existingJob
@@ -328,6 +330,24 @@ export default function JobBuilderForm({
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
+
+  // Auto-fill lead when navigating from lead detail page
+  useEffect(() => {
+    if (!initialLeadId || ej) return
+    fetch(`/api/leads/${initialLeadId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return
+        setLinkedLeadId(data.id)
+        setSearchQ(`${data.first_name} ${data.last_name}`)
+        setFirstName(data.first_name ?? '')
+        setLastName(data.last_name ?? '')
+        setAddress(data.address ?? '')
+        setPhone(data.phone ? formatPhone(data.phone) : '')
+        setEmail(data.email ?? '')
+      })
+      .catch(() => {})
+  }, [initialLeadId]) // eslint-disable-line
 
   const handleSelectLead = async (lead: LeadResult) => {
     setLinkedLeadId(lead.id)

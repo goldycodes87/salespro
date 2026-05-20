@@ -12,7 +12,12 @@ import { formatPhone } from '@/hooks/usePhoneFormat'
 
 type Lead = Record<string, any>
 type Activity = { id: string; event_type: string; description: string; created_at: string }
-type Proposal = { id: string; type: string; status: string; your_price: number; created_at: string }
+type Proposal = {
+  id: string; type: string; status: string; your_price: number; created_at: string
+  job_type_config_id: string | null
+  pricing_data?: Record<string, any> | null
+  job_type_snapshot?: Record<string, any> | null
+}
 
 const STATUS_CYCLE = ['new', 'contacted', 'proposed', 'closed']
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -410,7 +415,7 @@ function AISummary({ text }: { text: string }) {
   )
 }
 
-const TABS = ['Overview', 'Proposals', 'Activity', 'Files', 'Meetings'] as const
+const TABS = ['Overview', 'Jobs', 'Activity', 'Files', 'Meetings'] as const
 type Tab = typeof TABS[number]
 
 export default function LeadDetail({
@@ -447,6 +452,7 @@ export default function LeadDetail({
   const [mergeToast, setMergeToast] = useState(!!merged)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [legacyExpanded, setLegacyExpanded] = useState(false)
 
   useEffect(() => {
     if (merged) {
@@ -562,6 +568,8 @@ export default function LeadDetail({
   }
 
   const proposals = initialProposals ?? []
+  const jobs = proposals.filter(p => p.job_type_config_id != null)
+  const legacyProposals = proposals.filter(p => p.job_type_config_id == null)
   const activity = initialActivity ?? []
 
   return (
@@ -912,44 +920,94 @@ export default function LeadDetail({
           </motion.div>
         )}
 
-        {tab === 'Proposals' && (
-          <motion.div key="proposals" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+        {tab === 'Jobs' && (
+          <motion.div key="jobs" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
             <div className="mb-3">
-              <Link href={`/proposals/new?lead_id=${lead.id}`}
+              <Link href={`/job-builder/new?lead_id=${lead.id}`}
                 className="flex items-center justify-center gap-2 w-full h-11 rounded-2xl text-sm font-semibold"
                 style={{ background: 'linear-gradient(135deg, #1D4ED8, #0F766E)', color: '#fff' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                New Proposal for {lead.first_name}
+                New Job for {lead.first_name}
               </Link>
             </div>
-            {proposals.length === 0 ? (
+            {jobs.length === 0 ? (
               <div className="rounded-2xl p-8 text-center" style={cardStyle}>
-                <p className="text-sm font-medium mb-1" style={{ color: '#F9FAFB' }}>No proposals yet</p>
-                <p className="text-xs" style={{ color: '#6B7280' }}>Create a proposal for this lead</p>
+                <p className="text-sm font-medium mb-1" style={{ color: '#F9FAFB' }}>No jobs yet</p>
+                <p className="text-xs" style={{ color: '#6B7280' }}>Create a job for this lead</p>
               </div>
             ) : (
               <div className="space-y-2">
-                {proposals.map(p => {
+                {jobs.map(p => {
                   const c = PROPOSAL_STATUS_COLORS[p.status] ?? PROPOSAL_STATUS_COLORS.draft
+                  const snapshot = p.job_type_snapshot
+                  const customerPrice = p.pricing_data?.calculator_result?.customer_price ?? p.your_price ?? 0
                   return (
-                    <Link key={p.id} href={`/proposals/${p.id}`}
+                    <Link key={p.id} href={`/job-builder/${p.id}`}
                       className="flex items-center gap-3 p-4 rounded-2xl" style={cardStyle}>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs px-2 py-0.5 rounded-full font-semibold uppercase" style={{ background: 'rgba(29,78,216,0.15)', color: '#60A5FA' }}>{p.type}</span>
-                          <span className="text-xs px-2 py-0.5 rounded-full font-semibold uppercase" style={{ background: c.bg, color: c.text }}>{p.status}</span>
-                        </div>
-                        <p className="text-xs" style={{ color: '#6B7280' }}>
-                          {new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </p>
+                      <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-xl"
+                        style={{ background: 'rgba(255,255,255,0.06)' }}>
+                        {snapshot?.icon ?? '🔧'}
                       </div>
-                      <span className="text-base font-bold" style={{ color: '#F9FAFB', fontFamily: "'JetBrains Mono', monospace" }}>
-                        ${(p.your_price ?? 0).toLocaleString()}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate" style={{ color: '#F9FAFB' }}>
+                          {snapshot?.name ?? 'Job'}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs px-2 py-0.5 rounded-full font-semibold uppercase"
+                            style={{ background: c.bg, color: c.text }}>{p.status}</span>
+                          <span className="text-xs" style={{ color: '#6B7280' }}>
+                            {new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-sm font-bold flex-shrink-0"
+                        style={{ color: '#F9FAFB', fontFamily: "'JetBrains Mono', monospace" }}>
+                        ${Math.round(customerPrice).toLocaleString()}
                       </span>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2.5"><polyline points="9 18 15 12 9 6" /></svg>
                     </Link>
                   )
                 })}
+              </div>
+            )}
+
+            {/* Legacy proposals — collapsed by default */}
+            {legacyProposals.length > 0 && (
+              <div className="mt-4">
+                <button
+                  onClick={() => setLegacyExpanded(e => !e)}
+                  className="flex items-center gap-2 text-xs mb-2"
+                  style={{ color: '#6B7280', minHeight: '36px' }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points={legacyExpanded ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
+                  </svg>
+                  Legacy Proposals (old format) ({legacyProposals.length})
+                </button>
+                {legacyExpanded && (
+                  <div className="space-y-2">
+                    {legacyProposals.map(p => {
+                      const c = PROPOSAL_STATUS_COLORS[p.status] ?? PROPOSAL_STATUS_COLORS.draft
+                      return (
+                        <Link key={p.id} href={`/proposals/${p.id}`}
+                          className="flex items-center gap-3 p-4 rounded-2xl" style={cardStyle}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs px-2 py-0.5 rounded-full font-semibold uppercase" style={{ background: 'rgba(29,78,216,0.15)', color: '#60A5FA' }}>{p.type}</span>
+                              <span className="text-xs px-2 py-0.5 rounded-full font-semibold uppercase" style={{ background: c.bg, color: c.text }}>{p.status}</span>
+                            </div>
+                            <p className="text-xs" style={{ color: '#6B7280' }}>
+                              {new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          </div>
+                          <span className="text-base font-bold" style={{ color: '#F9FAFB', fontFamily: "'JetBrains Mono', monospace" }}>
+                            ${(p.your_price ?? 0).toLocaleString()}
+                          </span>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2.5"><polyline points="9 18 15 12 9 6" /></svg>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </motion.div>
@@ -1005,18 +1063,18 @@ export default function LeadDetail({
         )}
       </AnimatePresence>
 
-      {/* Convert to Proposal sticky */}
+      {/* New Job sticky */}
       <div className="fixed left-0 right-0 z-50 px-4 py-4"
         style={{ bottom: 'calc(72px + env(safe-area-inset-bottom))', background: 'rgba(10,15,30,0.95)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-        <Link href={`/proposals/new?lead_id=${lead.id}`}
+        <Link href={`/job-builder/new?lead_id=${lead.id}`}
           className="flex items-center justify-center gap-2 w-full h-14 rounded-2xl text-base font-semibold"
           style={{ background: 'linear-gradient(135deg, #1D4ED8, #0F766E)', color: '#fff', boxShadow: '0 4px 24px rgba(29,78,216,0.35)' }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="12" y1="18" x2="12" y2="12" /><line x1="9" y1="15" x2="15" y2="15" />
+            <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+            <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+            <line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" />
           </svg>
-          Convert to Proposal
+          New Job
         </Link>
       </div>
 

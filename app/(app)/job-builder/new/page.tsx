@@ -65,6 +65,7 @@ export default async function NewJobPage({
       <JobBuilderForm
         configs={(configs ?? []) as any}
         existingJob={existingJob}
+        initialLeadId={lead_id}
       />
     </div>
   )
