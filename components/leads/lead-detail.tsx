@@ -53,7 +53,8 @@ interface ResearchSummary {
     beds?: number | null
     baths?: number | null
     yearBuilt?: number | null
-    lotSize?: string | null
+    lotSize?: number | null
+    zillowSqft?: number | null
     estimatedValue?: number | null
     lastSalePrice?: number | null
     lastSaleDate?: string | null
@@ -102,28 +103,75 @@ function BulletRow({ text }: { text: string }) {
   )
 }
 
-function StructuredSummary({ data }: { data: ResearchSummary }) {
+function StructuredSummary({
+  data,
+  leadId,
+  sqftOverride,
+  onSqftOverride,
+}: {
+  data: ResearchSummary
+  leadId: string
+  sqftOverride: number | null
+  onSqftOverride: (v: number | null) => void
+}) {
   const [sourcesOpen, setSourcesOpen] = useState(false)
+  const [editingSqft, setEditingSqft] = useState(false)
+  const [sqftInputVal, setSqftInputVal] = useState('')
   const { property, owner, salesContext, dataSources } = data
 
   const propValues = property ? Object.entries(property).filter(([, v]) => v !== null && v !== undefined) : []
   const ownerValues = owner ? Object.entries(owner).filter(([k, v]) => k !== 'confidence' && v !== null && v !== undefined && v !== false) : []
   const hasProp = propValues.length > 0
   const hasOwner = ownerValues.length > 0 || !!salesContext
+  const hasOwnerPersonalData = ownerValues.length > 0
+
+  const startEditSqft = () => {
+    const current = sqftOverride ?? property?.sqft ?? property?.zillowSqft ?? null
+    setSqftInputVal(current != null ? String(current) : '')
+    setEditingSqft(true)
+  }
+
+  const saveSqftOverride = async () => {
+    const val = parseInt(sqftInputVal, 10)
+    if (!isNaN(val) && val > 0) {
+      await fetch(`/api/leads/${leadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sqft_override: val }),
+      })
+      onSqftOverride(val)
+    }
+    setEditingSqft(false)
+  }
 
   if (!hasProp && !hasOwner) {
     return (
       <p className="text-sm" style={{ color: '#6B7280' }}>
-        No public records found for this address. Try verifying the address or searching manually.
+        Limited public records available for this address.
       </p>
     )
   }
 
-  const confidenceColor = owner?.confidence === 'high'
-    ? { bg: 'rgba(16,185,129,0.15)', text: '#34D399' }
-    : owner?.confidence === 'medium'
-    ? { bg: 'rgba(245,158,11,0.15)', text: '#FCD34D' }
-    : { bg: 'rgba(107,114,128,0.15)', text: '#9CA3AF' }
+  // FIX 5: confidence badge replaced with data-availability badge
+  let ownerBadge: { label: string; bg: string; color: string } | null = null
+  if (!hasOwnerPersonalData) {
+    ownerBadge = hasProp
+      ? { label: 'Property data only', bg: 'rgba(107,114,128,0.15)', color: '#9CA3AF' }
+      : { label: 'Limited public records available', bg: 'rgba(107,114,128,0.15)', color: '#9CA3AF' }
+  }
+
+  const PencilIcon = () => (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  )
+
+  // FIX 1: lot size in acres
+  const lotSizeSqFt = typeof property?.lotSize === 'number' ? property.lotSize : null
+  const lotSizeDisplay = lotSizeSqFt
+    ? `${(lotSizeSqFt / 43560).toFixed(2)} acres (${lotSizeSqFt.toLocaleString()} sq ft)`
+    : null
 
   return (
     <div className="space-y-3">
@@ -132,16 +180,80 @@ function StructuredSummary({ data }: { data: ResearchSummary }) {
         <div className="rounded-xl p-3.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
           <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6B7280' }}>Property</p>
 
-          {(property?.sqft || property?.beds || property?.baths) && (
+          {/* FIX 3 + FIX 4: sq footage with Zillow comparison, disclaimer, manual override */}
+          {(() => {
+            const rentcastSqft = property?.sqft ?? null
+            const zillowSqft = property?.zillowSqft ?? null
+            const hasSqftData = sqftOverride != null || rentcastSqft != null || zillowSqft != null
+            if (!hasSqftData) return null
+
+            const showBoth = !sqftOverride && rentcastSqft != null && zillowSqft != null &&
+              Math.abs(zillowSqft - rentcastSqft) / rentcastSqft > 0.10
+
+            return (
+              <div className="mb-2.5">
+                {editingSqft ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={sqftInputVal}
+                      onChange={e => setSqftInputVal(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveSqftOverride(); if (e.key === 'Escape') setEditingSqft(false) }}
+                      className="rounded-lg px-2 py-1 text-sm font-bold"
+                      style={{ width: 110, background: 'rgba(255,255,255,0.08)', color: '#F9FAFB', border: '1px solid rgba(255,255,255,0.2)', outline: 'none' }}
+                      autoFocus
+                    />
+                    <button onClick={saveSqftOverride} className="text-xs font-medium" style={{ color: '#34D399' }}>Save</button>
+                    <button onClick={() => setEditingSqft(false)} className="text-xs" style={{ color: '#6B7280' }}>Cancel</button>
+                  </div>
+                ) : sqftOverride != null ? (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-sm font-bold" style={{ color: '#F9FAFB' }}>{sqftOverride.toLocaleString()} sq ft</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(16,185,129,0.15)', color: '#34D399' }}>✓ Manually verified</span>
+                    <button onClick={startEditSqft} style={{ color: '#4B5563', display: 'inline-flex', alignItems: 'center' }}><PencilIcon /></button>
+                  </div>
+                ) : showBoth ? (
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-bold" style={{ color: '#F9FAFB' }}>
+                        {Math.max(rentcastSqft!, zillowSqft!).toLocaleString()} sq ft ({rentcastSqft! >= zillowSqft! ? 'public records' : 'Zillow estimate'})
+                      </span>
+                      <button onClick={startEditSqft} style={{ color: '#4B5563', display: 'inline-flex', alignItems: 'center' }}><PencilIcon /></button>
+                    </div>
+                    <p style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                      {Math.min(rentcastSqft!, zillowSqft!).toLocaleString()} sq ft ({rentcastSqft! < zillowSqft! ? 'public records' : 'Zillow estimate'})
+                    </p>
+                    <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                      From public records — may not reflect additions or renovations
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-bold" style={{ color: '#F9FAFB' }}>
+                        {(rentcastSqft ?? zillowSqft)!.toLocaleString()} sq ft
+                      </span>
+                      <button onClick={startEditSqft} style={{ color: '#4B5563', display: 'inline-flex', alignItems: 'center' }}><PencilIcon /></button>
+                    </div>
+                    <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                      From public records — may not reflect additions or renovations
+                    </p>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
+          {/* Beds / baths */}
+          {(property?.beds || property?.baths) && !editingSqft && (
             <p className="text-sm font-bold mb-2.5" style={{ color: '#F9FAFB' }}>
-              {property.sqft ? `${property.sqft.toLocaleString()} sq ft` : ''}
-              {(property.beds || property.baths) ? `${property.sqft ? ' · ' : ''}${property.beds ?? '—'}bd / ${property.baths ?? '—'}ba` : ''}
+              {property.beds ?? '—'}bd / {property.baths ?? '—'}ba
             </p>
           )}
 
           <div className="space-y-1.5">
             {property?.yearBuilt && <PropRow label="Built" value={String(property.yearBuilt)} />}
-            {property?.lotSize && <PropRow label="Lot Size" value={property.lotSize} />}
+            {lotSizeDisplay && <PropRow label="Lot Size" value={lotSizeDisplay} />}
             {property?.estimatedValue && <PropRow label="Est. Value" value={`$${property.estimatedValue.toLocaleString()}`} />}
             {property?.lastSalePrice && (
               <PropRow
@@ -164,9 +276,9 @@ function StructuredSummary({ data }: { data: ResearchSummary }) {
         <div className="rounded-xl p-3.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
           <div className="flex items-center justify-between mb-2.5">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>Owner Insights</p>
-            {owner?.confidence && (
-              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: confidenceColor.bg, color: confidenceColor.text }}>
-                {owner.confidence} confidence
+            {ownerBadge && (
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: ownerBadge.bg, color: ownerBadge.color }}>
+                {ownerBadge.label}
               </span>
             )}
           </div>
@@ -175,7 +287,7 @@ function StructuredSummary({ data }: { data: ResearchSummary }) {
             <p className="text-sm mb-3" style={{ color: '#D1D5DB', lineHeight: 1.6 }}>{salesContext}</p>
           )}
 
-          {(hasOwner || ownerValues.length > 0) && (
+          {ownerValues.length > 0 && (
             <div className="space-y-1.5">
               {owner?.yearsAtAddress && <BulletRow text={`At this address: ${owner.yearsAtAddress}`} />}
               {owner?.businessOwner && <BulletRow text="Business owner" />}
@@ -551,7 +663,14 @@ export default function LeadDetail({
                   <div>
                     {(() => {
                       const parsed = parseResearchSummary(lead.ai_summary)
-                      if (parsed) return <StructuredSummary data={parsed} />
+                      if (parsed) return (
+                        <StructuredSummary
+                          data={parsed}
+                          leadId={lead.id}
+                          sqftOverride={lead.sqft_override ?? null}
+                          onSqftOverride={v => setLead(prev => ({ ...prev, sqft_override: v }))}
+                        />
+                      )
                       // Fallback: old text format
                       return (
                         <>

@@ -5,6 +5,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
+import { logApiCall, API_COSTS } from '@/lib/api-logger'
 
 async function getUser() {
   const cookieStore = await cookies()
@@ -24,7 +25,7 @@ interface RentcastData {
   bedrooms: number | null
   bathrooms: number | null
   yearBuilt: number | null
-  lotSize: string | null
+  lotSize: number | null
   propertyType: string | null
   lastSalePrice: number | null
   lastSaleDate: string | null
@@ -62,7 +63,7 @@ async function fetchRentcast(lead: any, apiKey: string): Promise<RentcastData | 
       bedrooms: prop.bedrooms ?? null,
       bathrooms: prop.bathrooms ?? null,
       yearBuilt: prop.yearBuilt ?? null,
-      lotSize: prop.lotSize != null ? String(prop.lotSize) : null,
+      lotSize: prop.lotSize != null ? Number(prop.lotSize) : null,
       propertyType: prop.propertyType ?? null,
       lastSalePrice: prop.lastSalePrice ?? null,
       lastSaleDate: prop.lastSaleDate ?? null,
@@ -80,7 +81,7 @@ async function fetchRentcast(lead: any, apiKey: string): Promise<RentcastData | 
 
 async function fetchPerplexity(lead: any, county: string, apiKey: string): Promise<PerplexityData | null> {
   try {
-    const locationStr = `${lead.city}, ${county ? county + ' County, ' : ''}${lead.state}`
+    const countyStr = county ? `${county} County, ` : ''
     const res = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -92,31 +93,51 @@ async function fetchPerplexity(lead: any, county: string, apiKey: string): Promi
         messages: [
           {
             role: 'system',
-            content: `You are a sales research assistant. Find publicly available information about a specific person at a specific address. Be precise — only return information that matches this exact person at this exact location. Do not return results for people with the same name in other states, cities, or counties. If you cannot find specific verified information, say so clearly rather than guessing.`,
+            content: `You are a property and sales intelligence researcher for a home improvement company. Your job is to find actionable intelligence about a homeowner and their property to help a sales rep prepare for an appointment.
+
+Rules:
+1. Only return information verifiably tied to this exact person at this exact address. Never confuse with people of the same name elsewhere.
+2. If you cannot find personal info, focus on property and neighborhood intelligence instead.
+3. Always anchor searches to the exact county and state provided.
+4. Be specific and actionable — a sales rep reads this 30 minutes before knocking on the door.`,
           },
           {
             role: 'user',
-            content: `Research this specific person for a home improvement sales call:
+            content: `Research this property and homeowner for a home improvement sales appointment:
 
 Full Name: ${lead.first_name} ${lead.last_name}
-Street Address: ${lead.address}
-City: ${lead.city}
-State: ${lead.state}
-Zip: ${lead.zip}
-County: ${county}
+Address: ${lead.address}
+City: ${lead.city}, ${countyStr}${lead.state} ${lead.zip}
 
-Find only information that matches THIS person at THIS address in ${locationStr}. Not someone with the same name elsewhere.
+Search specifically for:
 
-Look for:
-1. How long they have lived at this address
-2. Any business ownership or professional background
-3. Community involvement or local news mentions
-4. Any other publicly available context relevant to a home improvement sales call
+ABOUT THE PERSON (must match this exact address in ${countyStr}${lead.state} only):
+- How long they have lived here
+- Professional background or business ownership
+- Community involvement, news mentions, public records
+- Any relevant life context
 
-If unsure whether information matches this specific person at this address, omit it. Accuracy over completeness.`,
+ABOUT THE PROPERTY:
+- Search for this exact address on Zillow and report the square footage shown on the listing page. Zillow often has more accurate sq footage than county records.
+  Search: "${lead.address} ${lead.city} ${lead.state} zillow"
+- Any recent permits pulled for this address (roofing, windows, siding, additions)
+- HOA or community association info
+- Recent listing history if any
+- Neighborhood characteristics and improvement trends
+
+SALES INTELLIGENCE:
+- Signals suggesting home improvement interest or need
+- Length of ownership relative to typical renovation cycles
+- Any context useful for a windows or siding sales conversation
+
+Important: This home is in ${countyStr}${lead.state}.
+Search "${lead.first_name} ${lead.last_name} ${lead.city} ${lead.state}" and "${lead.address} ${lead.city} ${lead.state}".
+Do not return results for any other location.
+If personal info unavailable, focus on property and neighborhood intel.
+Return everything found — the rep needs actionable detail.`,
           },
         ],
-        max_tokens: 500,
+        max_tokens: 800,
         return_citations: true,
       }),
     })
@@ -152,7 +173,7 @@ async function synthesizeWithClaude(params: {
   const res = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 1024,
-    system: `You are a sales intelligence assistant. Create a concise, accurate property and person summary for a home improvement sales rep. Only include information that was actually returned by the research tools. Never invent or infer details not present in the data. If data is missing, use null. Return ONLY valid JSON with no markdown fencing or explanation.`,
+    system: `You are a sales intelligence assistant. Create a concise, accurate property and person summary for a home improvement sales rep. Only include information that was actually returned by the research tools. Never invent or infer details not present in the data. If data is missing, use null. Return ONLY valid JSON with no markdown fencing or explanation. If no owner personal information was found, generate 2-3 sentences of sales context using only the verified property data: year built, sq footage, lot size, last sale date, estimated value, and elevation. Focus on what these facts suggest about likely home improvement needs. Start with: 'Based on property records:'`,
     messages: [{
       role: 'user',
       content: `Create a sales research summary using this verified data only:
@@ -176,7 +197,8 @@ Return ONLY this JSON structure, no other text:
     "beds": number or null,
     "baths": number or null,
     "yearBuilt": number or null,
-    "lotSize": string or null,
+    "lotSize": number or null (square footage as integer),
+    "zillowSqft": number or null (Zillow sq footage from web search, null if not found),
     "estimatedValue": number or null,
     "lastSalePrice": number or null,
     "lastSaleDate": string or null,
@@ -284,24 +306,55 @@ export async function POST(
       if (countyErr) console.log('county column not yet in schema, skipping save:', countyErr.message)
     }
 
-    // Step 2: Parallel RentCast + Perplexity
+    // Log Google Maps geocode (best-effort, after we already used the key)
+    if (googleKey && lead.address && lead.city) {
+      logApiCall({ repId: user.id, service: 'google_maps', endpoint: 'geocode', costUsd: API_COSTS.google_maps_geocode }).catch(console.error)
+    }
+
+    // Step 2: Parallel RentCast + Perplexity (with timing for logging)
+    const timed = <T>(fn: () => Promise<T>): Promise<{ value: T; ms: number }> => {
+      const t = Date.now()
+      return fn().then(value => ({ value, ms: Date.now() - t }))
+    }
+
     const [rentcastResult, perplexityResult] = await Promise.allSettled([
       process.env.RENTCAST_API_KEY
-        ? fetchRentcast(lead, process.env.RENTCAST_API_KEY)
-        : Promise.resolve(null),
+        ? timed(() => fetchRentcast(lead, process.env.RENTCAST_API_KEY!))
+        : Promise.resolve({ value: null, ms: 0 }),
       process.env.PERPLEXITY_API_KEY
-        ? fetchPerplexity(lead, county, process.env.PERPLEXITY_API_KEY)
-        : Promise.resolve(null),
+        ? timed(() => fetchPerplexity(lead, county, process.env.PERPLEXITY_API_KEY!))
+        : Promise.resolve({ value: null, ms: 0 }),
     ])
 
-    const rentcastData = rentcastResult.status === 'fulfilled' ? rentcastResult.value : null
-    const perplexityData = perplexityResult.status === 'fulfilled' ? perplexityResult.value : null
+    const rentcastTimed = rentcastResult.status === 'fulfilled' ? rentcastResult.value : { value: null, ms: 0 }
+    const perplexityTimed = perplexityResult.status === 'fulfilled' ? perplexityResult.value : { value: null, ms: 0 }
+    const rentcastData = rentcastTimed.value
+    const perplexityData = perplexityTimed.value
 
     if (rentcastResult.status === 'rejected') console.error('RentCast failed:', rentcastResult.reason)
     if (perplexityResult.status === 'rejected') console.error('Perplexity failed:', perplexityResult.reason)
 
+    if (process.env.RENTCAST_API_KEY) {
+      logApiCall({
+        repId: user.id, service: 'rentcast', endpoint: 'property_lookup',
+        costUsd: rentcastData ? API_COSTS.rentcast_property : 0,
+        responseMs: rentcastTimed.ms, success: rentcastData !== null,
+        errorMessage: rentcastResult.status === 'rejected' ? String(rentcastResult.reason) : null,
+      }).catch(console.error)
+    }
+    if (process.env.PERPLEXITY_API_KEY) {
+      logApiCall({
+        repId: user.id, service: 'perplexity', endpoint: 'sonar_pro',
+        costUsd: perplexityData ? API_COSTS.perplexity_sonar_pro : 0,
+        responseMs: perplexityTimed.ms, success: perplexityData !== null,
+        errorMessage: perplexityResult.status === 'rejected' ? String(perplexityResult.reason) : null,
+      }).catch(console.error)
+    }
+
     // Step 3: Claude synthesis
+    const synthesisStart = Date.now()
     const summary = await synthesizeWithClaude({ lead, county, elevationFeet, rentcastData, perplexityData })
+    const synthesisMs = Date.now() - synthesisStart
 
     await admin.from('leads').update({
       ai_summary: summary,
@@ -309,13 +362,10 @@ export async function POST(
       updated_at: new Date().toISOString(),
     }).eq('id', id)
 
-    await admin.from('api_usage_log').insert({
-      rep_id: user.id,
-      service: 'anthropic',
-      endpoint: 'lead_research',
-      tokens_used: 0,
-      estimated_cost_usd: 0.05,
-    })
+    logApiCall({
+      repId: user.id, service: 'anthropic', endpoint: 'lead_research',
+      costUsd: API_COSTS.anthropic_research, responseMs: synthesisMs,
+    }).catch(console.error)
 
     return NextResponse.json({ summary })
   } catch (err: any) {
