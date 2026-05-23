@@ -4,6 +4,24 @@ import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { logApiCall } from '@/lib/api-logger'
 
+function getField(
+  body: Record<string, unknown>,
+  ...keys: string[]
+): string {
+  const lowerBody: Record<string, unknown> = {}
+  Object.keys(body).forEach(k => {
+    lowerBody[k.toLowerCase().replace(/\s+/g, '_')] = body[k]
+  })
+
+  for (const key of keys) {
+    const normalized = key.toLowerCase().replace(/\s+/g, '_')
+    if (lowerBody[normalized]) {
+      return String(lowerBody[normalized])
+    }
+  }
+  return ''
+}
+
 export async function POST(req: Request) {
   const startTime = Date.now()
 
@@ -12,7 +30,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: Record<string, string> = {}
+  let body: Record<string, unknown> = {}
   try {
     const text = await req.text()
     if (text && text.trim().length > 0) {
@@ -25,19 +43,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true, skipped: 'invalid JSON' })
   }
 
-  const repEmail    = body['REP EMAIL']        ?? ''
-  const leadName    = body['LEAD NAME']         ?? ''
-  const leadAddress = body['LEAD ADDRESS']      ?? ''
-  const leadPhone   = body['LEAD PHONE']        ?? ''
-  const apptInfo    = body['APPOINTMENT INFO']  ?? ''
-  const apptNotes   = body['APPT NOTES']        ?? ''
-  const apptType    = body['TYPE']              ?? ''
-  const apptDuration = body['DURATION']         ?? ''
+  const repEmail     = getField(body, 'REP EMAIL', 'rep_email', 'rep email', 'repemail')
+  const leadName     = getField(body, 'LEAD NAME', 'lead_name', 'lead name', 'leadname')
+  const leadAddress  = getField(body, 'LEAD ADDRESS', 'lead_address', 'lead address', 'leadaddress')
+  const leadPhone    = getField(body, 'LEAD PHONE', 'lead_phone', 'lead phone', 'leadphone')
+  const apptInfo     = getField(body, 'APPOINTMENT INFO', 'appointment_info', 'appointment info', 'appointmentinfo')
+  const apptNotes    = getField(body, 'APPT NOTES', 'appt_notes', 'appt notes', 'apptnotes', 'notes')
+  const apptType     = getField(body, 'TYPE', 'type', 'appt_type')
+  const apptDuration = getField(body, 'DURATION', 'duration')
+
+  console.log('MAILPARSER PARSED:', { repEmail, leadName, leadPhone, apptInfo })
 
   console.log('MAILPARSER 1 - BODY:', {
-    repEmail: body['REP EMAIL'],
-    leadName: body['LEAD NAME'],
-    leadPhone: body['LEAD PHONE'],
     bodyKeys: Object.keys(body)
   })
 
