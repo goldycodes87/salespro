@@ -12,7 +12,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await req.json()
+  let body: Record<string, string> = {}
+  try {
+    const text = await req.text()
+    if (text && text.trim().length > 0) {
+      body = JSON.parse(text)
+    } else {
+      return NextResponse.json({ received: true, skipped: 'empty body' })
+    }
+  } catch (e) {
+    console.error('Mailparser: invalid JSON body:', e)
+    return NextResponse.json({ received: true, skipped: 'invalid JSON' })
+  }
 
   const repEmail    = body['REP EMAIL']        ?? ''
   const leadName    = body['LEAD NAME']         ?? ''
