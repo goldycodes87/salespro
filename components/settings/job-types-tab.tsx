@@ -38,6 +38,8 @@ type RebateTier = {
 
 type RebateProgram = { enabled: boolean; name: string; tiers: RebateTier[] }
 
+type JobFee = { id: string; label: string; amount: number; default_on: boolean }
+
 type JobTypeConfig = {
   id: string
   rep_id: string
@@ -51,6 +53,7 @@ type JobTypeConfig = {
   hidden_tier: HiddenTier
   financing_options: FinancingOpt[]
   rebate_program: RebateProgram
+  fees?: JobFee[]
   is_default: boolean
 }
 
@@ -174,6 +177,7 @@ function emptyDraft(): Draft {
     hidden_tier: { enabled: false, pct: 0 },
     financing_options: [],
     rebate_program: { enabled: false, name: '', tiers: [] },
+    fees: [],
     is_default: false,
   }
 }
@@ -222,6 +226,7 @@ export default function JobTypesTab() {
       hidden_tier: c.hidden_tier ?? { enabled: false, pct: 0 },
       financing_options: c.financing_options ?? [],
       rebate_program: c.rebate_program ?? { enabled: false, name: '', tiers: [] },
+      fees: c.fees ?? [],
       is_default: c.is_default ?? false,
     })
     setShowModal(true)
@@ -336,6 +341,18 @@ export default function JobTypesTab() {
           id: `reb_${Date.now()}`, name: '', type: 'pct_of_price' as const, value: 0, base: 'customer_price',
         }],
       },
+    }))
+
+  const updateFee = (idx: number, u: Partial<JobFee>) =>
+    setD(d => ({ ...d, fees: (d.fees ?? []).map((f, i) => i === idx ? { ...f, ...u } : f) }))
+
+  const removeFee = (idx: number) =>
+    setD(d => ({ ...d, fees: (d.fees ?? []).filter((_, i) => i !== idx) }))
+
+  const addFee = () =>
+    setD(d => ({
+      ...d,
+      fees: [...(d.fees ?? []), { id: `fee_${Date.now()}`, label: '', amount: 0, default_on: true }],
     }))
 
   // ─── Render ──────────────────────────────────────────────────────────────────
@@ -512,6 +529,27 @@ export default function JobTypesTab() {
                     </div>
                   </Fld>
                 </div>
+              </Sec>
+
+              {/* ADDITIONAL FEES */}
+              <Sec title="Additional Fees">
+                {(draft.fees ?? []).length > 0 && (
+                  <div className="space-y-2">
+                    {(draft.fees ?? []).map((fee, idx) => (
+                      <div key={fee.id} className="flex items-center gap-2">
+                        <SI value={fee.label} onChange={v => updateFee(idx, { label: v })} placeholder="Label" style={{ flex: 1 }} />
+                        <div className="flex items-center gap-1">
+                          <span style={{ color: '#6B7280', fontSize: 13 }}>$</span>
+                          <SI type="number" value={String(fee.amount)} onChange={v => updateFee(idx, { amount: Number(v) })} style={{ width: 90 }} />
+                        </div>
+                        <button type="button" onClick={() => removeFee(idx)} style={{ color: '#4B5563', fontSize: 14, flexShrink: 0 }}>🗑</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button type="button" onClick={addFee} className="text-xs font-medium" style={{ color: '#60A5FA' }}>
+                  + Add Fee
+                </button>
               </Sec>
 
               {/* DISCOUNT TIERS */}

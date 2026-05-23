@@ -266,6 +266,10 @@ export default function JobBuilderForm({
   const [rebateTierIds, setRebateTierIds] = useState<string[]>(ejPd?.rebate_tier_ids ?? [])
   const [chargedAmount, setChargedAmount] = useState(ejPd?.charged_amount ? String(ejPd.charged_amount) : '')
 
+  // Fee inclusion
+  const [priceIncludesFees, setPriceIncludesFees] = useState((ejPd?.included_fee_ids ?? []).length > 0)
+  const [includedFeeIds, setIncludedFeeIds] = useState<string[]>(ejPd?.included_fee_ids ?? [])
+
   // UI
   const [pricePanelOpen, setPricePanelOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -383,8 +387,9 @@ export default function JobBuilderForm({
       cash_enabled: cashEnabled,
       financing_id: financingId,
       charged_amount: parseFloat(chargedAmount) || 0,
+      included_fee_ids: includedFeeIds,
     })
-  }, [selectedConfig, basePrice, enabledTierIds, cashEnabled, financingId, rebateEnabled, rebateTierIds, chargedAmount])
+  }, [selectedConfig, basePrice, enabledTierIds, cashEnabled, financingId, rebateEnabled, rebateTierIds, chargedAmount, includedFeeIds])
 
   const toggleTier = (id: string) => {
     setEnabledTierIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
@@ -430,6 +435,7 @@ export default function JobBuilderForm({
         charged_amount: parseFloat(chargedAmount) || null,
         rebate_enabled: rebateEnabled,
         rebate_tier_ids: rebateTierIds,
+        included_fee_ids: includedFeeIds,
         calculator_result: calcResult,
         status: 'draft',
       }
@@ -580,6 +586,48 @@ export default function JobBuilderForm({
               {errors.basePrice && <p className="text-xs mt-1" style={{ color: '#EF4444' }}>{errors.basePrice}</p>}
               <p className="text-xs mt-1.5" style={{ color: '#4B5563' }}>Enter price before any discounts or admin fee</p>
             </Fld>
+
+            {selectedConfig && (
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, color: '#94a3b8' }}>
+                  <input
+                    type="checkbox"
+                    checked={priceIncludesFees}
+                    onChange={e => {
+                      setPriceIncludesFees(e.target.checked)
+                      if (!e.target.checked) setIncludedFeeIds([])
+                    }}
+                  />
+                  My job price includes fees
+                </label>
+                {priceIncludesFees && (
+                  <div style={{ marginTop: 8, marginLeft: 24, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={includedFeeIds.includes('admin_fee')}
+                        onChange={e => setIncludedFeeIds(prev =>
+                          e.target.checked ? [...prev, 'admin_fee'] : prev.filter(id => id !== 'admin_fee')
+                        )}
+                      />
+                      Admin Fee (${selectedConfig.admin_fee.toLocaleString()})
+                    </label>
+                    {(selectedConfig.fees ?? []).map(fee => (
+                      <label key={fee.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={includedFeeIds.includes(fee.id)}
+                          onChange={e => setIncludedFeeIds(prev =>
+                            e.target.checked ? [...prev, fee.id] : prev.filter(id => id !== fee.id)
+                          )}
+                        />
+                        {fee.label} (${fee.amount.toLocaleString()})
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <Fld label="Scope of Work">
               <textarea
