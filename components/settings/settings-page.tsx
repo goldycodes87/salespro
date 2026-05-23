@@ -1555,11 +1555,11 @@ export default function SettingsPage({
                 <div className="flex items-center gap-2">
                   <div className="flex-1 rounded-lg px-3 py-2 font-mono text-sm"
                     style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: '#60A5FA' }}>
-                    clozrleads@agentmail.to
+                    qgnprchi@mailparser.io
                   </div>
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText('clozrleads@agentmail.to')
+                      navigator.clipboard.writeText('qgnprchi@mailparser.io')
                       setCopiedAgentmail(true)
                       setTimeout(() => setCopiedAgentmail(false), 2000)
                     }}
