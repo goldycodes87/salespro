@@ -34,7 +34,12 @@ export async function POST(req: Request) {
   const apptType    = body['TYPE']              ?? ''
   const apptDuration = body['DURATION']         ?? ''
 
-  console.log('Mailparser webhook received:', { repEmail, leadName, leadAddress, leadPhone, apptType })
+  console.log('MAILPARSER 1 - BODY:', {
+    repEmail: body['REP EMAIL'],
+    leadName: body['LEAD NAME'],
+    leadPhone: body['LEAD PHONE'],
+    bodyKeys: Object.keys(body)
+  })
 
   const admin = getSupabaseAdmin()
 
@@ -45,6 +50,12 @@ export async function POST(req: Request) {
     .ilike('email', repEmail.trim())
     .eq('active', true)
     .single()
+
+  console.log('MAILPARSER 2 - REP:', {
+    found: !!rep,
+    repEmail,
+    repId: rep?.id
+  })
 
   if (!rep) {
     console.error('Mailparser: rep not found for email:', repEmail)
@@ -78,6 +89,11 @@ export async function POST(req: Request) {
     .eq('phone', leadPhone)
     .gte('created_at', new Date(Date.now() - 86400000).toISOString())
     .single()
+
+  console.log('MAILPARSER 3 - DUPLICATE:', {
+    found: !!existing,
+    existingId: existing?.id
+  })
 
   if (existing) {
     console.log('Mailparser: duplicate lead skipped', existing.id)
@@ -116,6 +132,13 @@ export async function POST(req: Request) {
     })
     .select()
     .single()
+
+  console.log('MAILPARSER 4 - INSERT:', {
+    success: !!lead,
+    leadId: lead?.id,
+    error: error?.message,
+    errorCode: (error as any)?.code
+  })
 
   if (error) {
     console.error('Mailparser: lead insert failed:', error)
