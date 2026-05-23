@@ -104,9 +104,14 @@ export async function POST(req: Request) {
       state:            state,
       zip:              zip,
       phone:            leadPhone,
-      notes:            notes,
-      appointment_date: appointmentDate,
-      lead_source:      'mailparser',
+      notes:            [
+        apptType ? `Type: ${apptType}` : '',
+        apptDuration ? `Duration: ${apptDuration}` : '',
+        apptNotes,
+      ].filter(Boolean).join('\n'),
+      appointment_date: apptDate,
+      appointment_time: apptTime,
+      source:           'mailparser',
       status:           'new',
     })
     .select()
