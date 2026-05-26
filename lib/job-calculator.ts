@@ -169,7 +169,7 @@ export function calculateJob(
   // Step 2: Hidden tier pct
   const hiddenPct = config.hidden_tier?.enabled ? (config.hidden_tier.pct ?? 0) : 0
 
-  // Step 3: Total discount pct
+  // Step 3: Total tier discount pct (capped)
   const visiblePct = activeTiers.reduce((sum, t) => sum + t.pct, 0)
   const totalPct = Math.min(visiblePct + hiddenPct, config.max_discount_pct ?? 100)
 
@@ -179,12 +179,12 @@ export function calculateJob(
       ? (config.cash_incentive.pct ?? 0)
       : 0
 
-  // Step 5–6: Strip included fees from base before discounting, add all fees back after
+  // Step 5: Fees breakdown
+  // Admin fee is ALWAYS stripped before discounting — unconditional, matches Vendo formula
   const includedFeeIds = inputs.included_fee_ids ?? []
   const feesBreakdown: { id: string; label: string; amount: number; included: boolean }[] = []
 
-  const adminIncluded = includedFeeIds.includes('admin_fee')
-  feesBreakdown.push({ id: 'admin_fee', label: 'Admin Fee', amount: config.admin_fee, included: adminIncluded })
+  feesBreakdown.push({ id: 'admin_fee', label: 'Admin Fee', amount: config.admin_fee, included: true })
 
   const additionalFees = config.fees ?? []
   let additionalFeesTotal = 0
@@ -194,19 +194,30 @@ export function calculateJob(
     feesBreakdown.push({ id: fee.id, label: fee.label, amount: fee.amount, included: isIncluded })
   })
 
-  const includedFeesTotal = feesBreakdown.filter(f => f.included).reduce((sum, f) => sum + f.amount, 0)
-  const adjustedBase = inputs.base_price - includedFeesTotal
+  // Additional optional fees (e.g. lead paint) may also be stripped if flagged
+  const additionalIncludedTotal = additionalFees
+    .filter(fee => includedFeeIds.includes(fee.id))
+    .reduce((sum, fee) => sum + fee.amount, 0)
 
-  const adjustedDiscountAmount = Math.floor(adjustedBase * (totalPct / 100))
-  const adjustedSubtotal = adjustedBase - adjustedDiscountAmount
+  const includedFeesTotal = config.admin_fee + additionalIncludedTotal
 
-  const adjustedCashDiscount = Math.floor(adjustedSubtotal * (cashPct / 100))
-  const adjustedAfterCash = adjustedSubtotal - adjustedCashDiscount
+  // Discountable base: base minus admin fee (always) and any other included fees
+  const discountableBase = base - config.admin_fee - additionalIncludedTotal
 
-  // Admin fee and additional fees always added back — never discounted
-  let customerPrice = adjustedAfterCash + config.admin_fee + additionalFeesTotal
+  // Step 6: Tier discount on discountableBase
+  const tierDiscount = Math.floor(discountableBase * (totalPct / 100))
 
-  // Step 7: Financing fee
+  // Step 7: Cash discount on discountableBase — same base as tiers, NOT on post-discount subtotal
+  const cashDiscount = cashPct > 0 ? Math.floor(discountableBase * (cashPct / 100)) : 0
+
+  // Step 8: Subtotal after all discounts
+  const totalDiscount = tierDiscount + cashDiscount
+  const subtotal = discountableBase - totalDiscount
+
+  // Step 9: Add admin and all additional fees back — never discounted
+  let customerPrice = subtotal + config.admin_fee + additionalFeesTotal
+
+  // Step 10: Financing fee
   // financed_down: NEVER add fee — financing = payment terms only
   // cash_up: ADD fee_pct to price if financing selected and fee_pct > 0
   let financingFee = 0
@@ -227,7 +238,7 @@ export function calculateJob(
     }
   }
 
-  // Step 8: Rebates — calculated off final customer_price including admin
+  // Step 11: Rebates — calculated off final customer_price
   let rebates: RebateResult[] | null = null
   let totalRebate: number | null = null
 
@@ -236,7 +247,7 @@ export function calculateJob(
       let amount = 0
 
       if (tier.type === 'pct_of_price') {
-        const rebateBase = tier.base === 'subtotal' ? adjustedSubtotal : customerPrice
+        const rebateBase = tier.base === 'subtotal' ? subtotal : customerPrice
         amount = Math.floor(rebateBase * (tier.value / 100))
       } else if (tier.type === 'pct_of_charged') {
         amount = Math.floor((inputs.charged_amount ?? 0) * (tier.value / 100))
@@ -254,15 +265,15 @@ export function calculateJob(
     totalRebate = rebates.reduce((sum, r) => sum + r.amount, 0)
   }
 
-  // Step 9: Per-tier breakdown for display
+  // Step 12: Per-tier display amounts (each tier's pct × discountableBase)
   const tiersApplied: TierResult[] = activeTiers.map(t => ({
     id: t.id,
     name: t.name,
     pct: t.pct,
-    amount: Math.floor(adjustedBase * (t.pct / 100)),
+    amount: Math.floor(discountableBase * (t.pct / 100)),
   }))
 
-  const hiddenTierAmount = hiddenPct > 0 ? Math.floor(adjustedBase * (hiddenPct / 100)) : 0
+  const hiddenTierAmount = hiddenPct > 0 ? Math.floor(discountableBase * (hiddenPct / 100)) : 0
 
   return {
     base_price: base,
@@ -270,9 +281,9 @@ export function calculateJob(
     tiers_applied: tiersApplied,
     hidden_tier_amount: hiddenTierAmount,
     total_discount_pct: totalPct,
-    total_discount_amount: adjustedDiscountAmount,
-    subtotal: adjustedSubtotal,
-    cash_discount: adjustedCashDiscount,
+    total_discount_amount: tierDiscount,
+    subtotal,
+    cash_discount: cashDiscount,
     financing_fee: financingFee,
     customer_price: customerPrice,
     monthly_payment: monthlyPayment,
@@ -280,7 +291,7 @@ export function calculateJob(
     total_rebate: totalRebate,
     fees_breakdown: feesBreakdown,
     included_fees_total: includedFeesTotal,
-    adjusted_base: adjustedBase,
+    adjusted_base: discountableBase,
   }
 }
 

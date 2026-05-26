@@ -584,10 +584,10 @@ export default function JobBuilderForm({
                 />
               </div>
               {errors.basePrice && <p className="text-xs mt-1" style={{ color: '#EF4444' }}>{errors.basePrice}</p>}
-              <p className="text-xs mt-1.5" style={{ color: '#4B5563' }}>Enter price before any discounts or admin fee</p>
+              <p className="text-xs mt-1.5" style={{ color: '#4B5563' }}>Enter total Vendo price — admin fee is automatically excluded from discounts</p>
             </Fld>
 
-            {selectedConfig && (
+            {selectedConfig && (selectedConfig.fees ?? []).length > 0 && (
               <div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, color: '#94a3b8' }}>
                   <input
@@ -602,16 +602,6 @@ export default function JobBuilderForm({
                 </label>
                 {priceIncludesFees && (
                   <div style={{ marginTop: 8, marginLeft: 24, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={includedFeeIds.includes('admin_fee')}
-                        onChange={e => setIncludedFeeIds(prev =>
-                          e.target.checked ? [...prev, 'admin_fee'] : prev.filter(id => id !== 'admin_fee')
-                        )}
-                      />
-                      Admin Fee (${selectedConfig.admin_fee.toLocaleString()})
-                    </label>
                     {(selectedConfig.fees ?? []).map(fee => (
                       <label key={fee.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8', cursor: 'pointer' }}>
                         <input
