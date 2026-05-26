@@ -25,7 +25,6 @@ export default async function LeadsPage({
   if (isTrash) {
     query = (query as any).not('deleted_at', 'is', null)
   } else {
-    query = query.is('deleted_at', null)
     if (status && status !== 'all') {
       query = query.eq('status', status.toLowerCase())
     }

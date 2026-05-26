@@ -78,7 +78,7 @@ function Fld({ label, children, required }: { label: string; children: React.Rea
 
 function Sec({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl overflow-hidden mb-4" style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
+    <div className="rounded-2xl overflow-visible mb-4" style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
       <div className="px-4 pt-3 pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>{title}</p>
       </div>
@@ -713,10 +713,9 @@ export default function JobBuilderForm({
                 </button>
                 {finDropOpen && (
                   <div style={{
-                    position: 'absolute', bottom: '100%', left: 0, right: 0, zIndex: 9999,
-                    marginBottom: '4px',
-                    background: '#1E293B', border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: '12px', overflow: 'hidden',
+                    position: 'absolute', top: '100%', left: 0, width: '100%', zIndex: 9999,
+                    backgroundColor: '#1e293b', border: '1px solid #334155',
+                    borderRadius: '8px', overflow: 'hidden',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
                   }}>
                     <button type="button"

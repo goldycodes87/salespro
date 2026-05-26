@@ -36,7 +36,6 @@ export async function GET(request: NextRequest) {
     .select('id, first_name, last_name, city, state')
     .eq('rep_id', user.id)
     .is('merged_into', null)
-    .is('deleted_at', null)
     .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
     .order('last_name', { ascending: true })
     .limit(10)
