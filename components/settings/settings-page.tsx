@@ -326,6 +326,7 @@ export default function SettingsPage({
   const [showVoicePicker, setShowVoicePicker]   = useState(false)
   const [savingAssistant, setSavingAssistant]   = useState(false)
   const [assistantSaved, setAssistantSaved]     = useState(false)
+  const [usesExternalQuoting, setUsesExternalQuoting] = useState<boolean>(rep.uses_external_quoting ?? false)
   const [copiedAgentmail, setCopiedAgentmail]   = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -378,6 +379,7 @@ export default function SettingsPage({
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        uses_external_quoting: usesExternalQuoting,
         assistant_config: {
           enabled: assistantEnabled,
           name: assistantName,
@@ -867,6 +869,18 @@ export default function SettingsPage({
                 </p>
               </div>
               <Toggle on={assistantEnabled} onToggle={() => setAssistantEnabled(v => !v)} />
+            </div>
+          </div>
+
+          {/* External Quoting Software */}
+          <div className="rounded-2xl mb-4 overflow-hidden"
+            style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="flex items-center justify-between px-5 py-4">
+              <div>
+                <p className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>External Quoting Software</p>
+                <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>I use separate quoting software. I&apos;ll enter all prices and discount amounts directly.</p>
+              </div>
+              <Toggle on={usesExternalQuoting} onToggle={() => setUsesExternalQuoting(v => !v)} />
             </div>
           </div>
 

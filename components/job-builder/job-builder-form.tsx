@@ -104,11 +104,63 @@ function Tog({ on, onToggle, label, sub }: { on: boolean; onToggle: () => void; 
 
 // ─── Pricing Panel ────────────────────────────────────────────────────────────
 
-function PricingPanel({ result, config }: { result: JobCalculatorResult | null; config: JobTypeConfig | null }) {
+function PricingPanel({ result, config, usesExternal }: { result: JobCalculatorResult | null; config: JobTypeConfig | null; usesExternal?: boolean }) {
   if (!result || !config || result.base_price <= 0) {
     return (
       <div className="rounded-2xl p-6 text-center" style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
         <p className="text-sm" style={{ color: '#4B5563' }}>Enter a base price to see live pricing</p>
+      </div>
+    )
+  }
+
+  if (usesExternal) {
+    return (
+      <div className="rounded-2xl overflow-hidden" style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="px-4 pt-3 pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>Live Pricing</p>
+        </div>
+        <div className="p-4 space-y-2">
+          <div className="flex justify-between text-sm">
+            <span style={{ color: '#9CA3AF' }}>Package Price</span>
+            <span style={{ color: '#F9FAFB', fontFamily: "'JetBrains Mono', monospace" }}>{fmt(result.base_price)}</span>
+          </div>
+          {result.tiers_applied.map(t => (
+            <div key={t.id} className="flex justify-between text-sm">
+              <span style={{ color: '#9CA3AF' }}>{t.name}</span>
+              <span style={{ color: '#F87171', fontFamily: "'JetBrains Mono', monospace" }}>-{fmt(t.amount)}</span>
+            </div>
+          ))}
+          {result.cash_discount > 0 && (
+            <div className="flex justify-between text-sm">
+              <span style={{ color: '#9CA3AF' }}>{config.cash_incentive?.label ?? 'Cash Incentive'}</span>
+              <span style={{ color: '#F87171', fontFamily: "'JetBrains Mono', monospace" }}>-{fmt(result.cash_discount)}</span>
+            </div>
+          )}
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-bold" style={{ color: '#F9FAFB' }}>CUSTOMER PRICE</span>
+            <span className="text-xl font-black" style={{ color: '#06B6D4', fontFamily: "'JetBrains Mono', monospace" }}>
+              {result.customer_price > 0 ? fmt(result.customer_price) : '—'}
+            </span>
+          </div>
+          {result.rebates && result.rebates.length > 0 && result.total_rebate !== null && result.total_rebate > 0 && (
+            <>
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>Your Costco Rebate</p>
+              {result.rebates.filter(r => r.amount > 0).map(r => (
+                <div key={r.id} className="flex justify-between text-sm">
+                  <span style={{ color: '#9CA3AF' }}>{r.name}</span>
+                  <span style={{ color: '#34D399', fontFamily: "'JetBrains Mono', monospace" }}>{fmt(r.amount)}</span>
+                </div>
+              ))}
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+              <div className="flex justify-between text-sm font-bold">
+                <span style={{ color: '#D1D5DB' }}>Total Rebate</span>
+                <span style={{ color: '#34D399', fontFamily: "'JetBrains Mono', monospace" }}>{fmt(result.total_rebate)}</span>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     )
   }
@@ -217,10 +269,12 @@ export default function JobBuilderForm({
   configs,
   existingJob,
   initialLeadId,
+  usesExternalQuoting = false,
 }: {
   configs: JobTypeConfig[]
   existingJob?: Record<string, any> | null
   initialLeadId?: string
+  usesExternalQuoting?: boolean
 }) {
   const router = useRouter()
   const ej = existingJob
@@ -269,6 +323,23 @@ export default function JobBuilderForm({
   // Fee inclusion
   const [priceIncludesFees, setPriceIncludesFees] = useState((ejPd?.included_fee_ids ?? []).length > 0)
   const [includedFeeIds, setIncludedFeeIds] = useState<string[]>(ejPd?.included_fee_ids ?? [])
+
+  // External quoting state
+  const [extTierEnabled, setExtTierEnabled] = useState<Record<string, boolean>>(() => {
+    if (ejPd?.external_tier_amounts) {
+      return Object.fromEntries((ejPd.external_tier_amounts as any[]).map((t: any) => [t.tier_id, true]))
+    }
+    return {}
+  })
+  const [extTierAmounts, setExtTierAmounts] = useState<Record<string, string>>(() => {
+    if (ejPd?.external_tier_amounts) {
+      return Object.fromEntries((ejPd.external_tier_amounts as any[]).map((t: any) => [t.tier_id, String(t.amount)]))
+    }
+    return {}
+  })
+  const [extCashEnabled, setExtCashEnabled] = useState<boolean>(ejPd?.external_cash_enabled ?? false)
+  const [extCashAmountStr, setExtCashAmountStr] = useState<string>(ejPd?.external_cash_amount ? String(ejPd.external_cash_amount) : '')
+  const [extCustomerPriceStr, setExtCustomerPriceStr] = useState<string>(ejPd?.external_customer_price ? String(ejPd.external_customer_price) : '')
 
   // UI
   const [pricePanelOpen, setPricePanelOpen] = useState(false)
@@ -381,6 +452,24 @@ export default function JobBuilderForm({
         tiers: (selectedConfig.rebate_program?.tiers ?? []).filter(t => rebateTierIds.includes(t.id)),
       },
     }
+    if (usesExternalQuoting) {
+      const extAmounts = (selectedConfig.discount_tiers ?? [])
+        .filter(t => extTierEnabled[t.id])
+        .map(t => ({ tier_id: t.id, name: t.name, amount: parseFloat(extTierAmounts[t.id] || '0') || 0 }))
+        .filter(t => t.amount > 0)
+      return calculateJob(calcConfig, {
+        base_price: basePrice,
+        enabled_tier_ids: [],
+        cash_enabled: false,
+        financing_id: financingId,
+        charged_amount: parseFloat(chargedAmount) || 0,
+        uses_external_quoting: true,
+        external_tier_amounts: extAmounts,
+        external_cash_enabled: extCashEnabled,
+        external_cash_amount: parseFloat(extCashAmountStr) || 0,
+        external_customer_price: parseFloat(extCustomerPriceStr) || 0,
+      })
+    }
     return calculateJob(calcConfig, {
       base_price: basePrice,
       enabled_tier_ids: enabledTierIds,
@@ -389,7 +478,8 @@ export default function JobBuilderForm({
       charged_amount: parseFloat(chargedAmount) || 0,
       included_fee_ids: includedFeeIds,
     })
-  }, [selectedConfig, basePrice, enabledTierIds, cashEnabled, financingId, rebateEnabled, rebateTierIds, chargedAmount, includedFeeIds])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConfig, basePrice, enabledTierIds, cashEnabled, financingId, rebateEnabled, rebateTierIds, chargedAmount, includedFeeIds, usesExternalQuoting, extTierEnabled, extTierAmounts, extCashEnabled, extCashAmountStr, extCustomerPriceStr])
 
   const toggleTier = (id: string) => {
     setEnabledTierIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
@@ -435,8 +525,18 @@ export default function JobBuilderForm({
         charged_amount: parseFloat(chargedAmount) || null,
         rebate_enabled: rebateEnabled,
         rebate_tier_ids: rebateTierIds,
-        included_fee_ids: includedFeeIds,
+        included_fee_ids: usesExternalQuoting ? [] : includedFeeIds,
         calculator_result: calcResult,
+        uses_external_quoting: usesExternalQuoting,
+        external_tier_amounts: usesExternalQuoting
+          ? (selectedConfig?.discount_tiers ?? [])
+              .filter(t => extTierEnabled[t.id])
+              .map(t => ({ tier_id: t.id, name: t.name, amount: parseFloat(extTierAmounts[t.id] || '0') || 0 }))
+              .filter(t => t.amount > 0)
+          : null,
+        external_cash_enabled: usesExternalQuoting ? extCashEnabled : null,
+        external_cash_amount: usesExternalQuoting ? (parseFloat(extCashAmountStr) || null) : null,
+        external_customer_price: usesExternalQuoting ? (parseFloat(extCustomerPriceStr) || null) : null,
         status: 'draft',
       }
 
@@ -584,10 +684,12 @@ export default function JobBuilderForm({
                 />
               </div>
               {errors.basePrice && <p className="text-xs mt-1" style={{ color: '#EF4444' }}>{errors.basePrice}</p>}
-              <p className="text-xs mt-1.5" style={{ color: '#4B5563' }}>Enter total Vendo price — admin fee is automatically excluded from discounts</p>
+              <p className="text-xs mt-1.5" style={{ color: '#4B5563' }}>
+                {usesExternalQuoting ? 'Full package price from your quoting software' : 'Enter total Vendo price — admin fee is automatically excluded from discounts'}
+              </p>
             </Fld>
 
-            {selectedConfig && (selectedConfig.fees ?? []).length > 0 && (
+            {!usesExternalQuoting && selectedConfig && (selectedConfig.fees ?? []).length > 0 && (
               <div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, color: '#94a3b8' }}>
                   <input
@@ -638,7 +740,7 @@ export default function JobBuilderForm({
           </Sec>
 
           {/* SECTION 4: Discounts — only show if config selected */}
-          {selectedConfig && (
+          {selectedConfig && !usesExternalQuoting && (
             <Sec title="Discounts">
               {visibleTiers.length === 0 ? (
                 <p className="text-sm" style={{ color: '#6B7280' }}>No discount tiers configured for this job type.</p>
@@ -671,6 +773,92 @@ export default function JobBuilderForm({
                   />
                 </div>
               )}
+            </Sec>
+          )}
+
+          {/* SECTION 4 (External): Manual discount + customer price entry */}
+          {selectedConfig && usesExternalQuoting && (
+            <Sec title="Discounts &amp; Pricing">
+              {(selectedConfig.discount_tiers ?? []).length === 0 ? (
+                <p className="text-sm" style={{ color: '#6B7280' }}>No discount tiers configured for this job type.</p>
+              ) : (
+                <div className="space-y-4">
+                  {(selectedConfig.discount_tiers ?? []).map(tier => (
+                    <div key={tier.id}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 8 }}>
+                        <input
+                          type="checkbox"
+                          checked={extTierEnabled[tier.id] ?? false}
+                          onChange={e => setExtTierEnabled(prev => ({ ...prev, [tier.id]: e.target.checked }))}
+                        />
+                        <span className="text-sm font-medium" style={{ color: '#D1D5DB' }}>{tier.name}</span>
+                      </label>
+                      {(extTierEnabled[tier.id]) && (
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg font-semibold" style={{ color: '#6B7280' }}>$</span>
+                            <input
+                              type="number"
+                              value={extTierAmounts[tier.id] ?? ''}
+                              onChange={e => setExtTierAmounts(prev => ({ ...prev, [tier.id]: e.target.value }))}
+                              placeholder="0"
+                              min={0}
+                              style={{ ...INPUT, flex: 1 }}
+                            />
+                          </div>
+                          <p className="text-xs mt-1" style={{ color: '#4B5563' }}>Cumulative savings amount from your quoting software</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {selectedConfig.cash_incentive?.enabled && (
+                <div className="pt-4 mt-2 space-y-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={extCashEnabled}
+                      onChange={e => setExtCashEnabled(e.target.checked)}
+                    />
+                    <span className="text-sm font-medium" style={{ color: '#D1D5DB' }}>{selectedConfig.cash_incentive.label ?? 'Cash Incentive'}</span>
+                  </label>
+                  {extCashEnabled && (
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-semibold" style={{ color: '#6B7280' }}>$</span>
+                        <input
+                          type="number"
+                          value={extCashAmountStr}
+                          onChange={e => setExtCashAmountStr(e.target.value)}
+                          placeholder="0"
+                          min={0}
+                          style={{ ...INPUT, flex: 1 }}
+                        />
+                      </div>
+                      <p className="text-xs mt-1" style={{ color: '#4B5563' }}>Cash savings amount from your quoting software</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="pt-4 mt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <Fld label="Customer Price" required>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-semibold" style={{ color: '#6B7280' }}>$</span>
+                    <input
+                      type="number"
+                      value={extCustomerPriceStr}
+                      onChange={e => setExtCustomerPriceStr(e.target.value)}
+                      placeholder="0"
+                      min={0}
+                      style={{ ...INPUT, flex: 1, fontSize: '18px', fontWeight: 700, border: extCustomerPriceStr && parseFloat(extCustomerPriceStr) > 0 ? '1px solid rgba(6,182,212,0.4)' : '1px solid rgba(255,255,255,0.10)' }}
+                    />
+                  </div>
+                  <p className="text-xs mt-1" style={{ color: '#4B5563' }}>Final price your customer pays — from your quoting software. This is the number that matters.</p>
+                </Fld>
+              </div>
             </Sec>
           )}
 
@@ -833,7 +1021,7 @@ export default function JobBuilderForm({
         {/* ── RIGHT: Desktop sidebar ── */}
         <div className="hidden lg:block w-80 flex-shrink-0">
           <div className="sticky top-20">
-            <PricingPanel result={calcResult} config={selectedConfig} />
+            <PricingPanel result={calcResult} config={selectedConfig} usesExternal={usesExternalQuoting} />
           </div>
         </div>
       </div>
@@ -888,7 +1076,7 @@ export default function JobBuilderForm({
           {/* Expanded content */}
           {pricePanelOpen && (
             <div className="overflow-y-auto px-4 pb-6" style={{ maxHeight: 'calc(70vh - 56px)' }}>
-              <PricingPanel result={calcResult} config={selectedConfig} />
+              <PricingPanel result={calcResult} config={selectedConfig} usesExternal={usesExternalQuoting} />
             </div>
           )}
         </div>

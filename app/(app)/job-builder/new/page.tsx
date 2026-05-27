@@ -16,14 +16,20 @@ export default async function NewJobPage({
 
   const admin = getSupabaseAdmin()
 
-  // Fetch rep's job type configs
-  const { data: configs } = await admin
-    .from('job_type_configs')
-    .select('*')
-    .eq('rep_id', user.id)
-    .is('deleted_at', null)
-    .order('is_default', { ascending: false })
-    .order('created_at', { ascending: true })
+  // Fetch rep's job type configs and settings
+  const [configsResult, repResult] = await Promise.all([
+    admin
+      .from('job_type_configs')
+      .select('*')
+      .eq('rep_id', user.id)
+      .is('deleted_at', null)
+      .order('is_default', { ascending: false })
+      .order('created_at', { ascending: true }),
+    admin.from('reps').select('uses_external_quoting').eq('id', user.id).single(),
+  ])
+
+  const configs = configsResult.data
+  const usesExternalQuoting = repResult.data?.uses_external_quoting ?? false
 
   // Fetch existing job if editing
   let existingJob: Record<string, any> | null = null
@@ -66,6 +72,7 @@ export default async function NewJobPage({
         configs={(configs ?? []) as any}
         existingJob={existingJob}
         initialLeadId={lead_id}
+        usesExternalQuoting={usesExternalQuoting}
       />
     </div>
   )

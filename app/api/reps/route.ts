@@ -62,6 +62,7 @@ export async function PATCH(request: NextRequest) {
   if ('assistant_config' in body) allowed.assistant_config = body.assistant_config
   if ('industries' in body) allowed.industries = body.industries
   if ('territory' in body) allowed.territory = body.territory
+  if ('uses_external_quoting' in body) allowed.uses_external_quoting = body.uses_external_quoting
 
   const { data, error } = await admin
     .from('reps')

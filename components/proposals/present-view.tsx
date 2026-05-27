@@ -437,7 +437,17 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
 }) {
   const rawPd = proposal.pricing_data || {}
 
-  const [cashEnabled, setCashEnabled] = useState<boolean>(rawPd.cash_enabled ?? false)
+  const isExternal = !!(rawPd.uses_external_quoting)
+  const extTiers = ((rawPd.external_tier_amounts ?? []) as { tier_id: string; name: string; amount: number }[]).filter(t => t.amount > 0)
+  const extCashAmt = rawPd.external_cash_amount ?? 0
+  const extCashConfigEnabled = !!(rawPd.external_cash_enabled) && extCashAmt > 0
+  const extCustomerPrice = rawPd.external_customer_price ?? 0
+  const extBasePrice = rawPd.base_price ?? 0
+  const extLastTierAmt = extTiers.length > 0 ? extTiers[extTiers.length - 1].amount : 0
+
+  const [cashEnabled, setCashEnabled] = useState<boolean>(
+    isExternal ? extCashConfigEnabled : (rawPd.cash_enabled ?? false)
+  )
   const [selectedFinancingId, setSelectedFinancingId] = useState<string | null>(rawPd.financing_id ?? null)
   const [finDropOpen, setFinDropOpen] = useState(false)
   const [currentScreen, setCurrentScreen] = useState(0)
@@ -462,6 +472,19 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
 
   const liveResult = useMemo(() => {
     try {
+      if (isExternal) {
+        return calculateJob(config, {
+          base_price: extBasePrice,
+          enabled_tier_ids: [],
+          cash_enabled: false,
+          financing_id: selectedFinancingId,
+          uses_external_quoting: true,
+          external_tier_amounts: extTiers,
+          external_cash_enabled: cashEnabled,
+          external_cash_amount: extCashAmt,
+          external_customer_price: extCustomerPrice,
+        })
+      }
       return calculateJob(config, {
         base_price: rawPd.base_price ?? 0,
         enabled_tier_ids: rawPd.enabled_tier_ids ?? [],
@@ -470,15 +493,24 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
         charged_amount: rawPd.charged_amount ?? 0,
       })
     } catch { return calcResult }
-  }, [config, cashEnabled, selectedFinancingId, calcResult, rawPd])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExternal, config, cashEnabled, selectedFinancingId, calcResult, rawPd, extTiers, extCashAmt, extCustomerPrice, extBasePrice])
 
   const screens = useMemo(() => {
+    if (isExternal) {
+      const s: string[] = ['intro']
+      extTiers.forEach((_, i) => s.push(`ext_tier_${i}`))
+      if (extCashConfigEnabled) s.push('ext_cash')
+      s.push('summary')
+      return s
+    }
     const s: string[] = ['intro']
     calcResult.tiers_applied.forEach((_, i) => s.push(`tier_${i}`))
     if (config.cash_incentive?.enabled) s.push('cash')
     s.push('summary')
     return s
-  }, [calcResult.tiers_applied, config.cash_incentive?.enabled])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExternal, extTiers, extCashConfigEnabled, calcResult.tiers_applied, config.cash_incentive?.enabled])
 
   const safeScreen = Math.min(currentScreen, screens.length - 1)
   const screen = screens[safeScreen]
@@ -531,6 +563,13 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
   const tierDiscountTotal = tiersUpTo.reduce((sum, t) => sum + t.amount, 0)
   const tierPrice = tierIdx >= 0 ? calcResult.base_price - tierDiscountTotal + config.admin_fee : 0
   const isLastTierScreen = tierIdx >= 0 && tierIdx === calcResult.tiers_applied.length - 1
+
+  // External tier screen derived values
+  const extTierIdx = screen.startsWith('ext_tier_') ? parseInt(screen.split('_')[2], 10) : -1
+  const extCurTier = extTierIdx >= 0 ? extTiers[extTierIdx] : null
+  const extTierPrice = extCurTier ? extBasePrice - extCurTier.amount : 0
+  const extCashScreenPrice = cashEnabled ? extBasePrice - extCashAmt : extBasePrice - extLastTierAmt
+  const extIsLastTierScreen = extTierIdx >= 0 && extTierIdx === extTiers.length - 1 && !extCashConfigEnabled
 
   const premiumCard: React.CSSProperties = {
     background: 'rgba(255,255,255,0.05)',
@@ -739,6 +778,112 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
               </div>
             )}
 
+            {/* ── EXTERNAL TIER SCREENS ── */}
+            {screen.startsWith('ext_tier_') && extCurTier && (
+              <div className="max-w-sm w-full">
+                <div style={{ ...premiumCard, padding: '20px', marginBottom: '20px' }}>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '14px' }}>
+                    Price Breakdown
+                  </p>
+                  <BreakdownRow label="Package Price" value={fmt(extBasePrice)} />
+                  <BreakdownRow label={extCurTier.name} value={`-${fmt(extCurTier.amount)}`} color="#10b981" />
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '10px', paddingTop: '10px' }}>
+                    <BreakdownRow label="Your Price" value={fmt(extTierPrice)} bold color="#fff" />
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                  {first && (
+                    <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '48px', fontWeight: 800, color: 'white', letterSpacing: '-1px', display: 'block' }}>{first}</span>
+                    </div>
+                  )}
+                  <AnimatedPrice value={extTierPrice} />
+                  <motion.p key={Math.round(extCurTier.amount)} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                    style={{ fontSize: '18px', fontWeight: 600, color: '#10b981', marginTop: '8px' }}>
+                    You&apos;re saving {fmt(extCurTier.amount)} on your project
+                  </motion.p>
+                </div>
+                {extIsLastTierScreen && (config.financing_options ?? []).length > 0 && (
+                  <div ref={finDropRef} style={{ position: 'relative', marginBottom: '12px' }} onClick={e => e.stopPropagation()}>
+                    <button type="button"
+                      style={{ width: '100%', height: '44px', padding: '0 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', color: '#F9FAFB', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+                      onClick={() => setFinDropOpen(v => !v)}>
+                      <span style={{ color: selectedFin ? '#F9FAFB' : 'rgba(255,255,255,0.4)' }}>
+                        {selectedFin ? getFinancingLabel(selectedFin) : 'Select financing…'}
+                      </span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                        style={{ transform: finDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </button>
+                    <AnimatePresence>
+                      {finDropOpen && (
+                        <motion.div initial={{ opacity: 0, scaleY: 0.95, y: -4 }} animate={{ opacity: 1, scaleY: 1, y: 0 }}
+                          exit={{ opacity: 0, scaleY: 0.95, y: -4 }} transition={{ duration: 0.15 }}
+                          style={{ position: 'absolute', top: '48px', left: 0, right: 0, zIndex: 50, background: '#1E293B', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.6)', transformOrigin: 'top' }}>
+                          <button type="button"
+                            style={{ width: '100%', padding: '12px 14px', textAlign: 'left', fontSize: '14px', color: !selectedFinancingId ? '#60A5FA' : 'rgba(255,255,255,0.5)', background: !selectedFinancingId ? 'rgba(29,78,216,0.1)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                            onClick={() => { setSelectedFinancingId(null); setFinDropOpen(false) }}>
+                            No financing
+                          </button>
+                          {(config.financing_options ?? []).map(fin => (
+                            <button key={fin.id} type="button"
+                              style={{ width: '100%', padding: '12px 14px', textAlign: 'left', fontSize: '14px', color: fin.id === selectedFinancingId ? '#60A5FA' : '#F9FAFB', background: fin.id === selectedFinancingId ? 'rgba(29,78,216,0.12)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                              onClick={() => { setSelectedFinancingId(fin.id); setFinDropOpen(false) }}>
+                              {getFinancingLabel(fin)}
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+                <button type="button"
+                  onClick={e => { e.stopPropagation(); setConfirmPrice(extCustomerPrice) }}
+                  style={{ width: '100%', height: '48px', background: 'transparent', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '12px', color: 'rgba(255,255,255,0.55)', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>
+                  Send Job
+                </button>
+              </div>
+            )}
+
+            {/* ── EXTERNAL CASH SCREEN ── */}
+            {screen === 'ext_cash' && (
+              <div className="max-w-sm w-full">
+                <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '12px' }}>
+                    {config.cash_incentive?.label ?? 'Cash Incentive'}
+                  </p>
+                  {first && (
+                    <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '48px', fontWeight: 800, color: 'white', letterSpacing: '-1px', display: 'block' }}>{first}</span>
+                    </div>
+                  )}
+                  <AnimatedPrice value={extCashScreenPrice} />
+                  {cashEnabled && extCashAmt > 0 && (
+                    <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                      style={{ fontSize: '18px', fontWeight: 600, color: '#10b981', marginTop: '8px' }}>
+                      You save {fmt(extCashAmt)}
+                    </motion.p>
+                  )}
+                </div>
+                <div style={{ ...premiumCard, padding: '20px', marginBottom: '14px' }} onClick={e => e.stopPropagation()}>
+                  <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', marginBottom: '16px', textAlign: 'center', lineHeight: 1.5 }}>
+                    Save an additional {fmt(extCashAmt)} by paying with cash or check today.
+                  </p>
+                  <BigToggle
+                    on={cashEnabled}
+                    onToggle={() => setCashEnabled(v => !v)}
+                    label={cashEnabled ? `${config.cash_incentive?.label ?? 'Cash'} Applied ✓` : `Apply ${config.cash_incentive?.label ?? 'Cash Incentive'}`}
+                  />
+                </div>
+                <button type="button"
+                  onClick={e => { e.stopPropagation(); setConfirmPrice(extCustomerPrice) }}
+                  style={{ width: '100%', height: '48px', background: 'transparent', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '12px', color: 'rgba(255,255,255,0.55)', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>
+                  Send Job
+                </button>
+              </div>
+            )}
+
             {/* ── SUMMARY SCREEN ── */}
             {screen === 'summary' && (
               <div className="max-w-sm w-full">
@@ -751,14 +896,14 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                       <span style={{ fontSize: '48px', fontWeight: 800, color: 'white', letterSpacing: '-1px', display: 'block' }}>{first}</span>
                     </div>
                   )}
-                  <AnimatedPrice value={liveResult.customer_price} />
-                  {totalSavings > 0 && (
+                  <AnimatedPrice value={isExternal ? extCustomerPrice : liveResult.customer_price} />
+                  {!isExternal && totalSavings > 0 && (
                     <motion.p key={Math.round(totalSavings)} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
                       style={{ fontSize: '18px', fontWeight: 600, color: '#10b981', marginTop: '8px' }}>
                       You save {fmt(totalSavings)}
                     </motion.p>
                   )}
-                  {liveResult.monthly_payment && liveResult.monthly_payment > 0 && (
+                  {!isExternal && liveResult.monthly_payment && liveResult.monthly_payment > 0 && (
                     <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', marginTop: '6px' }}>
                       Or as low as{' '}
                       <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#60A5FA', fontWeight: 700 }}>{fmt(liveResult.monthly_payment)}/mo</span>
@@ -770,22 +915,39 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                   <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '12px' }}>
                     Full Breakdown
                   </p>
-                  <BreakdownRow label="Original Price" value={fmt(calcResult.base_price + config.admin_fee)} />
-                  {liveResult.tiers_applied.map(t => (
-                    <BreakdownRow key={t.id} label={`${t.name} (${t.pct}%)`} value={`-${fmt(t.amount)}`} color="#10b981" />
-                  ))}
-                  {liveResult.hidden_tier_amount > 0 && (
-                    <BreakdownRow label="Additional Discount" value={`-${fmt(liveResult.hidden_tier_amount)}`} color="#10b981" />
+                  {isExternal ? (
+                    <>
+                      <BreakdownRow label="Package Price" value={fmt(extBasePrice)} />
+                      {extTiers.map(t => (
+                        <BreakdownRow key={t.tier_id} label={t.name} value={`-${fmt(t.amount)}`} color="#10b981" />
+                      ))}
+                      {cashEnabled && extCashAmt > 0 && (
+                        <BreakdownRow label={config.cash_incentive?.label ?? 'Cash Incentive'} value={`-${fmt(extCashAmt)}`} color="#10b981" />
+                      )}
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '10px', paddingTop: '10px' }}>
+                        <BreakdownRow label="Your Price" value={fmt(extCustomerPrice)} bold color="#fff" />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <BreakdownRow label="Original Price" value={fmt(calcResult.base_price + config.admin_fee)} />
+                      {liveResult.tiers_applied.map(t => (
+                        <BreakdownRow key={t.id} label={`${t.name} (${t.pct}%)`} value={`-${fmt(t.amount)}`} color="#10b981" />
+                      ))}
+                      {liveResult.hidden_tier_amount > 0 && (
+                        <BreakdownRow label="Additional Discount" value={`-${fmt(liveResult.hidden_tier_amount)}`} color="#10b981" />
+                      )}
+                      {liveResult.cash_discount > 0 && (
+                        <BreakdownRow label={`${config.cash_incentive?.label ?? 'Cash'} (${config.cash_incentive?.pct ?? 0}%)`} value={`-${fmt(liveResult.cash_discount)}`} color="#10b981" />
+                      )}
+                      {liveResult.financing_fee > 0 && (
+                        <BreakdownRow label="Financing Fee" value={`+${fmt(liveResult.financing_fee)}`} color="#FCD34D" />
+                      )}
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '10px', paddingTop: '10px' }}>
+                        <BreakdownRow label="Your Price" value={fmt(liveResult.customer_price)} bold color="#fff" />
+                      </div>
+                    </>
                   )}
-                  {liveResult.cash_discount > 0 && (
-                    <BreakdownRow label={`${config.cash_incentive?.label ?? 'Cash'} (${config.cash_incentive?.pct ?? 0}%)`} value={`-${fmt(liveResult.cash_discount)}`} color="#10b981" />
-                  )}
-                  {liveResult.financing_fee > 0 && (
-                    <BreakdownRow label="Financing Fee" value={`+${fmt(liveResult.financing_fee)}`} color="#FCD34D" />
-                  )}
-                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '10px', paddingTop: '10px' }}>
-                    <BreakdownRow label="Your Price" value={fmt(liveResult.customer_price)} bold color="#fff" />
-                  </div>
                 </div>
 
                 {hasRebate && (
@@ -800,7 +962,7 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                       <div className="flex justify-between items-center">
                         <span style={{ fontSize: '14px', fontWeight: 600, color: '#F9FAFB' }}>Net After Rebates</span>
                         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', color: '#FCD34D', fontWeight: 700 }}>
-                          {fmt(liveResult.customer_price - (liveResult.total_rebate ?? 0))}
+                          {fmt((isExternal ? extCustomerPrice : liveResult.customer_price) - (liveResult.total_rebate ?? 0))}
                         </span>
                       </div>
                     </div>
@@ -808,7 +970,7 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                 )}
 
                 <button type="button"
-                  onClick={e => { e.stopPropagation(); setConfirmPrice(liveResult.customer_price) }}
+                  onClick={e => { e.stopPropagation(); setConfirmPrice(isExternal ? extCustomerPrice : liveResult.customer_price) }}
                   style={{ width: '100%', height: '56px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border: 'none', borderRadius: '14px', color: '#fff', fontSize: '17px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(16,185,129,0.4)' }}>
                   Accept & Send
                 </button>
@@ -820,7 +982,7 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
       </div>
 
       {/* Costco compact box — tier + cash screens only */}
-      {hasRebate && (screen.startsWith('tier_') || screen === 'cash') && (
+      {hasRebate && (screen.startsWith('tier_') || screen === 'cash' || screen.startsWith('ext_tier_') || screen === 'ext_cash') && (
         <div onClick={e => { e.stopPropagation(); setCostcoExpanded(v => !v) }}
           className="fixed z-[200]"
           style={{ bottom: '100px', right: '20px', cursor: 'pointer' }}>

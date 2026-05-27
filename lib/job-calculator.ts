@@ -74,6 +74,15 @@ export interface JobCalculatorInputs {
   financing_id: string | null
   charged_amount?: number
   included_fee_ids?: string[]
+  uses_external_quoting?: boolean
+  external_tier_amounts?: {
+    tier_id: string
+    name: string
+    amount: number
+  }[]
+  external_cash_enabled?: boolean
+  external_cash_amount?: number
+  external_customer_price?: number
 }
 
 export interface TierResult {
@@ -159,6 +168,46 @@ export function calculateJob(
   config: JobTypeConfig,
   inputs: JobCalculatorInputs,
 ): JobCalculatorResult {
+  if (inputs.uses_external_quoting) {
+    const customerPrice = inputs.external_customer_price ?? 0
+    const tierAmounts = inputs.external_tier_amounts ?? []
+    const cashAmount = inputs.external_cash_enabled ? (inputs.external_cash_amount ?? 0) : 0
+    let rebates: RebateResult[] | null = null
+    let totalRebate: number | null = null
+    if (config.rebate_program?.enabled) {
+      rebates = config.rebate_program.tiers.map(tier => {
+        let amount = 0
+        if (tier.type === 'pct_of_price') {
+          amount = Math.floor(customerPrice * (tier.value / 100))
+        } else if (tier.type === 'pct_of_charged') {
+          amount = Math.floor((inputs.charged_amount ?? 0) * (tier.value / 100))
+        }
+        if (tier.cap && amount > tier.cap) amount = tier.cap
+        return { id: tier.id, name: tier.name, amount }
+      })
+      totalRebate = rebates.reduce((sum, r) => sum + r.amount, 0)
+    }
+    const maxTierAmount = tierAmounts.length ? Math.max(...tierAmounts.map(t => t.amount)) : 0
+    return {
+      base_price: inputs.base_price,
+      admin_fee: 0,
+      tiers_applied: tierAmounts.map(t => ({ id: t.tier_id, name: t.name, pct: 0, amount: t.amount })),
+      hidden_tier_amount: 0,
+      total_discount_pct: 0,
+      total_discount_amount: cashAmount > 0 ? cashAmount : maxTierAmount,
+      subtotal: 0,
+      cash_discount: cashAmount,
+      financing_fee: 0,
+      customer_price: customerPrice,
+      monthly_payment: null,
+      rebates,
+      total_rebate: totalRebate,
+      fees_breakdown: [],
+      included_fees_total: 0,
+      adjusted_base: inputs.base_price,
+    }
+  }
+
   const base = inputs.base_price
 
   // Step 1: Active visible tiers sorted by position

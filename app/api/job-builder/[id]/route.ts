@@ -65,6 +65,11 @@ export async function PUT(
     rebate_enabled: body.rebate_enabled ?? false,
     rebate_tier_ids: body.rebate_tier_ids ?? [],
     calculator_result: calcResult,
+    uses_external_quoting: body.uses_external_quoting ?? false,
+    external_tier_amounts: body.external_tier_amounts ?? null,
+    external_cash_enabled: body.external_cash_enabled ?? false,
+    external_cash_amount: body.external_cash_amount ?? null,
+    external_customer_price: body.external_customer_price ?? null,
   }
 
   const { data, error } = await admin
