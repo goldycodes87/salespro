@@ -455,6 +455,7 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
   const [confirmPrice, setConfirmPrice] = useState<number | null>(null)
   const [costcoExpanded, setCostcoExpanded] = useState(false)
   const [sending, setSending] = useState(false)
+  const [emailing, setEmailing] = useState(false)
   const [actionDone, setActionDone] = useState<string | null>(null)
 
   const touchStartX = useRef<number | null>(null)
@@ -551,8 +552,22 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
     } finally { setSending(false) }
   }
 
+  const handleEmail = async () => {
+    setEmailing(true)
+    try {
+      const res = await fetch(`/api/proposals/${proposal.id}/email`, { method: 'POST' })
+      if (res.ok) {
+        const d = await res.json()
+        setActionDone(`Emailed to ${d.to} ✓`)
+        setTimeout(() => setActionDone(null), 4000)
+      }
+    } finally { setEmailing(false) }
+  }
+
   const first = proposal.customer_first_name || proposal.customer_name?.split(' ')[0] || ''
-  const hasRebate = !!(config.rebate_program?.enabled && (liveResult.total_rebate ?? 0) > 0)
+  const visibleRebates = (liveResult.rebates ?? []).filter(r => r.amount > 0 && r.id !== 'city_visa')
+  const visibleRebateTotal = visibleRebates.reduce((sum, r) => sum + r.amount, 0)
+  const hasRebate = !!(config.rebate_program?.enabled && visibleRebateTotal > 0)
   const rebateName = config.rebate_program?.name ?? 'Member'
   const selectedFin = selectedFinancingId ? (config.financing_options ?? []).find(f => f.id === selectedFinancingId) : null
   const totalSavings = liveResult.total_discount_amount + liveResult.cash_discount
@@ -683,7 +698,7 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                   </motion.p>
                 </div>
 
-                {isLastTierScreen && (config.financing_options ?? []).length > 0 && (
+                {tierIdx >= 0 && (config.financing_options ?? []).length > 0 && (
                   <div ref={finDropRef} style={{ position: 'relative', marginBottom: '12px' }} onClick={e => e.stopPropagation()}>
                     <button type="button"
                       style={{ width: '100%', height: '44px', padding: '0 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', color: '#F9FAFB', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
@@ -737,6 +752,20 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
             {/* ── CASH SCREEN ── */}
             {screen === 'cash' && (
               <div className="max-w-sm w-full">
+                <div style={{ ...premiumCard, padding: '20px', marginBottom: '20px' }}>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '14px' }}>
+                    Price Breakdown
+                  </p>
+                  <BreakdownRow label="After Tier Discounts" value={fmt(liveResult.customer_price + (cashEnabled ? liveResult.cash_discount : 0))} />
+                  {cashEnabled && liveResult.cash_discount > 0 && (
+                    <BreakdownRow label={config.cash_incentive?.label ?? 'Cash Incentive'} value={`-${fmt(liveResult.cash_discount)}`} color="#10b981" />
+                  )}
+                  {cashEnabled && liveResult.cash_discount > 0 && (
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '10px', paddingTop: '10px' }}>
+                      <BreakdownRow label="Your Price" value={fmt(liveResult.customer_price)} bold color="#fff" />
+                    </div>
+                  )}
+                </div>
                 <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                   <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '12px' }}>
                     {config.cash_incentive?.label ?? 'Cash Incentive'}
@@ -803,7 +832,7 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                     You&apos;re saving {fmt(extCurTier.amount)} on your project
                   </motion.p>
                 </div>
-                {extIsLastTierScreen && (config.financing_options ?? []).length > 0 && (
+                {extTierIdx >= 0 && (config.financing_options ?? []).length > 0 && (
                   <div ref={finDropRef} style={{ position: 'relative', marginBottom: '12px' }} onClick={e => e.stopPropagation()}>
                     <button type="button"
                       style={{ width: '100%', height: '44px', padding: '0 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', color: '#F9FAFB', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
@@ -955,20 +984,28 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                     <p style={{ fontSize: '11px', color: '#F59E0B', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '12px' }}>
                       {rebateName} Benefits
                     </p>
-                    {(liveResult.rebates ?? []).filter(r => r.amount > 0).map(r => (
+                    {visibleRebates.map(r => (
                       <BreakdownRow key={r.id} label={r.name} value={fmt(r.amount)} color="#F59E0B" />
                     ))}
                     <div style={{ borderTop: '1px solid rgba(251,191,36,0.12)', marginTop: '10px', paddingTop: '10px' }}>
                       <div className="flex justify-between items-center">
                         <span style={{ fontSize: '14px', fontWeight: 600, color: '#F9FAFB' }}>Net After Rebates</span>
                         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', color: '#FCD34D', fontWeight: 700 }}>
-                          {fmt((isExternal ? extCustomerPrice : liveResult.customer_price) - (liveResult.total_rebate ?? 0))}
+                          {fmt((isExternal ? extCustomerPrice : liveResult.customer_price) - visibleRebateTotal)}
                         </span>
                       </div>
                     </div>
                   </div>
                 )}
 
+                {!isExternal && (
+                  <button type="button"
+                    onClick={e => { e.stopPropagation(); handleEmail() }}
+                    disabled={emailing}
+                    style={{ width: '100%', height: '44px', background: 'rgba(29,78,216,0.08)', border: '1px solid rgba(29,78,216,0.35)', borderRadius: '12px', color: emailing ? 'rgba(96,165,250,0.4)' : '#60A5FA', fontSize: '15px', fontWeight: 600, cursor: emailing ? 'default' : 'pointer', marginBottom: '10px' }}>
+                    {emailing ? 'Sending…' : 'Email Proposal'}
+                  </button>
+                )}
                 <button type="button"
                   onClick={e => { e.stopPropagation(); setConfirmPrice(isExternal ? extCustomerPrice : liveResult.customer_price) }}
                   style={{ width: '100%', height: '56px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border: 'none', borderRadius: '14px', color: '#fff', fontSize: '17px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(16,185,129,0.4)' }}>
@@ -981,8 +1018,8 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
         </AnimatePresence>
       </div>
 
-      {/* Costco compact box — tier + cash screens only */}
-      {hasRebate && (screen.startsWith('tier_') || screen === 'cash' || screen.startsWith('ext_tier_') || screen === 'ext_cash') && (
+      {/* Costco compact box — all screens except intro */}
+      {hasRebate && screen !== 'intro' && (
         <div onClick={e => { e.stopPropagation(); setCostcoExpanded(v => !v) }}
           className="fixed z-[200]"
           style={{ bottom: '100px', right: '20px', cursor: 'pointer' }}>
@@ -995,7 +1032,7 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                 <p style={{ fontSize: '10px', color: '#F59E0B', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '10px' }}>
                   {rebateName}
                 </p>
-                {(liveResult.rebates ?? []).filter(r => r.amount > 0).map(r => (
+                {visibleRebates.map(r => (
                   <div key={r.id} className="flex justify-between" style={{ marginBottom: '4px' }}>
                     <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)' }}>{r.name}</span>
                     <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#FCD34D', fontWeight: 600 }}>{fmt(r.amount)}</span>
@@ -1005,7 +1042,7 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                   <div className="flex justify-between">
                     <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.55)' }}>Net after rebates</span>
                     <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: '#FCD34D', fontWeight: 700 }}>
-                      {fmt(liveResult.customer_price - (liveResult.total_rebate ?? 0))}
+                      {fmt(liveResult.customer_price - visibleRebateTotal)}
                     </span>
                   </div>
                 </div>
@@ -1019,7 +1056,7 @@ function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
                 <div>
                   <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', lineHeight: 1, marginBottom: '2px' }}>{rebateName}</p>
                   <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', color: '#FCD34D', fontWeight: 700, lineHeight: 1 }}>
-                    -{fmt(liveResult.total_rebate ?? 0)}
+                    -{fmt(visibleRebateTotal)}
                   </p>
                 </div>
               </motion.div>

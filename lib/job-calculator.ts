@@ -178,9 +178,9 @@ export function calculateJob(
       rebates = config.rebate_program.tiers.map(tier => {
         let amount = 0
         if (tier.type === 'pct_of_price') {
-          amount = Math.floor(customerPrice * (tier.value / 100))
+          amount = Math.ceil(customerPrice * (tier.value / 100))
         } else if (tier.type === 'pct_of_charged') {
-          amount = Math.floor((inputs.charged_amount ?? 0) * (tier.value / 100))
+          amount = Math.ceil((inputs.charged_amount ?? 0) * (tier.value / 100))
         }
         if (tier.cap && amount > tier.cap) amount = tier.cap
         return { id: tier.id, name: tier.name, amount }
@@ -297,9 +297,9 @@ export function calculateJob(
 
       if (tier.type === 'pct_of_price') {
         const rebateBase = tier.base === 'subtotal' ? subtotal : customerPrice
-        amount = Math.floor(rebateBase * (tier.value / 100))
+        amount = Math.ceil(rebateBase * (tier.value / 100))
       } else if (tier.type === 'pct_of_charged') {
-        amount = Math.floor((inputs.charged_amount ?? 0) * (tier.value / 100))
+        amount = Math.ceil((inputs.charged_amount ?? 0) * (tier.value / 100))
       } else if (tier.type === 'fixed') {
         amount = tier.value
       }
