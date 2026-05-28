@@ -56,7 +56,8 @@ export interface JobTypeConfig {
   name: string
   icon?: string
   is_default?: boolean
-  pricing_model: 'financed_down' | 'cash_up'
+  pricing_model: 'financed_down' | 'cash_up' | 'combined'
+  is_combined_type?: boolean
   admin_fee: number
   max_discount_pct: number
   cash_incentive: CashIncentive
@@ -341,6 +342,32 @@ export function calculateJob(
     fees_breakdown: feesBreakdown,
     included_fees_total: includedFeesTotal,
     adjusted_base: discountableBase,
+  }
+}
+
+export interface CombinedJobResult {
+  windows: JobCalculatorResult
+  siding: JobCalculatorResult
+  combined_customer_price: number
+  combined_total_rebate: number
+}
+
+export function calculateCombinedJob(
+  config: JobTypeConfig,
+  windowsInputs: JobCalculatorInputs,
+  sidingInputs: JobCalculatorInputs,
+): CombinedJobResult {
+  const windowsConfig = { ...config, pricing_model: 'financed_down' as const }
+  const windows = calculateJob(windowsConfig, windowsInputs)
+
+  const sidingConfig = { ...config, pricing_model: 'cash_up' as const }
+  const siding = calculateJob(sidingConfig, sidingInputs)
+
+  return {
+    windows,
+    siding,
+    combined_customer_price: windows.customer_price + siding.customer_price,
+    combined_total_rebate: (windows.total_rebate ?? 0) + (siding.total_rebate ?? 0),
   }
 }
 

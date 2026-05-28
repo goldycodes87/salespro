@@ -263,6 +263,72 @@ function PricingPanel({ result, config, usesExternal }: { result: JobCalculatorR
   )
 }
 
+// ─── Combined Pricing Panel ───────────────────────────────────────────────────
+
+function CombinedPricingPanel({ combined, config }: {
+  combined: { windows: any; siding: any; combined_customer_price: number; combined_total_rebate: number } | null
+  config: JobTypeConfig | null
+}) {
+  if (!combined || !config) {
+    return (
+      <div className="rounded-2xl p-6 text-center" style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <p className="text-sm" style={{ color: '#4B5563' }}>Enter prices to see live pricing</p>
+      </div>
+    )
+  }
+  const { windows, siding, combined_customer_price, combined_total_rebate } = combined
+  const row = (label: string, value: string, color = '#9CA3AF', valueColor = '#F9FAFB') => (
+    <div className="flex justify-between text-sm" key={label}>
+      <span style={{ color }}>{label}</span>
+      <span style={{ color: valueColor, fontFamily: "'JetBrains Mono', monospace" }}>{value}</span>
+    </div>
+  )
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
+      <div className="px-4 pt-3 pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>Live Pricing</p>
+      </div>
+      <div className="p-4 space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>🪟 Windows</p>
+        {row('Package Price', fmt(windows.base_price))}
+        {windows.tiers_applied.map((t: any) => row(t.name, `-${fmt(t.amount)}`, '#9CA3AF', '#F87171'))}
+        {windows.cash_discount > 0 && row(config.cash_incentive?.label ?? 'Cash', `-${fmt(windows.cash_discount)}`, '#9CA3AF', '#F87171')}
+        {row('Customer Price', windows.customer_price > 0 ? fmt(windows.customer_price) : '—', '#D1D5DB', '#06B6D4')}
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+        <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>🏠 Siding</p>
+        {row('Package Price', fmt(siding.base_price))}
+        {siding.tiers_applied.map((t: any) => row(t.name, `-${fmt(t.amount)}`, '#9CA3AF', '#F87171'))}
+        {siding.cash_discount > 0 && row(config.cash_incentive?.label ?? 'Cash', `-${fmt(siding.cash_discount)}`, '#9CA3AF', '#F87171')}
+        {row('Customer Price', siding.customer_price > 0 ? fmt(siding.customer_price) : '—', '#D1D5DB', '#06B6D4')}
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+        <div className="flex justify-between items-center">
+          <span className="text-sm font-bold" style={{ color: '#F9FAFB' }}>COMBINED</span>
+          <span className="text-xl font-black" style={{ color: '#10b981', fontFamily: "'JetBrains Mono', monospace" }}>
+            {combined_customer_price > 0 ? fmt(combined_customer_price) : '—'}
+          </span>
+        </div>
+        {combined_total_rebate > 0 && (
+          <>
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>Your Costco Rebate</p>
+            {windows.rebates?.filter((r: any) => r.amount > 0).map((r: any) =>
+              <div key={r.id} className="flex justify-between text-sm"><span style={{ color: '#9CA3AF' }}>🪟 {r.name}</span><span style={{ color: '#34D399', fontFamily: "'JetBrains Mono', monospace" }}>{fmt(r.amount)}</span></div>
+            )}
+            {siding.rebates?.filter((r: any) => r.amount > 0).map((r: any) =>
+              <div key={r.id} className="flex justify-between text-sm"><span style={{ color: '#9CA3AF' }}>🏠 {r.name}</span><span style={{ color: '#34D399', fontFamily: "'JetBrains Mono', monospace" }}>{fmt(r.amount)}</span></div>
+            )}
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+            <div className="flex justify-between text-sm font-bold">
+              <span style={{ color: '#D1D5DB' }}>Total Rebate</span>
+              <span style={{ color: '#34D399', fontFamily: "'JetBrains Mono', monospace" }}>{fmt(combined_total_rebate)}</span>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function JobBuilderForm({
@@ -341,6 +407,41 @@ export default function JobBuilderForm({
   const [extCashAmountStr, setExtCashAmountStr] = useState<string>(ejPd?.external_cash_amount ? String(ejPd.external_cash_amount) : '')
   const [extCustomerPriceStr, setExtCustomerPriceStr] = useState<string>(ejPd?.external_customer_price ? String(ejPd.external_customer_price) : '')
 
+  // Combined job state (windows + siding)
+  const [winBasePriceStr, setWinBasePriceStr] = useState<string>(ejPd?.windows_base_price ? String(ejPd.windows_base_price) : '')
+  const [winTierEnabled, setWinTierEnabled] = useState<Record<string, boolean>>(() =>
+    ejPd?.windows_external_tier_amounts
+      ? Object.fromEntries((ejPd.windows_external_tier_amounts as any[]).map((t: any) => [t.tier_id, true]))
+      : {})
+  const [winTierAmounts, setWinTierAmounts] = useState<Record<string, string>>(() =>
+    ejPd?.windows_external_tier_amounts
+      ? Object.fromEntries((ejPd.windows_external_tier_amounts as any[]).map((t: any) => [t.tier_id, String(t.amount)]))
+      : {})
+  const [winCashEnabled, setWinCashEnabled] = useState<boolean>(ejPd?.windows_external_cash_enabled ?? false)
+  const [winCashAmountStr, setWinCashAmountStr] = useState<string>(ejPd?.windows_external_cash_amount ? String(ejPd.windows_external_cash_amount) : '')
+  const [winCustomerPriceStr, setWinCustomerPriceStr] = useState<string>(ejPd?.windows_external_customer_price ? String(ejPd.windows_external_customer_price) : '')
+  const [winRebateEnabled, setWinRebateEnabled] = useState<boolean>(ejPd?.windows_rebate_enabled ?? false)
+  const [winRebateTierIds, setWinRebateTierIds] = useState<string[]>(ejPd?.windows_rebate_tier_ids ?? [])
+
+  const [sidBasePriceStr, setSidBasePriceStr] = useState<string>(ejPd?.siding_base_price ? String(ejPd.siding_base_price) : '')
+  const [sidTierEnabled, setSidTierEnabled] = useState<Record<string, boolean>>(() =>
+    ejPd?.siding_external_tier_amounts
+      ? Object.fromEntries((ejPd.siding_external_tier_amounts as any[]).map((t: any) => [t.tier_id, true]))
+      : {})
+  const [sidTierAmounts, setSidTierAmounts] = useState<Record<string, string>>(() =>
+    ejPd?.siding_external_tier_amounts
+      ? Object.fromEntries((ejPd.siding_external_tier_amounts as any[]).map((t: any) => [t.tier_id, String(t.amount)]))
+      : {})
+  const [sidCashEnabled, setSidCashEnabled] = useState<boolean>(ejPd?.siding_external_cash_enabled ?? false)
+  const [sidCashAmountStr, setSidCashAmountStr] = useState<string>(ejPd?.siding_external_cash_amount ? String(ejPd.siding_external_cash_amount) : '')
+  const [sidCustomerPriceStr, setSidCustomerPriceStr] = useState<string>(ejPd?.siding_external_customer_price ? String(ejPd.siding_external_customer_price) : '')
+  const [sidScopeOfWork, setSidScopeOfWork] = useState<string>(ejPd?.siding_scope_of_work ?? '')
+  const [sidFinancingId, setSidFinancingId] = useState<string | null>(ejPd?.siding_financing_id ?? null)
+  const [sidFinDropOpen, setSidFinDropOpen] = useState(false)
+  const [sidRebateEnabled, setSidRebateEnabled] = useState<boolean>(ejPd?.siding_rebate_enabled ?? false)
+  const [sidRebateTierIds, setSidRebateTierIds] = useState<string[]>(ejPd?.siding_rebate_tier_ids ?? [])
+  const sidFinDropRef = useRef<HTMLDivElement>(null)
+
   // UI
   const [pricePanelOpen, setPricePanelOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -400,6 +501,16 @@ export default function JobBuilderForm({
     const handler = (e: MouseEvent) => {
       if (finDropRef.current && !finDropRef.current.contains(e.target as Node)) {
         setFinDropOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (sidFinDropRef.current && !sidFinDropRef.current.contains(e.target as Node)) {
+        setSidFinDropOpen(false)
       }
     }
     document.addEventListener('mousedown', handler)
@@ -492,6 +603,44 @@ export default function JobBuilderForm({
     t => t.type === 'pct_of_charged' && rebateTierIds.includes(t.id)
   ) ?? false
 
+  const isCombinedType = !!(selectedConfig?.is_combined_type)
+
+  const combinedCalcResult = useMemo(() => {
+    if (!isCombinedType || !selectedConfig) return null
+    const winBase = parseFloat(winBasePriceStr) || 0
+    const sidBase = parseFloat(sidBasePriceStr) || 0
+    const winTiersArr = (selectedConfig.discount_tiers ?? [])
+      .filter(t => winTierEnabled[t.id])
+      .map(t => ({ tier_id: t.id, name: t.name, amount: parseFloat(winTierAmounts[t.id] || '0') || 0 }))
+      .filter(t => t.amount > 0)
+    const sidTiersArr = (selectedConfig.discount_tiers ?? [])
+      .filter(t => sidTierEnabled[t.id])
+      .map(t => ({ tier_id: t.id, name: t.name, amount: parseFloat(sidTierAmounts[t.id] || '0') || 0 }))
+      .filter(t => t.amount > 0)
+    const winCalcConfig = {
+      ...selectedConfig, pricing_model: 'financed_down' as const,
+      rebate_program: { ...selectedConfig.rebate_program, enabled: winRebateEnabled && !!selectedConfig.rebate_program?.enabled, tiers: (selectedConfig.rebate_program?.tiers ?? []).filter(t => winRebateTierIds.includes(t.id)) },
+    }
+    const sidCalcConfig = {
+      ...selectedConfig, pricing_model: 'cash_up' as const,
+      rebate_program: { ...selectedConfig.rebate_program, enabled: sidRebateEnabled && !!selectedConfig.rebate_program?.enabled, tiers: (selectedConfig.rebate_program?.tiers ?? []).filter(t => sidRebateTierIds.includes(t.id)) },
+    }
+    const windows = calculateJob(winCalcConfig, {
+      base_price: winBase, enabled_tier_ids: [], cash_enabled: false, financing_id: null,
+      uses_external_quoting: true, external_tier_amounts: winTiersArr,
+      external_cash_enabled: winCashEnabled, external_cash_amount: parseFloat(winCashAmountStr) || 0,
+      external_customer_price: parseFloat(winCustomerPriceStr) || 0,
+    })
+    const siding = calculateJob(sidCalcConfig, {
+      base_price: sidBase, enabled_tier_ids: [], cash_enabled: false, financing_id: sidFinancingId,
+      uses_external_quoting: true, external_tier_amounts: sidTiersArr,
+      external_cash_enabled: sidCashEnabled, external_cash_amount: parseFloat(sidCashAmountStr) || 0,
+      external_customer_price: parseFloat(sidCustomerPriceStr) || 0,
+    })
+    return { windows, siding, combined_customer_price: windows.customer_price + siding.customer_price, combined_total_rebate: (windows.total_rebate ?? 0) + (siding.total_rebate ?? 0) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCombinedType, selectedConfig, winBasePriceStr, sidBasePriceStr, winTierEnabled, winTierAmounts, winCashEnabled, winCashAmountStr, winCustomerPriceStr, winRebateEnabled, winRebateTierIds, sidTierEnabled, sidTierAmounts, sidCashEnabled, sidCashAmountStr, sidCustomerPriceStr, sidRebateEnabled, sidRebateTierIds, sidFinancingId])
+
   const showToast = (msg: string) => {
     setToast(msg)
     setTimeout(() => setToast(null), 2500)
@@ -500,7 +649,7 @@ export default function JobBuilderForm({
   const handleSave = async () => {
     const errs: Record<string, string> = {}
     if (!selectedConfigId) errs.jobType = 'Select a job type'
-    if (!basePrice || basePrice <= 0) errs.basePrice = 'Enter a base price'
+    if (!isCombinedType && !basePrice && basePrice <= 0) errs.basePrice = 'Enter a base price'
     if (!firstName.trim()) errs.firstName = 'First name required'
     if (!lastName.trim()) errs.lastName = 'Last name required'
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
@@ -508,7 +657,18 @@ export default function JobBuilderForm({
 
     setSaving(true)
     try {
-      const body = {
+      const winTiersArr = (selectedConfig?.discount_tiers ?? [])
+        .filter(t => winTierEnabled[t.id])
+        .map(t => ({ tier_id: t.id, name: t.name, amount: parseFloat(winTierAmounts[t.id] || '0') || 0 }))
+        .filter(t => t.amount > 0)
+      const sidTiersArr = (selectedConfig?.discount_tiers ?? [])
+        .filter(t => sidTierEnabled[t.id])
+        .map(t => ({ tier_id: t.id, name: t.name, amount: parseFloat(sidTierAmounts[t.id] || '0') || 0 }))
+        .filter(t => t.amount > 0)
+      const winCustomerPrice = parseFloat(winCustomerPriceStr) || 0
+      const sidCustomerPrice = parseFloat(sidCustomerPriceStr) || 0
+
+      const body: Record<string, any> = {
         job_type_config_id: selectedConfigId,
         job_type_snapshot: selectedConfig,
         customer_first_name: firstName.trim(),
@@ -517,7 +677,7 @@ export default function JobBuilderForm({
         customer_phone: phone || null,
         customer_email: email.trim() || null,
         lead_id: linkedLeadId,
-        base_price: basePrice,
+        base_price: isCombinedType ? winCustomerPrice + sidCustomerPrice : basePrice,
         scope_of_work: scopeOfWork.trim() || null,
         enabled_tier_ids: enabledTierIds,
         cash_enabled: cashEnabled,
@@ -525,19 +685,39 @@ export default function JobBuilderForm({
         charged_amount: parseFloat(chargedAmount) || null,
         rebate_enabled: rebateEnabled,
         rebate_tier_ids: rebateTierIds,
-        included_fee_ids: usesExternalQuoting ? [] : includedFeeIds,
-        calculator_result: calcResult,
-        uses_external_quoting: usesExternalQuoting,
-        external_tier_amounts: usesExternalQuoting
+        included_fee_ids: (usesExternalQuoting || isCombinedType) ? [] : includedFeeIds,
+        calculator_result: isCombinedType ? combinedCalcResult : calcResult,
+        uses_external_quoting: usesExternalQuoting || isCombinedType,
+        external_tier_amounts: usesExternalQuoting && !isCombinedType
           ? (selectedConfig?.discount_tiers ?? [])
               .filter(t => extTierEnabled[t.id])
               .map(t => ({ tier_id: t.id, name: t.name, amount: parseFloat(extTierAmounts[t.id] || '0') || 0 }))
               .filter(t => t.amount > 0)
           : null,
-        external_cash_enabled: usesExternalQuoting ? extCashEnabled : null,
-        external_cash_amount: usesExternalQuoting ? (parseFloat(extCashAmountStr) || null) : null,
-        external_customer_price: usesExternalQuoting ? (parseFloat(extCustomerPriceStr) || null) : null,
+        external_cash_enabled: (usesExternalQuoting && !isCombinedType) ? extCashEnabled : null,
+        external_cash_amount: (usesExternalQuoting && !isCombinedType) ? (parseFloat(extCashAmountStr) || null) : null,
+        external_customer_price: (usesExternalQuoting && !isCombinedType) ? (parseFloat(extCustomerPriceStr) || null) : null,
         status: 'draft',
+      }
+
+      if (isCombinedType) {
+        body.is_combined = true
+        body.windows_base_price = parseFloat(winBasePriceStr) || 0
+        body.windows_external_tier_amounts = winTiersArr
+        body.windows_external_cash_enabled = winCashEnabled
+        body.windows_external_cash_amount = parseFloat(winCashAmountStr) || 0
+        body.windows_external_customer_price = winCustomerPrice
+        body.windows_rebate_enabled = winRebateEnabled
+        body.windows_rebate_tier_ids = winRebateTierIds
+        body.siding_base_price = parseFloat(sidBasePriceStr) || 0
+        body.siding_external_tier_amounts = sidTiersArr
+        body.siding_external_cash_enabled = sidCashEnabled
+        body.siding_external_cash_amount = parseFloat(sidCashAmountStr) || 0
+        body.siding_external_customer_price = sidCustomerPrice
+        body.siding_rebate_enabled = sidRebateEnabled
+        body.siding_rebate_tier_ids = sidRebateTierIds
+        body.siding_scope_of_work = sidScopeOfWork.trim() || null
+        body.siding_financing_id = sidFinancingId
       }
 
       const isEdit = !!ej?.id
@@ -602,7 +782,7 @@ export default function JobBuilderForm({
                       <div className="text-3xl mb-2">{config.icon ?? '📋'}</div>
                       <p className="text-sm font-semibold" style={{ color: selected ? '#60A5FA' : '#F9FAFB' }}>{config.name}</p>
                       <p className="text-xs mt-1" style={{ color: '#6B7280' }}>
-                        {config.pricing_model === 'financed_down' ? 'Financed ↓' : 'Cash Up ↑'}
+                        {config.pricing_model === 'combined' ? 'Windows + Siding' : config.pricing_model === 'financed_down' ? 'Financed ↓' : 'Cash Up ↑'}
                       </p>
                     </button>
                   )
@@ -669,8 +849,223 @@ export default function JobBuilderForm({
             </div>
           </Sec>
 
+          {/* SECTION 3: Combined Windows + Siding Pricing */}
+          {isCombinedType && selectedConfig && (() => {
+            const numInputStyle = { ...INPUT, flex: 1, fontSize: '15px' }
+            const colHead = (label: string) => (
+              <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6B7280' }}>{label}</p>
+            )
+            const tierRows = (
+              tiers: typeof selectedConfig.discount_tiers,
+              enabled: Record<string, boolean>,
+              amounts: Record<string, string>,
+              setEnabled: (v: Record<string, boolean>) => void,
+              setAmounts: (v: Record<string, string>) => void,
+            ) => (
+              <div className="space-y-3">
+                {tiers.map(tier => (
+                  <div key={tier.id}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 6, fontSize: 13, color: '#D1D5DB' }}>
+                      <input type="checkbox" checked={enabled[tier.id] ?? false}
+                        onChange={e => setEnabled({ ...enabled, [tier.id]: e.target.checked })} />
+                      {tier.name}
+                    </label>
+                    {enabled[tier.id] && (
+                      <div className="flex items-center gap-1">
+                        <span style={{ color: '#6B7280', fontSize: 14 }}>$</span>
+                        <input type="number" value={amounts[tier.id] ?? ''} placeholder="0" min={0}
+                          onChange={e => setAmounts({ ...amounts, [tier.id]: e.target.value })}
+                          style={{ ...numInputStyle }} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
+            return (
+              <>
+                {/* Two-column pricing */}
+                <div className="rounded-2xl overflow-visible mb-4" style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div className="px-4 pt-3 pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>Pricing</p>
+                  </div>
+                  <div className="p-4">
+                    <div className="grid grid-cols-2 gap-6">
+                      {/* Windows column */}
+                      <div>
+                        {colHead('🪟 Windows')}
+                        <Fld label="Package Price" required>
+                          <div className="flex items-center gap-1">
+                            <span style={{ color: '#6B7280', fontSize: 14 }}>$</span>
+                            <input type="number" value={winBasePriceStr} placeholder="0" min={0}
+                              onChange={e => setWinBasePriceStr(e.target.value)} style={numInputStyle} />
+                          </div>
+                        </Fld>
+                        <div className="mt-3">
+                          <p className="text-xs mb-2" style={{ color: '#9CA3AF' }}>Discounts</p>
+                          {tierRows(selectedConfig.discount_tiers, winTierEnabled, winTierAmounts, setWinTierEnabled, setWinTierAmounts)}
+                        </div>
+                        {selectedConfig.cash_incentive?.enabled && (
+                          <div className="mt-3">
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#D1D5DB', marginBottom: 6 }}>
+                              <input type="checkbox" checked={winCashEnabled} onChange={e => setWinCashEnabled(e.target.checked)} />
+                              {selectedConfig.cash_incentive.label ?? 'Cash'}
+                            </label>
+                            {winCashEnabled && (
+                              <div className="flex items-center gap-1">
+                                <span style={{ color: '#6B7280', fontSize: 14 }}>$</span>
+                                <input type="number" value={winCashAmountStr} placeholder="0" min={0}
+                                  onChange={e => setWinCashAmountStr(e.target.value)} style={numInputStyle} />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div className="mt-4 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                          <Fld label="Customer Price" required>
+                            <div className="flex items-center gap-1">
+                              <span style={{ color: '#6B7280', fontSize: 14 }}>$</span>
+                              <input type="number" value={winCustomerPriceStr} placeholder="0" min={0}
+                                onChange={e => setWinCustomerPriceStr(e.target.value)}
+                                style={{ ...numInputStyle, border: winCustomerPriceStr && parseFloat(winCustomerPriceStr) > 0 ? '1px solid rgba(6,182,212,0.4)' : '1px solid rgba(255,255,255,0.10)' }} />
+                            </div>
+                          </Fld>
+                        </div>
+                      </div>
+
+                      {/* Siding column */}
+                      <div>
+                        {colHead('🏠 Siding')}
+                        <Fld label="Package Price" required>
+                          <div className="flex items-center gap-1">
+                            <span style={{ color: '#6B7280', fontSize: 14 }}>$</span>
+                            <input type="number" value={sidBasePriceStr} placeholder="0" min={0}
+                              onChange={e => setSidBasePriceStr(e.target.value)} style={numInputStyle} />
+                          </div>
+                        </Fld>
+                        <div className="mt-3">
+                          <p className="text-xs mb-2" style={{ color: '#9CA3AF' }}>Discounts</p>
+                          {tierRows(selectedConfig.discount_tiers, sidTierEnabled, sidTierAmounts, setSidTierEnabled, setSidTierAmounts)}
+                        </div>
+                        {selectedConfig.cash_incentive?.enabled && (
+                          <div className="mt-3">
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#D1D5DB', marginBottom: 6 }}>
+                              <input type="checkbox" checked={sidCashEnabled} onChange={e => setSidCashEnabled(e.target.checked)} />
+                              {selectedConfig.cash_incentive.label ?? 'Cash'}
+                            </label>
+                            {sidCashEnabled && (
+                              <div className="flex items-center gap-1">
+                                <span style={{ color: '#6B7280', fontSize: 14 }}>$</span>
+                                <input type="number" value={sidCashAmountStr} placeholder="0" min={0}
+                                  onChange={e => setSidCashAmountStr(e.target.value)} style={numInputStyle} />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div className="mt-4 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                          <Fld label="Customer Price" required>
+                            <div className="flex items-center gap-1">
+                              <span style={{ color: '#6B7280', fontSize: 14 }}>$</span>
+                              <input type="number" value={sidCustomerPriceStr} placeholder="0" min={0}
+                                onChange={e => setSidCustomerPriceStr(e.target.value)}
+                                style={{ ...numInputStyle, border: sidCustomerPriceStr && parseFloat(sidCustomerPriceStr) > 0 ? '1px solid rgba(6,182,212,0.4)' : '1px solid rgba(255,255,255,0.10)' }} />
+                            </div>
+                          </Fld>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Siding Details */}
+                <Sec title="Siding Details">
+                  <Fld label="Scope of Work">
+                    <textarea value={sidScopeOfWork} onChange={e => setSidScopeOfWork(e.target.value)}
+                      placeholder="Describe siding work..." rows={3}
+                      style={{ ...INPUT, height: 'auto', padding: '12px 14px', resize: 'vertical', lineHeight: '1.5' }} />
+                  </Fld>
+                  {(selectedConfig.financing_options ?? []).length > 0 && (
+                    <Fld label="Siding Financing">
+                      <div ref={sidFinDropRef} style={{ position: 'relative', overflow: 'visible' }}>
+                        <button type="button"
+                          style={{ ...INPUT, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+                          onClick={() => setSidFinDropOpen(v => !v)}>
+                          <span style={{ color: sidFinancingId ? '#F9FAFB' : 'rgba(255,255,255,0.4)' }}>
+                            {sidFinancingId
+                              ? (() => { const f = selectedConfig.financing_options.find(f => f.id === sidFinancingId); return f ? getFinancingLabel(f) : sidFinancingId })()
+                              : 'Select financing…'}
+                          </span>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                            style={{ transform: sidFinDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: 'rgba(255,255,255,0.4)' }}>
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+                        {sidFinDropOpen && (
+                          <div style={{ position: 'absolute', top: '100%', left: 0, width: '100%', zIndex: 9999, backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
+                            <button type="button"
+                              style={{ width: '100%', padding: '12px 14px', textAlign: 'left', fontSize: '15px', color: !sidFinancingId ? '#60A5FA' : 'rgba(255,255,255,0.5)', background: !sidFinancingId ? 'rgba(29,78,216,0.1)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                              onClick={() => { setSidFinancingId(null); setSidFinDropOpen(false) }}>No financing</button>
+                            {selectedConfig.financing_options.map(fin => (
+                              <button key={fin.id} type="button"
+                                style={{ width: '100%', padding: '12px 14px', textAlign: 'left', fontSize: '15px', color: fin.id === sidFinancingId ? '#60A5FA' : '#F9FAFB', background: fin.id === sidFinancingId ? 'rgba(29,78,216,0.12)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                                onClick={() => { setSidFinancingId(fin.id); setSidFinDropOpen(false) }}>
+                                {getFinancingLabel(fin)}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </Fld>
+                  )}
+                </Sec>
+
+                {/* Costco rebates per side */}
+                {selectedConfig.rebate_program?.enabled && (
+                  <Sec title={`${selectedConfig.rebate_program.name || 'Rebate'} Member Benefits`}>
+                    <p className="text-xs mb-3" style={{ color: '#6B7280' }}>Select rebates per job type</p>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-xs font-semibold mb-2" style={{ color: '#9CA3AF' }}>🪟 Windows Rebates</p>
+                        <Tog on={winRebateEnabled} onToggle={() => {
+                          setWinRebateEnabled(v => !v)
+                          if (!winRebateEnabled && winRebateTierIds.length === 0)
+                            setWinRebateTierIds(selectedConfig.rebate_program.tiers.map(t => t.id))
+                        }} label="Customer has Windows Costco rebate" />
+                        {winRebateEnabled && (
+                          <div className="mt-2 space-y-2">
+                            {selectedConfig.rebate_program.tiers.map(tier => (
+                              <Tog key={tier.id} on={winRebateTierIds.includes(tier.id)}
+                                onToggle={() => setWinRebateTierIds(prev => prev.includes(tier.id) ? prev.filter(x => x !== tier.id) : [...prev, tier.id])}
+                                label={`${tier.name} (${tier.value}%)`} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
+                        <p className="text-xs font-semibold mb-2" style={{ color: '#9CA3AF' }}>🏠 Siding Rebates</p>
+                        <Tog on={sidRebateEnabled} onToggle={() => {
+                          setSidRebateEnabled(v => !v)
+                          if (!sidRebateEnabled && sidRebateTierIds.length === 0)
+                            setSidRebateTierIds(selectedConfig.rebate_program.tiers.map(t => t.id))
+                        }} label="Customer has Siding Costco rebate" />
+                        {sidRebateEnabled && (
+                          <div className="mt-2 space-y-2">
+                            {selectedConfig.rebate_program.tiers.map(tier => (
+                              <Tog key={tier.id} on={sidRebateTierIds.includes(tier.id)}
+                                onToggle={() => setSidRebateTierIds(prev => prev.includes(tier.id) ? prev.filter(x => x !== tier.id) : [...prev, tier.id])}
+                                label={`${tier.name} (${tier.value}%)`} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </Sec>
+                )}
+              </>
+            )
+          })()}
+
           {/* SECTION 3: Base Price */}
-          <Sec title="Base Price">
+          {!isCombinedType && <Sec title="Base Price">
             <Fld label="Package Price" required>
               <div className="flex items-center gap-2">
                 <span className="text-lg font-semibold" style={{ color: '#6B7280' }}>$</span>
@@ -737,10 +1132,10 @@ export default function JobBuilderForm({
               />
               <p className="text-xs mt-1" style={{ color: '#4B5563' }}>Appears on PDF and email. Not shown in presentation.</p>
             </Fld>
-          </Sec>
+          </Sec>}
 
           {/* SECTION 4: Discounts — only show if config selected */}
-          {selectedConfig && !usesExternalQuoting && (
+          {selectedConfig && !usesExternalQuoting && !isCombinedType && (
             <Sec title="Discounts">
               {visibleTiers.length === 0 ? (
                 <p className="text-sm" style={{ color: '#6B7280' }}>No discount tiers configured for this job type.</p>
@@ -777,7 +1172,7 @@ export default function JobBuilderForm({
           )}
 
           {/* SECTION 4 (External): Manual discount + customer price entry */}
-          {selectedConfig && usesExternalQuoting && (
+          {selectedConfig && usesExternalQuoting && !isCombinedType && (
             <Sec title="Discounts &amp; Pricing">
               {(selectedConfig.discount_tiers ?? []).length === 0 ? (
                 <p className="text-sm" style={{ color: '#6B7280' }}>No discount tiers configured for this job type.</p>
@@ -863,7 +1258,7 @@ export default function JobBuilderForm({
           )}
 
           {/* SECTION 5: Financing — only show if tiers are enabled */}
-          {selectedConfig && hasTiersEnabled && (
+          {selectedConfig && hasTiersEnabled && !isCombinedType && (
             <Sec title="Financing Option">
               {selectedConfig.pricing_model === 'cash_up' ? (
                 <p className="text-xs" style={{ color: '#9CA3AF' }}>
@@ -957,8 +1352,8 @@ export default function JobBuilderForm({
             </Sec>
           )}
 
-          {/* SECTION 6: Rebate — only if config has rebate program */}
-          {selectedConfig?.rebate_program?.enabled && (
+          {/* SECTION 6: Rebate — only if config has rebate program and not combined */}
+          {selectedConfig?.rebate_program?.enabled && !isCombinedType && (
             <Sec title={`${selectedConfig.rebate_program.name || 'Rebate'} Member Benefits`}>
               <Tog
                 on={rebateEnabled}
@@ -1021,7 +1416,10 @@ export default function JobBuilderForm({
         {/* ── RIGHT: Desktop sidebar ── */}
         <div className="hidden lg:block w-80 flex-shrink-0">
           <div className="sticky top-20">
-            <PricingPanel result={calcResult} config={selectedConfig} usesExternal={usesExternalQuoting} />
+            {isCombinedType
+              ? <CombinedPricingPanel combined={combinedCalcResult} config={selectedConfig} />
+              : <PricingPanel result={calcResult} config={selectedConfig} usesExternal={usesExternalQuoting} />
+            }
           </div>
         </div>
       </div>
@@ -1055,12 +1453,15 @@ export default function JobBuilderForm({
                 Customer Price
               </span>
               <span className="text-lg font-black" style={{
-                color: calcResult ? '#06B6D4' : '#4B5563',
+                color: (isCombinedType ? combinedCalcResult?.combined_customer_price : calcResult?.customer_price) ? (isCombinedType ? '#10b981' : '#06B6D4') : '#4B5563',
                 fontFamily: "'JetBrains Mono', monospace"
               }}>
-                {calcResult ? fmt(calcResult.customer_price) : '—'}
+                {isCombinedType
+                  ? (combinedCalcResult?.combined_customer_price ? fmt(combinedCalcResult.combined_customer_price) : '—')
+                  : (calcResult ? fmt(calcResult.customer_price) : '—')
+                }
               </span>
-              {calcResult?.monthly_payment && (
+              {!isCombinedType && calcResult?.monthly_payment && (
                 <span className="text-xs" style={{ color: '#9CA3AF' }}>
                   ${calcResult.monthly_payment.toLocaleString()}/mo
                 </span>
@@ -1076,7 +1477,10 @@ export default function JobBuilderForm({
           {/* Expanded content */}
           {pricePanelOpen && (
             <div className="overflow-y-auto px-4 pb-6" style={{ maxHeight: 'calc(70vh - 56px)' }}>
-              <PricingPanel result={calcResult} config={selectedConfig} usesExternal={usesExternalQuoting} />
+              {isCombinedType
+                ? <CombinedPricingPanel combined={combinedCalcResult} config={selectedConfig} />
+                : <PricingPanel result={calcResult} config={selectedConfig} usesExternal={usesExternalQuoting} />
+              }
             </div>
           )}
         </div>

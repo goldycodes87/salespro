@@ -429,6 +429,425 @@ function AnimatedPrice({ value }: { value: number }) {
   )
 }
 
+function CombinedJobPresentView({ proposal, config, backHref }: {
+  proposal: Proposal
+  config: JobTypeConfig
+  backHref?: string
+}) {
+  const rawPd = proposal.pricing_data || {}
+  const winTiers = ((rawPd.windows_external_tier_amounts ?? []) as { tier_id: string; name: string; amount: number }[]).filter(t => t.amount > 0)
+  const sidTiers = ((rawPd.siding_external_tier_amounts ?? []) as { tier_id: string; name: string; amount: number }[]).filter(t => t.amount > 0)
+  const winBase = rawPd.windows_base_price ?? 0
+  const sidBase = rawPd.siding_base_price ?? 0
+  const winCashAmt = rawPd.windows_external_cash_amount ?? 0
+  const sidCashAmt = rawPd.siding_external_cash_amount ?? 0
+  const winCustomerPrice = rawPd.windows_external_customer_price ?? 0
+  const sidCustomerPrice = rawPd.siding_external_customer_price ?? 0
+  const combinedPrice = winCustomerPrice + sidCustomerPrice
+
+  const storedResult = (rawPd.calculator_result ?? {}) as any
+  const winRebates: { id: string; name: string; amount: number }[] = (storedResult?.windows?.rebates ?? []).filter((r: any) => r.amount > 0 && r.id !== 'city_visa')
+  const sidRebates: { id: string; name: string; amount: number }[] = (storedResult?.siding?.rebates ?? []).filter((r: any) => r.amount > 0 && r.id !== 'city_visa')
+  const winRebateTotal = winRebates.reduce((s, r) => s + r.amount, 0)
+  const sidRebateTotal = sidRebates.reduce((s, r) => s + r.amount, 0)
+  const combinedRebateTotal = winRebateTotal + sidRebateTotal
+  const hasRebate = combinedRebateTotal > 0 && !!(config.rebate_program?.enabled)
+  const rebateName = config.rebate_program?.name ?? 'Member'
+
+  const hasCash = (rawPd.windows_external_cash_enabled && winCashAmt > 0) || (rawPd.siding_external_cash_enabled && sidCashAmt > 0)
+  const tierCount = Math.max(winTiers.length, sidTiers.length)
+
+  const [currentScreen, setCurrentScreen] = useState(0)
+  const [direction, setDirection] = useState<1 | -1>(1)
+  const [confirmPrice, setConfirmPrice] = useState<number | null>(null)
+  const [costcoExpanded, setCostcoExpanded] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [actionDone, setActionDone] = useState<string | null>(null)
+  const touchStartX = useRef<number | null>(null)
+
+  const screens = useMemo(() => {
+    const s: string[] = ['intro']
+    for (let i = 0; i < tierCount; i++) s.push(`combined_tier_${i}`)
+    if (hasCash) s.push('combined_cash')
+    s.push('summary')
+    return s
+  }, [tierCount, hasCash])
+
+  const safeScreen = Math.min(currentScreen, screens.length - 1)
+  const screen = screens[safeScreen]
+
+  const goNext = () => { if (safeScreen < screens.length - 1) { setDirection(1); setCurrentScreen(safeScreen + 1) } }
+  const goPrev = () => { if (safeScreen > 0) { setDirection(-1); setCurrentScreen(safeScreen - 1) } }
+
+  const handleTap = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (confirmPrice !== null) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    if ((e.clientX - rect.left) / rect.width < 0.35) goPrev(); else goNext()
+  }
+  const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX }
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    touchStartX.current = null
+    if (Math.abs(dx) > 40) { if (dx < 0) goNext(); else goPrev() }
+  }
+
+  const handleAcceptSend = async () => {
+    setSending(true)
+    try {
+      const res = await fetch(`/api/proposals/${proposal.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'signed', lead_id: proposal.lead_id }),
+      })
+      if (res.ok) {
+        const confetti = (await import('canvas-confetti')).default
+        confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#10b981', '#34D399', '#6ee7b7', '#ffffff'] })
+        setTimeout(() => confetti({ particleCount: 80, spread: 60, origin: { y: 0.5 } }), 300)
+        setConfirmPrice(null)
+        setActionDone('Accepted! 🎉')
+        setTimeout(() => setActionDone(null), 4000)
+      }
+    } finally { setSending(false) }
+  }
+
+  const first = proposal.customer_first_name || proposal.customer_name?.split(' ')[0] || ''
+
+  const premiumCard: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.10)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
+    borderRadius: '16px',
+  }
+
+  const slideVariants = {
+    enter: (d: number) => ({ x: `${d * 100}%`, opacity: 0 }),
+    center: { x: '0%', opacity: 1 },
+    exit: (d: number) => ({ x: `${-d * 100}%`, opacity: 0 }),
+  }
+
+  const tierIdx = screen.startsWith('combined_tier_') ? parseInt(screen.split('_')[2], 10) : -1
+  const winRunning = tierIdx >= 0
+    ? winBase - winTiers.slice(0, tierIdx + 1).reduce((s, t) => s + t.amount, 0)
+    : winCustomerPrice
+  const sidRunning = tierIdx >= 0
+    ? sidBase - sidTiers.slice(0, Math.min(tierIdx + 1, sidTiers.length)).reduce((s, t) => s + t.amount, 0)
+    : sidCustomerPrice
+  const combinedRunning = tierIdx >= 0 ? winRunning + sidRunning : combinedPrice
+
+  return (
+    <div
+      className="fixed inset-0 z-[200]"
+      style={{ background: 'linear-gradient(135deg, #0f172a 0%, #0d2137 25%, #0a3d2e 50%, #0d2137 75%, #0f172a 100%)', color: '#fff', userSelect: 'none' }}
+      onClick={handleTap}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}>
+
+      {backHref ? (
+        <Link href={backHref} className="fixed z-[300] flex items-center justify-center w-8 h-8 rounded-full text-xl font-light"
+          style={{ top: 'max(20px, env(safe-area-inset-top, 0px) + 12px)', right: '20px', color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)' }}
+          onClick={e => e.stopPropagation()}>×</Link>
+      ) : (
+        <button type="button" className="fixed z-[300] flex items-center justify-center w-8 h-8 rounded-full text-xl font-light"
+          style={{ top: 'max(20px, env(safe-area-inset-top, 0px) + 12px)', right: '20px', color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)' }}
+          onClick={e => { e.stopPropagation(); window.history.back() }}>×</button>
+      )}
+
+      <div className="fixed inset-0 overflow-hidden">
+        <AnimatePresence custom={direction} mode="wait">
+          <motion.div key={screen}
+            custom={direction} variants={slideVariants}
+            initial="enter" animate="center" exit="exit"
+            transition={{ type: 'tween', duration: 0.28, ease: 'easeInOut' }}
+            className="absolute inset-0 flex flex-col items-center justify-center px-4"
+            style={{ paddingTop: '80px', paddingBottom: '140px' }}>
+
+            {/* INTRO */}
+            {screen === 'intro' && (
+              <div className="text-center max-w-sm w-full">
+                {config.icon && (
+                  <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.05 }}
+                    style={{ fontSize: '64px', marginBottom: '20px' }}>{config.icon}</motion.div>
+                )}
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                  {first && <span style={{ fontSize: '48px', fontWeight: 800, color: 'white', letterSpacing: '-1px', display: 'block', marginBottom: '8px' }}>{first}</span>}
+                  <AnimatedPrice value={combinedPrice} />
+                  <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', marginTop: '6px' }}>Windows + Siding</p>
+                </motion.div>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }}
+                  style={{ ...premiumCard, padding: '14px 16px', marginTop: '20px' }}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '4px' }}>🪟 Windows</p>
+                      <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', fontWeight: 700, color: '#60A5FA' }}>{fmt(winCustomerPrice)}</p>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '4px' }}>🏠 Siding</p>
+                      <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', fontWeight: 700, color: '#34D399' }}>{fmt(sidCustomerPrice)}</p>
+                    </div>
+                  </div>
+                </motion.div>
+                {hasRebate && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.45 }}
+                    style={{ ...premiumCard, background: 'rgba(251,191,36,0.05)', border: '1px solid rgba(251,191,36,0.18)', padding: '10px 16px', marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '18px' }}>🏷️</span>
+                    <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.55)' }}>{rebateName} rebates available</p>
+                  </motion.div>
+                )}
+                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
+                  style={{ marginTop: '28px', fontSize: '13px', color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em' }}>
+                  Tap to continue →
+                </motion.p>
+              </div>
+            )}
+
+            {/* TIER SCREENS */}
+            {screen.startsWith('combined_tier_') && (
+              <div className="w-full" style={{ maxWidth: '600px' }}>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div style={{ ...premiumCard, padding: '14px' }}>
+                    <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '10px' }}>🪟 Windows</p>
+                    <BreakdownRow label="Package" value={fmt(winBase)} />
+                    {winTiers.slice(0, tierIdx + 1).map(t => (
+                      <BreakdownRow key={t.tier_id} label={t.name} value={`-${fmt(t.amount)}`} color="#10b981" />
+                    ))}
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '8px', paddingTop: '8px' }}>
+                      <BreakdownRow label="Price" value={fmt(winRunning)} bold color="#60A5FA" />
+                    </div>
+                  </div>
+                  <div style={{ ...premiumCard, padding: '14px' }}>
+                    <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '10px' }}>🏠 Siding</p>
+                    <BreakdownRow label="Package" value={fmt(sidBase)} />
+                    {sidTiers.slice(0, Math.min(tierIdx + 1, sidTiers.length)).map(t => (
+                      <BreakdownRow key={t.tier_id} label={t.name} value={`-${fmt(t.amount)}`} color="#10b981" />
+                    ))}
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '8px', paddingTop: '8px' }}>
+                      <BreakdownRow label="Price" value={fmt(sidRunning)} bold color="#34D399" />
+                    </div>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                  {first && <span style={{ fontSize: '40px', fontWeight: 800, color: 'white', letterSpacing: '-1px', display: 'block', marginBottom: '6px' }}>{first}</span>}
+                  <AnimatedPrice value={combinedRunning} />
+                </div>
+                <button type="button"
+                  onClick={e => { e.stopPropagation(); setConfirmPrice(combinedPrice) }}
+                  style={{ width: '100%', height: '48px', background: 'transparent', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '12px', color: 'rgba(255,255,255,0.55)', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>
+                  Send Job
+                </button>
+              </div>
+            )}
+
+            {/* CASH SCREEN */}
+            {screen === 'combined_cash' && (
+              <div className="w-full" style={{ maxWidth: '600px' }}>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {rawPd.windows_external_cash_enabled && winCashAmt > 0 ? (
+                    <div style={{ ...premiumCard, padding: '14px' }}>
+                      <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '10px' }}>🪟 Windows Cash</p>
+                      <BreakdownRow label="Before Cash" value={fmt(winCustomerPrice + winCashAmt)} />
+                      <BreakdownRow label={config.cash_incentive?.label ?? 'Cash'} value={`-${fmt(winCashAmt)}`} color="#10b981" />
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '8px', paddingTop: '8px' }}>
+                        <BreakdownRow label="Price" value={fmt(winCustomerPrice)} bold color="#60A5FA" />
+                      </div>
+                    </div>
+                  ) : <div />}
+                  {rawPd.siding_external_cash_enabled && sidCashAmt > 0 ? (
+                    <div style={{ ...premiumCard, padding: '14px' }}>
+                      <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '10px' }}>🏠 Siding Cash</p>
+                      <BreakdownRow label="Before Cash" value={fmt(sidCustomerPrice + sidCashAmt)} />
+                      <BreakdownRow label={config.cash_incentive?.label ?? 'Cash'} value={`-${fmt(sidCashAmt)}`} color="#10b981" />
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '8px', paddingTop: '8px' }}>
+                        <BreakdownRow label="Price" value={fmt(sidCustomerPrice)} bold color="#34D399" />
+                      </div>
+                    </div>
+                  ) : <div />}
+                </div>
+                <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                  {first && <span style={{ fontSize: '40px', fontWeight: 800, color: 'white', letterSpacing: '-1px', display: 'block', marginBottom: '6px' }}>{first}</span>}
+                  <AnimatedPrice value={combinedPrice} />
+                </div>
+                <button type="button"
+                  onClick={e => { e.stopPropagation(); setConfirmPrice(combinedPrice) }}
+                  style={{ width: '100%', height: '48px', background: 'transparent', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '12px', color: 'rgba(255,255,255,0.55)', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>
+                  Send Job
+                </button>
+              </div>
+            )}
+
+            {/* SUMMARY */}
+            {screen === 'summary' && (
+              <div className="w-full" style={{ maxWidth: '600px' }}>
+                <div style={{ textAlign: 'center', marginBottom: '14px' }}>
+                  {first && <span style={{ fontSize: '40px', fontWeight: 800, color: 'white', letterSpacing: '-1px', display: 'block', marginBottom: '6px' }}>{first}</span>}
+                  <AnimatedPrice value={combinedPrice} />
+                  <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', marginTop: '4px' }}>Windows + Siding Combined</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div style={{ ...premiumCard, padding: '14px' }}>
+                    <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '10px' }}>🪟 Windows</p>
+                    <BreakdownRow label="Package" value={fmt(winBase)} />
+                    {winTiers.map(t => <BreakdownRow key={t.tier_id} label={t.name} value={`-${fmt(t.amount)}`} color="#10b981" />)}
+                    {rawPd.windows_external_cash_enabled && winCashAmt > 0 && (
+                      <BreakdownRow label={config.cash_incentive?.label ?? 'Cash'} value={`-${fmt(winCashAmt)}`} color="#10b981" />
+                    )}
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '8px', paddingTop: '8px' }}>
+                      <BreakdownRow label="Your Price" value={fmt(winCustomerPrice)} bold color="#60A5FA" />
+                    </div>
+                  </div>
+                  <div style={{ ...premiumCard, padding: '14px' }}>
+                    <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '10px' }}>🏠 Siding</p>
+                    <BreakdownRow label="Package" value={fmt(sidBase)} />
+                    {sidTiers.map(t => <BreakdownRow key={t.tier_id} label={t.name} value={`-${fmt(t.amount)}`} color="#10b981" />)}
+                    {rawPd.siding_external_cash_enabled && sidCashAmt > 0 && (
+                      <BreakdownRow label={config.cash_incentive?.label ?? 'Cash'} value={`-${fmt(sidCashAmt)}`} color="#10b981" />
+                    )}
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '8px', paddingTop: '8px' }}>
+                      <BreakdownRow label="Your Price" value={fmt(sidCustomerPrice)} bold color="#34D399" />
+                    </div>
+                  </div>
+                </div>
+                <div style={{ ...premiumCard, padding: '14px 16px', marginBottom: '10px' }}>
+                  <div className="flex justify-between items-center">
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#F9FAFB' }}>COMBINED TOTAL</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '22px', fontWeight: 800, color: '#10b981' }}>{fmt(combinedPrice)}</span>
+                  </div>
+                </div>
+                {hasRebate && combinedRebateTotal > 0 && (
+                  <div style={{ ...premiumCard, background: 'rgba(251,191,36,0.05)', border: '1px solid rgba(251,191,36,0.18)', padding: '14px 16px', marginBottom: '10px' }}>
+                    <p style={{ fontSize: '10px', color: '#F59E0B', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '10px' }}>{rebateName} Benefits</p>
+                    {winRebates.map(r => <BreakdownRow key={`w_${r.id}`} label={`🪟 ${r.name}`} value={fmt(r.amount)} color="#F59E0B" />)}
+                    {sidRebates.map(r => <BreakdownRow key={`s_${r.id}`} label={`🏠 ${r.name}`} value={fmt(r.amount)} color="#F59E0B" />)}
+                    <div style={{ borderTop: '1px solid rgba(251,191,36,0.12)', marginTop: '8px', paddingTop: '8px' }}>
+                      <div className="flex justify-between items-center">
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#F9FAFB' }}>Net After Rebates</span>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', color: '#FCD34D', fontWeight: 700 }}>{fmt(combinedPrice - combinedRebateTotal)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <button type="button"
+                  onClick={e => { e.stopPropagation(); setConfirmPrice(combinedPrice) }}
+                  style={{ width: '100%', height: '56px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border: 'none', borderRadius: '14px', color: '#fff', fontSize: '17px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(16,185,129,0.4)' }}>
+                  Accept &amp; Send
+                </button>
+              </div>
+            )}
+
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* Costco compact box */}
+      {hasRebate && screen !== 'intro' && (
+        <div onClick={e => { e.stopPropagation(); setCostcoExpanded(v => !v) }}
+          className="fixed z-[200]"
+          style={{ bottom: '100px', right: '20px', cursor: 'pointer' }}>
+          <AnimatePresence mode="wait">
+            {costcoExpanded ? (
+              <motion.div key="exp"
+                initial={{ opacity: 0, scale: 0.9, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 8 }} transition={{ duration: 0.15 }}
+                style={{ background: 'rgba(12,16,32,0.96)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: '14px', padding: '14px', width: '200px' }}>
+                <p style={{ fontSize: '10px', color: '#F59E0B', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '10px' }}>{rebateName}</p>
+                {winRebates.map(r => (
+                  <div key={`w_${r.id}`} className="flex justify-between" style={{ marginBottom: '4px' }}>
+                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)' }}>🪟 {r.name}</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#FCD34D', fontWeight: 600 }}>{fmt(r.amount)}</span>
+                  </div>
+                ))}
+                {sidRebates.map(r => (
+                  <div key={`s_${r.id}`} className="flex justify-between" style={{ marginBottom: '4px' }}>
+                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)' }}>🏠 {r.name}</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#FCD34D', fontWeight: 600 }}>{fmt(r.amount)}</span>
+                  </div>
+                ))}
+                <div style={{ borderTop: '1px solid rgba(251,191,36,0.12)', marginTop: '8px', paddingTop: '8px' }}>
+                  <div className="flex justify-between">
+                    <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.55)' }}>Net after rebates</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: '#FCD34D', fontWeight: 700 }}>{fmt(combinedPrice - combinedRebateTotal)}</span>
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div key="col"
+                initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}
+                style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.28)', borderRadius: '12px', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '14px' }}>🏷️</span>
+                <div>
+                  <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', lineHeight: 1, marginBottom: '2px' }}>{rebateName}</p>
+                  <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', color: '#FCD34D', fontWeight: 700, lineHeight: 1 }}>-{fmt(combinedRebateTotal)}</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {safeScreen > 0 && (
+        <div className="fixed left-0 inset-y-0 z-10 flex items-center pl-3" style={{ width: '35%', pointerEvents: 'none' }}>
+          <motion.span initial={{ opacity: 0 }} animate={{ opacity: 0.25 }} transition={{ delay: 0.5 }} style={{ fontSize: '22px' }}>‹</motion.span>
+        </div>
+      )}
+      {safeScreen < screens.length - 1 && (
+        <div className="fixed right-0 inset-y-0 z-10 flex items-center justify-end pr-3" style={{ width: '35%', pointerEvents: 'none' }}>
+          <motion.span initial={{ opacity: 0 }} animate={{ opacity: 0.25 }} transition={{ delay: 0.5 }} style={{ fontSize: '22px' }}>›</motion.span>
+        </div>
+      )}
+
+      <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-col items-center px-4 pt-3"
+        style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))', background: 'rgba(10,13,26,0.95)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="flex items-center gap-2 mb-2">
+          {screens.map((_, i) => (
+            <div key={i} style={{ borderRadius: '999px', width: i === safeScreen ? '20px' : '6px', height: '6px', background: i === safeScreen ? '#10b981' : 'rgba(255,255,255,0.2)', transition: 'all 0.25s ease' }} />
+          ))}
+        </div>
+        <AnimatePresence>
+          {actionDone && (
+            <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              style={{ color: '#10b981', fontSize: '14px', textAlign: 'center', paddingBottom: '4px' }}>
+              {actionDone}
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <AnimatePresence>
+        {confirmPrice !== null && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[400] flex items-end justify-center"
+            style={{ background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
+            onClick={e => e.stopPropagation()}>
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              style={{ background: 'rgba(12,16,32,0.98)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)', borderBottom: 'none', borderRadius: '24px 24px 0 0', padding: '32px 24px', paddingBottom: 'max(32px, env(safe-area-inset-bottom, 0px) + 24px)', width: '100%', maxWidth: '480px' }}>
+              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', textAlign: 'center', marginBottom: '8px' }}>
+                Confirm Proposal
+              </p>
+              <p style={{ fontSize: '22px', fontWeight: 700, color: '#fff', textAlign: 'center', marginBottom: '28px', lineHeight: 1.3 }}>
+                Send proposal at <span style={{ color: '#10b981' }}>{fmt(confirmPrice)}</span>?
+              </p>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setConfirmPrice(null)}
+                  style={{ flex: 1, height: '52px', borderRadius: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', fontSize: '16px', fontWeight: 600, cursor: 'pointer' }}>
+                  Cancel
+                </button>
+                <button type="button" onClick={handleAcceptSend} disabled={sending}
+                  style={{ flex: 2, height: '52px', borderRadius: '12px', background: sending ? 'rgba(16,185,129,0.3)' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border: 'none', color: '#fff', fontSize: '16px', fontWeight: 700, cursor: sending ? 'default' : 'pointer', boxShadow: sending ? 'none' : '0 4px 20px rgba(16,185,129,0.4)' }}>
+                  {sending ? 'Sending…' : 'Send'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 function JobBuilderPresentView({ proposal, config, calcResult, backHref }: {
   proposal: Proposal
   config: JobTypeConfig
@@ -1236,6 +1655,12 @@ export default function PresentView({ proposal, backHref, repSettings, downloadP
   // Job Builder path — branch after all hooks
   if (isJobBuilder) {
     const snapshot = proposal.job_type_snapshot as JobTypeConfig | null
+
+    // Combined Windows + Siding job
+    if (rawPd.is_combined && snapshot) {
+      return <CombinedJobPresentView proposal={proposal} config={snapshot} backHref={backHref} />
+    }
+
     let calcResult = (rawPd?.calculator_result ?? null) as JobCalculatorResult | null
 
     if (snapshot && !calcResult) {
