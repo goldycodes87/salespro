@@ -328,6 +328,19 @@ export default function SettingsPage({
   const [assistantSaved, setAssistantSaved]     = useState(false)
   const [usesExternalQuoting, setUsesExternalQuoting] = useState<boolean>(rep.uses_external_quoting ?? false)
   const [copiedAgentmail, setCopiedAgentmail]   = useState(false)
+
+  const handleExternalQuotingToggle = async (value: boolean) => {
+    setUsesExternalQuoting(value)
+    try {
+      await fetch('/api/reps', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uses_external_quoting: value }),
+      })
+    } catch (e) {
+      console.error('Failed to save external quoting setting:', e)
+    }
+  }
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const previewVoice = async (voice_id: string) => {
@@ -880,7 +893,7 @@ export default function SettingsPage({
                 <p className="text-sm font-semibold" style={{ color: '#F9FAFB' }}>External Quoting Software</p>
                 <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>I use separate quoting software. I&apos;ll enter all prices and discount amounts directly.</p>
               </div>
-              <Toggle on={usesExternalQuoting} onToggle={() => setUsesExternalQuoting(v => !v)} />
+              <Toggle on={usesExternalQuoting} onToggle={() => handleExternalQuotingToggle(!usesExternalQuoting)} />
             </div>
           </div>
 
